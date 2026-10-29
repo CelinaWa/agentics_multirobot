@@ -2,37 +2,46 @@ Pick up the drink can standing on the desk in front of you and drop it into the 
 
 ## Scene
 
-- The robot starts standing about 0.5 m in front of a desk (desk top roughly at the robot's hip height, 0.72–0.78 m).
-- One empty aluminium drink can (330 ml: about 6.6 cm diameter, 12 cm tall) stands upright on the desk, within arm's reach (0.3–0.55 m ahead, up to 0.25 m to either side). Nothing else that matters is on the desk.
-- An open-top trash bin (opening about 25 × 25 cm, rim about 0.6 m above the floor) stands on the floor, roughly 1–1.5 m behind the robot on its left side. <!-- operator: edit the bin's position before the session if the room is different -->
-- People may be near the robot: an operator at the stop and one at the safety harness. The straps stay attached and slack.
+<!-- OPERATOR: fill in or delete each line before the session. Do not leave guesses: the agent takes this file as fact.
+     Anything left out, the agent must find by observing (it can look around by turning). -->
+
+- The robot starts standing in front of a desk, about <distance> m from its edge.
+- The object: one <description, e.g. empty 330 ml aluminium drink can, about 6.6 cm diameter, 12 cm tall>, standing upright on the desk.
+- The trash bin: open top, opening about <width> × <depth> cm, rim about <height> m above the floor, standing on the floor <direction and distance from the robot's start, e.g. "about 1.5 m behind the robot, to its left">.
+- People: an operator at the stop and one at the safety harness. The straps stay attached and slack.
 
 ## Goal and success conditions
 
-1. The can is inside the bin (visible in an observation looking down into the bin, or the bin is confirmed by the operator), not on the floor, not on the desk, not in the hand.
-2. The robot ends standing still, both arms back near the body, hands open, at least 0.5 m from the desk and the bin, facing away from both.
+1. The can is inside the bin (seen in an observation looking into the bin, or confirmed by the operator), not on the floor, not on the desk, not in the hand.
+2. The robot ends standing still, both arms back near the body, hands open, clear of the desk and the bin.
 3. The desk and the bin have not been pushed or knocked over.
 
 Report success only when all three hold. A clean tool return or a can that merely moved is not success.
 
 ## Rules for this session
 
+What the robot cannot do (tool limits, not choices):
+- It cannot step backward or sideways: `g1_walk` only moves forward along the heading plus a turn (the planner does not step backward). To get away from something, turn first.
+- It cannot squat, kneel or reach the floor. If the can falls to the floor, hold and ask the operator to reset the scene.
+
+How to work (from the harness skills; they apply anyway):
 - Explore by hand first (manual-robot-control). Only after a full successful pick-carry-drop by hand should you automate it under `code/`.
-- One can, one attempt chain. If the same grasp has failed twice on this can (missed, pushed it, knocked it over), stop and `request_operator` with what you saw; do not keep pushing the can further away.
-- If the can falls to the floor, do not try to pick it from the floor. Hold, and ask the operator to reset the scene.
-- Never walk with an arm extended or with the hand open around the can. Carry the can high and close to the body.
-- Do not approach the bin closer than about 0.3 m with the feet. Reach over the opening from there.
-- Before any turn or walk, look where you are going (active perception); the bin is behind you and people may be beside you.
-- Keep every motion small and slow; the first time you try anything on this robot is also the first time this robot does it.
+- Every motion small and slow; observe after each one and trust the measured result, not the commanded target.
+- Before any turn or walk, look where you are going; the bin may be behind you and people beside you.
 
-## Known from simulation on this robot (treat as hints, verify on the real robot)
+Limits set for this session (operator's rules):
+- One can. If the same grasp has failed twice on it (missed, pushed it, knocked it over), stop and `request_operator` with what you saw; do not keep pushing the can further away.
+- Never walk with an arm extended or with an open hand around the can. Carry the can high and close to the body.
+- Keep the feet at least about 0.3 m from the bin and the desk; reach over from there.
 
-- A side grasp works: fingers closing around the can's body at about half its height, approaching from the side at the can's height, not from above.
-- After lifting, pull the arm in and observe again before walking: a can that was only pushed over can look lifted while the arm hides it. Check that the can is no longer on the desk and that there are depth points where the hand holds it.
-- The pelvis moves back 5–10 cm whenever an arm reaches far forward while leaning. Expect the hand to land short; re-observe after the reach instead of trusting the commanded target.
-- Walking commands are conservative: a 1 m walk came out at roughly 0.8 m and a 30° turn at about 22° in simulation. Walk in short legs, re-localize the bin after each leg.
-- Approach the bin on the carrying hand's side. Release above the centre of the opening at about hip height, not near a wall of the bin: a can released 3 cm from the wall bounced out.
-- Short carrying walks near the bin can march in place without advancing. If two legs did not advance, lean toward the bin instead of walking again, or ask the operator.
+## Known from simulation on this robot (hints, not rules: verify on the real robot)
+
+- A side grasp worked: fingers closing around the can's body at about half its height, approaching at the can's height, not from above.
+- After lifting, pull the arm in and observe again before walking: a can that was only pushed over can look lifted while the arm hides it.
+- The pelvis moves back 5–10 cm whenever an arm reaches far forward while leaning; the hand lands short of the target.
+- Walks are conservative (a 1 m command gave about 0.8 m, a 30° turn about 22°). Walk in short legs and re-localize the bin after each.
+- Approach the bin on the carrying hand's side and release above the centre of the opening, not near its wall (a can released 3 cm from the wall bounced out).
+- Short carrying walks near the bin sometimes marched in place. If two legs did not advance, lean toward the bin instead, or ask the operator.
 
 ## Ask the operator (`request_operator`) when
 
