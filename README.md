@@ -46,7 +46,7 @@ bash setup_rax_host.sh --with-sonic
 它做的事：
 1. 建两个 venv：`~/envs/rax-g1`（robot service，装 `requirements-robot.txt`）、`~/envs/rax-agent`（agent 自己的环境，不带任何机器人包）。
 2. 写 `~/.g1_up.env`（来自 `g1_up.env.same_host.example`）和 `~/g1_real_options.json`（来自 `docs/g1_real_options.example.json`）。
-3. `--with-sonic`：clone `Jay-Ye/GR00T-WholeBodyControl` 到 `~/GR00T-WholeBodyControl`，checkout `sonic/GR00T_WBC_COMMIT.txt` 里的 commit；
+3. `--with-sonic`：clone `Jinghy123/GR00T-WholeBodyControl`（公开 fork，含 pinned commit） 到 `~/GR00T-WholeBodyControl`，checkout `sonic/GR00T_WBC_COMMIT.txt` 里的 commit；
    把 `sonic/reference_standing/stand_000` 拷进 `gear_sonic_deploy/reference/standing/`；用 `sonic/download_models.py` 下载
    **SONIC v1.1** 模型（encoder、decoder、observation_config、planner）并用 `sonic/models.sha256` 校验，不对就退出；
    跑 `scripts/install_deps.sh`（apt，要 sudo）和 `just build` 编译。

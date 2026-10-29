@@ -34,14 +34,17 @@ fi
 [ -f "$HOME/g1_real_options.json" ] || { cp "$HERE/docs/g1_real_options.example.json" "$HOME/g1_real_options.json"; echo "wrote ~/g1_real_options.json - fill in state_host (127.0.0.1 for same-host SONIC) and camera_host"; }
 
 # unit tests that need no robot
+"$ENVS/rax-g1/bin/python" -m pip install -q pytest
 "$ENVS/rax-g1/bin/python" -m pytest -q "$HERE/rax/local_tests/unit/test_g1sonic_backend.py" -x 2>&1 | tail -3 || true
 
 if [ "$WITH_SONIC" = 1 ]; then
     SONIC_DIR=${SONIC_DIR:-$HOME/GR00T-WholeBodyControl}
     COMMIT=$(cat "$HERE/sonic/GR00T_WBC_COMMIT.txt")
     echo "=== SONIC: $SONIC_DIR @ ${COMMIT:0:7}"
-    [ -d "$SONIC_DIR/.git" ] || git clone https://github.com/Jay-Ye/GR00T-WholeBodyControl.git "$SONIC_DIR"
-    git -C "$SONIC_DIR" fetch -q origin && git -C "$SONIC_DIR" checkout -q "$COMMIT"
+    [ -d "$SONIC_DIR/.git" ] || git clone https://github.com/Jinghy123/GR00T-WholeBodyControl.git "$SONIC_DIR"
+    git -C "$SONIC_DIR" fetch -q origin || true
+    git -C "$SONIC_DIR" cat-file -e "$COMMIT^{commit}" 2>/dev/null || git -C "$SONIC_DIR" fetch -q https://github.com/Jinghy123/GR00T-WholeBodyControl.git "$COMMIT"
+    git -C "$SONIC_DIR" checkout -q "$COMMIT"
     DEPLOY="$SONIC_DIR/gear_sonic_deploy"
     # the standing-only reference the console's 's' uses
     mkdir -p "$DEPLOY/reference/standing" && cp -r "$HERE/sonic/reference_standing/stand_000" "$DEPLOY/reference/standing/"
