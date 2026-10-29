@@ -39,7 +39,7 @@ requirements-*.txt   robot service 环境 / agent 环境 / 相机机器
 ```bash
 git clone https://github.com/CelinaWa/agentics_multirobot.git ~/agentics_multirobot
 cd ~/agentics_multirobot
-sudo apt install -y tmux
+sudo apt install -y tmux bubblewrap socat   # bubblewrap + socat: Claude Code 的沙箱，缺了 agent 直接拒绝启动
 bash setup_rax_host.sh --with-sonic
 ```
 
@@ -186,6 +186,13 @@ agent 在 sim 里**没有**端到端跑过（sim 的 900 多个 session 是脚�
 4. 机器人关机、取电池。
 
 ---
+
+## 6.5 在 DGX sim 里用真 agent 跑过一次（2026-10-29）
+
+`start_agent.sh` + Claude Code（不是脚本）在 sim2sim 里跑了 `tasks/crouch_pick.md` 的 sim 版本：robot service、MCP、console 的 arm/reply、
+`request_operator`、`g1_observe`/`g1_pixel_to_position`/`g1_crouch`/`g1_free_space_move` 都被 agent 正常调用，agent 自己量了蹲 0.1/0.2 m 的
+骨盆高度和倾角、发现场景摆错时停下来问人。暴露出的两点：(1) 主机必须装 `bubblewrap socat`（上面已加）；(2) Docker 容器里沙箱建不了
+user namespace，agent 的 Bash 用不了，所以 sim 里只验证了手动调工具的路径，`code/` 下写控制器和 skill library 提交要在真主机上才跑得通。
 
 ## 7. 已知的坑 / 还没验证的事
 

@@ -11,6 +11,9 @@ ENVS=${ENVS:-$HOME/envs}
 PY=${PYTHON:-python3}
 command -v "$PY" >/dev/null || { echo "need python3 (3.10+)"; exit 1; }
 command -v tmux >/dev/null || echo "WARNING: tmux missing (sudo apt install tmux) - scripts/g1_up.sh needs it"
+for tool in bwrap socat; do
+    command -v $tool >/dev/null || echo "WARNING: $tool missing (sudo apt install bubblewrap socat) - Claude Code's sandbox refuses to start without it"
+done
 
 mkdir -p "$ENVS"
 for env in rax-g1:requirements-robot.txt rax-agent:requirements-agent.txt; do
