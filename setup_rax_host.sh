@@ -65,7 +65,7 @@ if [ "$WITH_SONIC" = 1 ]; then
         # C++ deps (apt/sudo: unitree_sdk2, yaml-cpp, zmq, cmake, clang, just) and the build. Needs CUDA + TensorRT 10
         # already installed (the sim container had TensorRT 10.13 / CUDA 12.9); install_deps.sh does not install those.
         (cd "$DEPLOY" && chmod +x scripts/install_deps.sh && ./scripts/install_deps.sh)
-        (cd "$DEPLOY" && set +e && source scripts/setup_env.sh && set -e && just build)
+        (cd "$DEPLOY" && set +eu && source scripts/setup_env.sh && set -eu && just build)   # setup_env.sh reads unset vars
         echo "SONIC built. The TensorRT engines (*.trt) are generated on the first deploy.sh run (several minutes)."
     fi
     [ -f "$HOME/.g1_up.env" ] && sed -i "s|^SONIC_DEPLOY_DIR=.*|SONIC_DEPLOY_DIR=$DEPLOY|" "$HOME/.g1_up.env"
