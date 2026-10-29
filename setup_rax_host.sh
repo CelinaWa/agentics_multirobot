@@ -4,6 +4,7 @@
 #   bash setup_rax_host.sh                 # envs under $HOME/envs
 #   bash setup_rax_host.sh --with-sonic    # also clone + build SONIC and fetch its models (sonic/SONIC_SETUP.md)
 #   ENVS=/data/envs SONIC_DIR=/data/GR00T-WholeBodyControl bash setup_rax_host.sh --with-sonic
+#   SONIC_DIR=/home/<user>/GR00T-WholeBodyControl bash setup_rax_host.sh --with-sonic   # reuse the SONIC MA-Teleop already runs
 set -euo pipefail
 WITH_SONIC=0; [ "${1:-}" = "--with-sonic" ] && WITH_SONIC=1
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -41,22 +42,32 @@ if [ "$WITH_SONIC" = 1 ]; then
     SONIC_DIR=${SONIC_DIR:-$HOME/GR00T-WholeBodyControl}
     COMMIT=$(cat "$HERE/sonic/GR00T_WBC_COMMIT.txt")
     echo "=== SONIC: $SONIC_DIR @ ${COMMIT:0:7}"
-    [ -d "$SONIC_DIR/.git" ] || git clone https://github.com/Jinghy123/GR00T-WholeBodyControl.git "$SONIC_DIR"
-    git -C "$SONIC_DIR" fetch -q origin || true
-    git -C "$SONIC_DIR" cat-file -e "$COMMIT^{commit}" 2>/dev/null || git -C "$SONIC_DIR" fetch -q https://github.com/Jinghy123/GR00T-WholeBodyControl.git "$COMMIT"
-    git -C "$SONIC_DIR" checkout -q "$COMMIT"
-    DEPLOY="$SONIC_DIR/gear_sonic_deploy"
-    # the standing-only reference the console's 's' uses
-    mkdir -p "$DEPLOY/reference/standing" && cp -r "$HERE/sonic/reference_standing/stand_000" "$DEPLOY/reference/standing/"
-    # the v1.1 model set we validated (the checkout's own observation_config.yaml is the OLD v1.0 one and gets replaced)
-    "$ENVS/rax-g1/bin/python" -m pip install -q "huggingface_hub>=0.23"
-    "$ENVS/rax-g1/bin/python" "$HERE/sonic/download_models.py" "$DEPLOY"
-    (cd "$DEPLOY" && sha256sum -c "$HERE/sonic/models.sha256") || { echo "MODEL HASH MISMATCH: do not deploy"; exit 1; }
-    # C++ deps (apt/sudo: unitree_sdk2, yaml-cpp, zmq, cmake, clang, just) and the build. Needs CUDA + TensorRT 10
-    # already installed (the sim container had TensorRT 10.13 / CUDA 12.9); install_deps.sh does not install those.
-    (cd "$DEPLOY" && chmod +x scripts/install_deps.sh && ./scripts/install_deps.sh)
-    (cd "$DEPLOY" && set +e && source scripts/setup_env.sh && set -e && just build)
-    echo "SONIC built. The TensorRT engines (*.trt) are generated on the first deploy.sh run (several minutes)."
+    if [ -d "$SONIC_DIR/.git" ]; then
+        # An existing SONIC (e.g. the one MA-Teleop already runs on this host): reuse it, never check anything out in it.
+        HEAD=$(git -C "$SONIC_DIR" rev-parse HEAD)
+        echo "existing checkout, reusing it as is: HEAD ${HEAD:0:7} (sim-validated commit ${COMMIT:0:7})"
+        [ "$HEAD" = "$COMMIT" ] || echo "NOTE: not the sim-validated commit; see sonic/SONIC_SETUP.md 'Reusing an existing SONIC'"
+        DEPLOY=$SONIC_DIR/gear_sonic_deploy; [ -d "$DEPLOY" ] || DEPLOY=$SONIC_DIR/gear_sonic_deploy_inference
+        mkdir -p "$DEPLOY/reference/standing" && cp -r "$HERE/sonic/reference_standing/stand_000" "$DEPLOY/reference/standing/"
+        (cd "$DEPLOY" && sha256sum -c --quiet "$HERE/sonic/models.sha256") && echo "models: the v1.1 set validated in sim" \
+            || echo "NOTE: model files differ from the v1.1 set validated in sim (sha256sum -c sonic/models.sha256 in $DEPLOY shows which)"
+        echo "nothing rebuilt; the existing build is used"
+    else
+        git clone https://github.com/Jinghy123/GR00T-WholeBodyControl.git "$SONIC_DIR"
+        git -C "$SONIC_DIR" checkout -q "$COMMIT"
+        DEPLOY="$SONIC_DIR/gear_sonic_deploy"
+        # the standing-only reference the console's 's' uses
+        mkdir -p "$DEPLOY/reference/standing" && cp -r "$HERE/sonic/reference_standing/stand_000" "$DEPLOY/reference/standing/"
+        # the v1.1 model set we validated (the checkout's own observation_config.yaml is the OLD v1.0 one and gets replaced)
+        "$ENVS/rax-g1/bin/python" -m pip install -q "huggingface_hub>=0.23"
+        "$ENVS/rax-g1/bin/python" "$HERE/sonic/download_models.py" "$DEPLOY"
+        (cd "$DEPLOY" && sha256sum -c "$HERE/sonic/models.sha256") || { echo "MODEL HASH MISMATCH: do not deploy"; exit 1; }
+        # C++ deps (apt/sudo: unitree_sdk2, yaml-cpp, zmq, cmake, clang, just) and the build. Needs CUDA + TensorRT 10
+        # already installed (the sim container had TensorRT 10.13 / CUDA 12.9); install_deps.sh does not install those.
+        (cd "$DEPLOY" && chmod +x scripts/install_deps.sh && ./scripts/install_deps.sh)
+        (cd "$DEPLOY" && set +e && source scripts/setup_env.sh && set -e && just build)
+        echo "SONIC built. The TensorRT engines (*.trt) are generated on the first deploy.sh run (several minutes)."
+    fi
     [ -f "$HOME/.g1_up.env" ] && sed -i "s|^SONIC_DEPLOY_DIR=.*|SONIC_DEPLOY_DIR=$DEPLOY|" "$HOME/.g1_up.env"
 fi
 echo "done. Next: 'bash rax/scripts/g1_up.sh check' on the first robot day (README.md)"

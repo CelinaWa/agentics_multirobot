@@ -27,6 +27,25 @@ source scripts/setup_env.sh && just build
 
 Needs CUDA 12 + TensorRT 10 on the machine (the sim container: TensorRT 10.13, CUDA 12.9); `install_deps.sh` installs the rest (unitree_sdk2, yaml-cpp, zmq, clang, just). The machine needs a wired NIC on the robot network `192.168.123.x`; `deploy.sh real` auto-detects it.
 
+## Reusing an existing SONIC (the one MA-Teleop already runs)
+
+Preferred when the host already drives the real G1 with MA-Teleop (`~/GR00T-WholeBodyControl/gear_sonic_deploy_inference`,
+`./deploy.sh real --input-type zmq_manager`): that build is proven on the robot. Point the script at it and it reuses it untouched:
+
+```bash
+SONIC_DIR=/home/<that user>/GR00T-WholeBodyControl bash setup_rax_host.sh --with-sonic
+```
+
+It only adds `reference/standing/` and reports two things, both informational:
+
+- the commit vs the sim-validated `GR00T_WBC_COMMIT.txt` (6c821f1). The fork commits after NVIDIA upstream touch the streamed
+  mode our backend uses (observation window capped at 10 frames, heading re-initialisation on mode switch, `--default-motion`),
+  so a different commit means the first `g1_check_all.sh` is also a check of those differences, not a formality;
+- the model files vs `models.sha256` (v1.1 encoder `fb97de22…`; v1.0 is `013ab028…`). Sim validation used v1.1.
+
+Then set `SONIC_DEPLOY_DIR` in `~/.g1_up.env` to that deploy directory. MA-Teleop's `g1_client` and the RAX robot service
+must never run at the same time (both command port 5556).
+
 ## Launch (every power-on) — `rax/scripts/g1_up.sh` opens this in the `sonic` pane
 
 ```bash
