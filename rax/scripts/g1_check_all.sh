@@ -40,9 +40,10 @@ echo "motion check, session $ROOT" | tee -a "$LOG"
 ask "Robot in the gantry, SONIC window shows 'Init Done' (it ramped to its standing pose while hanging). Console window open. Start?"
 step status
 step disarmed
-ask "LOWER the gantry until the robot STANDS ON ITS FEET and the straps go SLACK (still attached; the INIT pose is rigid, it stands like a statue). Only then console: press s.
-    (With the feet off the floor, or only touching it, SONIC paddles its legs: in sim 35 rad/s hanging, never quiet; feet loaded: still in 3 s.)
-    The robot settles on its feet; when it is still: press SPACE (arm). Then ENTER here."
+ask "LOWER the gantry until the FEET CARRY the robot, the straps still lightly supporting it (after Init Done it is a rigid PD-held
+    statue with no balance: it topples if the straps go fully slack now). Then console: press s. Within a few seconds after s,
+    SLACKEN the straps completely (attached, no load: a strap pulling on the pelvis makes the balancing policy oscillate).
+    Never press s with the feet off the floor (SONIC paddles its legs in the air). When it is still: press SPACE (arm). Then ENTER here."
 step hold
 step arms
 step waist
