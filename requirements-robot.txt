@@ -1,0 +1,10 @@
+# Robot-service env (RAX_PYTHON): the RAX frontend/backend, the operator console and scripts/g1_motion_check.py.
+# No Unitree SDK: SONIC owns the motors; RAX talks to SONIC over ZeroMQ.
+numpy>=1.24
+scipy>=1.10
+opencv-python-headless>=4.8
+pyzmq>=25
+jinja2>=3.1
+msgpack>=1.0
+pyyaml>=6.0
+pillow>=10.0

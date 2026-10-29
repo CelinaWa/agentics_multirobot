@@ -1,0 +1,6 @@
+# On the machine the camera is plugged into (G1 Jetson for the stock RealSense; the RAX/SONIC host for a USB ZED).
+numpy
+opencv-python-headless
+pillow
+pyrealsense2        # --camera realsense (D435 in the G1 head)
+# pyzed             # --camera zedsdk: comes with the ZED SDK installer, not from pip

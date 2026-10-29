@@ -1,0 +1,39 @@
+# Registry of reusable text blocks (agent_blocks/<path>), referenced from sources as
+# {{ block("<id>") }}. IDs are stable and never reused; a later evolution loop edits
+# `mutable` blocks by ID (deltas), while `core` blocks encode contracts and safety.
+#
+# [[block]]
+# id = "robot.stop-before-intervening"
+# path = "robot/stop-before-intervening.md"
+# tier = "core"            # core | mutable
+
+[[block]]
+id = "session.contract-pointer"
+path = "session/contract-pointer.md"
+tier = "core"
+
+[[block]]
+id = "images.forwarding"
+path = "images/forwarding.md"
+tier = "core"
+
+# The real G1 + Dex3 under the frozen SONIC controller (services/g1sonic).
+[[block]]
+id = "g1sonic.tracking-loop"
+path = "g1sonic/tracking-loop.md"
+tier = "mutable"
+
+[[block]]
+id = "g1sonic.field-guide-legend"
+path = "g1sonic/field-guide-legend.md"
+tier = "core"
+
+[[block]]
+id = "g1sonic.perception-checks"
+path = "g1sonic/perception-checks.md"
+tier = "mutable"
+
+[[block]]
+id = "g1sonic.robust-detection"
+path = "g1sonic/robust-detection.md"
+tier = "mutable"

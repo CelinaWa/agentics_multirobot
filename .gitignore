@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+# runtime output of sessions and checks: never commit
+**/runtime/
+**/sessions/
+*.log
+# local settings with IPs/paths and anything with tokens
+g1_up.env
+g1_real_options.json
+operator-input.json
+.claude-experiment/
+*.onnx
+*.trt
+*.engine

@@ -1,0 +1,33 @@
+--- gear_sonic_deploy/src/g1/g1_deploy_onnx_ref/src/g1_deploy_onnx_ref.cpp	2026-04-29 13:36:28.894527795 -0700
++++ gear_sonic_deploy/src/g1/g1_deploy_onnx_ref/src/g1_deploy_onnx_ref.cpp	2026-10-22 00:20:16.000000000 -0700
+@@ -2616,8 +2616,13 @@
+       input_thread_ptr_ = CreateRecurrentThreadEx("Input", UT_CPU_ID_NONE, input_dt_ * 1e6, &G1Deploy::Input, this);
+       command_writer_ptr_ = CreateRecurrentThreadEx("command_writer", UT_CPU_ID_NONE, publish_dt_ * 1e6,
+                                                     &G1Deploy::LowCommandWriter, this);
++      // SONIC_TIME_SCALE > 1 stretches the control period in wall time only (each tick is still control_dt_ of
++      // robot time): a lockstepped simulator on a busy host then keeps up instead of feeding the policy stale states.
++      double time_scale = 1.0;
++      if (const char* ts = std::getenv("SONIC_TIME_SCALE")) { time_scale = std::max(1.0, std::atof(ts)); }
++      if (time_scale != 1.0) { std::cout << "[time scale] control period " << control_dt_ * time_scale << " s wall per " << control_dt_ << " s tick" << std::endl; }
+       control_thread_ptr_ =
+-          CreateRecurrentThreadEx("control", UT_CPU_ID_NONE, control_dt_ * 1e6, &G1Deploy::Control, this);
++          CreateRecurrentThreadEx("control", UT_CPU_ID_NONE, control_dt_ * time_scale * 1e6, &G1Deploy::Control, this);
+       
+       if (planner_) {
+         planner_thread_ptr_ =
+@@ -3339,6 +3344,15 @@
+           int new_frame = current_frame_ + 1;
+             if (new_frame >= current_motion_->timesteps) {
+               new_frame = current_motion_->timesteps - 1; // Clamp to last frame
++              {  // diagnostics: playback ran out of planner frames (a late plan freezes the reference)
++                static int clamp_count = 0;
++                auto msd = movement_state_buffer_.GetDataWithTime().data;
++                int mode = msd ? msd->locomotion_mode : -1;
++                if (mode != static_cast<int>(LocomotionMode::IDLE) && (clamp_count++ % 25) == 0) {
++                  std::cout << "[planner-starved] playback clamped at frame " << new_frame << " (mode " << mode
++                            << ", count " << clamp_count << ")" << std::endl;
++                }
++              }
+               // Error-based readaptation in idle mode with double-threshold state machine.
+               // IDLE: do nothing. ADAPTING: blend toward robot state. RECOVERING: blend toward planner target.
+               auto movement_state_data = movement_state_buffer_.GetDataWithTime().data;

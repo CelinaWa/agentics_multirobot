@@ -1,0 +1,6 @@
+# Agent env (RAX_AGENT_PYTHON): what the Claude agent's own scripts import inside the sandbox.
+# Deliberately no robot or network-to-robot packages: the robot is reachable only through the MCP socket.
+numpy>=1.24
+scipy>=1.10
+opencv-python-headless>=4.8
+pillow>=10.0

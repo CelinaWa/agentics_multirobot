@@ -1,0 +1,17 @@
+{
+  "zmq_host": "0.0.0.0",
+  "pose_port": 5556,
+  "state_host": "<SONIC 主机的 IP，和 SONIC 主机是同一台就写 127.0.0.1>",
+  "state_port": 5557,
+  "wall_time_scale": 1.0,
+  "state_max_age_s": 0.2,
+  "planner_settle_s": 3.0,
+  "settle_timeout_s": 15.0,
+  "console_start_mode": "stand",
+  "console_start_timeout_s": 180.0,
+  "fall_tilt_deg": 60.0,
+  "camera": "network",
+  "camera_host": "192.168.123.164",
+  "camera_port": 7790,
+  "camera_pose_override": null
+}
