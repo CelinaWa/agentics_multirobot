@@ -36,7 +36,7 @@ fi
 
 # unit tests that need no robot
 "$ENVS/rax-g1/bin/python" -m pip install -q pytest
-"$ENVS/rax-g1/bin/python" -m pytest -q "$HERE/rax/local_tests/unit/test_g1sonic_backend.py" -x 2>&1 | tail -3 || true
+(cd "$HERE/rax" && "$ENVS/rax-g1/bin/python" -m pytest -q local_tests/unit/test_g1sonic_backend.py -x 2>&1 | tail -3) || true   # imports resolve from rax/
 
 if [ "$WITH_SONIC" = 1 ]; then
     SONIC_DIR=${SONIC_DIR:-$HOME/GR00T-WholeBodyControl}

@@ -68,14 +68,14 @@ bash setup_rax_host.sh --with-sonic
 `~/g1_real_options.json`：`state_host` 填 `127.0.0.1`，`camera_host` 填 Jetson IP，其它保持默认（`camera: "network"`、端口 7790、`console_start_mode: "stand"`）。
 
 没机器人时能验证到哪：`cd ~/GR00T-WholeBodyControl/gear_sonic_deploy && ./deploy.sh --help` 能打印出用法说明编译是好的；
-`~/envs/rax-g1/bin/python -m pytest rax/local_tests/unit -q -k g1sonic` 全绿。
+`cd rax && ~/envs/rax-g1/bin/python -m pytest local_tests/unit -q -k g1sonic` 全绿（要在 `rax` 目录里跑，测试从那里 import）。
 
 ### 1.5 装完之后、没机器人时就能做的事（照顺序敲）
 
 ```bash
 # a. 编译和单元测试（约 2 分钟）
 cd ~/GR00T-WholeBodyControl/gear_sonic_deploy && ./deploy.sh --help          # 能打印用法 = 编译没问题
-~/envs/rax-g1/bin/python -m pytest ~/agentics_multirobot/rax/local_tests/unit -q -k g1sonic   # 应全绿
+cd ~/agentics_multirobot/rax && ~/envs/rax-g1/bin/python -m pytest local_tests/unit -q -k g1sonic   # 必须在 rax 目录里跑；应全绿
 
 # b. 两份设置文件（上面的表）
 nano ~/.g1_up.env            # ROBOT_IP / JETSON_SSH 改成 Jetson 的；RAX_HOST_IP=127.0.0.1；SONIC_SSH 留空
