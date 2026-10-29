@@ -53,5 +53,5 @@ if [ "$WITH_SONIC" = 1 ]; then
     echo "SONIC built. The TensorRT engines (*.trt) are generated on the first deploy.sh run (several minutes)."
     [ -f "$HOME/.g1_up.env" ] && sed -i "s|^SONIC_DEPLOY_DIR=.*|SONIC_DEPLOY_DIR=$DEPLOY|" "$HOME/.g1_up.env"
 fi
-echo "done. Next: ${WITH_SONIC:+}'bash rax/scripts/g1_up.sh check' (first robot day) — see README.md"
+echo "done. Next: 'bash rax/scripts/g1_up.sh check' on the first robot day (README.md)"
 [ "$WITH_SONIC" = 1 ] || echo "SONIC not set up: re-run with --with-sonic, or follow sonic/SONIC_SETUP.md by hand"
