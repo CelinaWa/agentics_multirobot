@@ -83,7 +83,7 @@ nano ~/g1_real_options.json  # state_host 127.0.0.1，camera_host 填 Jetson IP
 
 # c. Claude Code + 登录（agent 模式用，第 5 节）
 curl -fsSL https://claude.ai/install.sh | bash     # 原生安装到 ~/.local/bin，不需要 node；之后 export PATH="$HOME/.local/bin:$PATH"
-cd ~/agentics_multirobot/rax && ~/envs/rax-g1/bin/python -m harness.claude_cli.experiment_login
+cd ~/agentics_multirobot/rax && bash scripts/setup_claude_experiment_login.sh --personal   # 用你自己登录的账号付费；去掉 --personal 则用单独的实验账号
 
 # d. 预检（不动机器人；没接机器人时 ping Jetson 这一项会失败，其它项应全过）
 cd ~/agentics_multirobot/rax && bash scripts/g1_up.sh check --preflight-only
@@ -165,7 +165,7 @@ cd ~/agentics_multirobot/rax && bash scripts/g1_up.sh check --quick-check
 
 ```bash
 curl -fsSL https://claude.ai/install.sh | bash     # 原生安装到 ~/.local/bin，不需要 node；之后 export PATH="$HOME/.local/bin:$PATH"
-cd ~/agentics_multirobot/rax && ~/envs/rax-g1/bin/python -m harness.claude_cli.experiment_login
+cd ~/agentics_multirobot/rax && bash scripts/setup_claude_experiment_login.sh --personal   # 用你自己登录的账号付费；去掉 --personal 则用单独的实验账号
 ```
 登录流程、账号选择、`--personal` 的含义：`docs/AGENT_WORKFLOW.md`。
 
