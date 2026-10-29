@@ -81,6 +81,7 @@ DEFAULTS = {
     'walk_turn_speed_mps': 0.1,       # turns step forward this slowly; 0 pivots in place (fine in chains of turns,
                                       # but a pivot right after a walk, feet 24 cm staggered, fell)
     'start_timeout_s': 8.0,           # state must flow this soon after the backend starts the stack's control
+    'crouch_arms_home_s': 2.0,        # g1_crouch: the arms return to the standing pose over this before the legs rise
     'stand_ramp_s': 1.5,              # after a fresh start, the hold eases from the measured stance to SONIC's default
                                       # standing pose over this long (0: hold the measured stance)
     'planner_settle_s': 3.0,          # after a fresh start, the least time the robot stands under the stack's planner
@@ -132,6 +133,7 @@ class G1SonicBackend:
         limits = self.model.limits(list(R.JOINT_NAMES))
         self.lower = np.array([limits[name][0] for name in R.JOINT_NAMES])
         self.upper = np.array([limits[name][1] for name in R.JOINT_NAMES])
+        self._ankle_z_standing = self._ankle_height(R.DEFAULT_STANDING)  # the leg kinematics' reference for crouch depth
         self.state = state if state is not None else StateSubscriber(
             o['state_host'], o['state_port'], o['state_topic'], joint_order=o['state_joint_order'], clock=clock).start()
         self.publisher = None
@@ -196,6 +198,8 @@ class G1SonicBackend:
             self._require_armed(start=False) if not arguments.get('preview_only') else self._snapshot()
         elif name == T.WALK:
             self._require_armed(start=False)
+        elif name == T.CROUCH:
+            self._require_armed(start=False)
         elif name == T.EXECUTE_PLAN:
             self._require_armed(start=False)
             plan = self.plans.get(arguments['motion_plan_id'])
@@ -220,7 +224,7 @@ class G1SonicBackend:
             return self._hold()
         if name == T.PIXEL_TO_POSITION:
             return self._pixel_to_position(arguments), []
-        if name in (T.STEP, T.FREE_SPACE_MOVE, T.EXECUTE_PLAN, T.WALK):
+        if name in (T.STEP, T.FREE_SPACE_MOVE, T.EXECUTE_PLAN, T.WALK, T.CROUCH):
             try:
                 if name == T.STEP:
                     return self._step(np.asarray(arguments['actions'], dtype=float), 'semantic40')
@@ -228,6 +232,8 @@ class G1SonicBackend:
                     return self._free_space_move(**arguments)
                 if name == T.EXECUTE_PLAN:
                     return self._execute_plan(arguments['motion_plan_id'])
+                if name == T.CROUCH:
+                    return self._crouch(**arguments)
                 return self._walk(**arguments)
             finally:
                 self._motion_ended = self.wall()  # observations wait for an image captured after this
@@ -552,6 +558,91 @@ class G1SonicBackend:
             transition = {'kind': kind, 'control_frequency_hz': o['control_hz'], 'feedback': feedback, 'steps': steps,
                           **(extra or {})}
             return self._observation_packet(transition=transition)
+
+    # ----- crouch ---------------------------------------------------------------------------
+    def _ankle_height(self, q, base_quat=None):
+        """Mean vertical offset of the two ankle links from the pelvis (negative, metres), from the leg kinematics;
+        with `base_quat`, measured along the world's vertical instead of the pelvis's."""
+        joints = dict(zip(R.JOINT_NAMES, np.asarray(q, dtype=float).tolist()))
+        points = [self.model.link_transform(f'{side}_ankle_roll_link', joints)[:3, 3] for side in ('left', 'right')]
+        if base_quat is not None:
+            from .g1.model import quat_to_matrix
+            rotation = quat_to_matrix(np.asarray(base_quat, dtype=float))
+            points = [rotation @ point for point in points]
+        return float(np.mean([point[2] for point in points]))
+
+    def pelvis_height_estimate(self, q, base_quat=None):
+        """Pelvis height above the floor (m), assuming both feet flat: the standing height measured in simulation
+        minus how far the ankles have risen toward the pelvis."""
+        return T.STANDING_PELVIS_M + (self._ankle_z_standing - self._ankle_height(q, base_quat))
+
+    def _crouch(self, pelvis_drop_m=0.0, lean_rad=0.0, forward_rad=0.0, secs=4.0, arms_home=True):
+        """Legs-only posture change from the held frame: a smoothstep to the symmetric squat of CROUCH_TABLE (knee +d,
+        ankle down by d/2 within its margin, hip taking the rest) at the given waist lean, every other joint as held.
+        Rising with arms out first takes the arms home: a 1.5 s stand from a squat with a lean and an arm out fell twice
+        in simulation, standing with the arms home first did not."""
+        o = self.options
+        hz = o['control_hz']
+        J = {name: index for index, name in enumerate(R.JOINT_NAMES)}
+        base = np.asarray(R.DEFAULT_STANDING, dtype=float)
+        snap = self._require_armed()  # starts the stack's control, or takes over a running one, like g1_step
+        if self.control_mode != 'streamed':
+            raise RejectedBeforeAction(f'{T.CROUCH} starts from a held frame; the robot is {self.control_mode}: '
+                                       f'call {T.HOLD} first')
+        held = self._held_frame(snap)  # the last row on the wire, or the measured pose a fresh hold primed
+        q0 = held[R.JOINTS].copy()
+        d = float(np.interp(pelvis_drop_m, [drop for drop, _ in T.CROUCH_TABLE], [knee for _, knee in T.CROUCH_TABLE]))
+        margin = o['joint_limit_margin_rad']
+        ankle_floor = float(max(self.lower[J[f'{side}_ankle_pitch_joint']] + margin - base[J[f'{side}_ankle_pitch_joint']]
+                                for side in ('left', 'right')))  # the ankle pitches down at most to its limit's margin
+        ankle = max(-d / 2, ankle_floor)
+        goal = q0.copy()
+        for side in ('left', 'right'):
+            goal[J[f'{side}_knee_joint']] = base[J[f'{side}_knee_joint']] + d
+            goal[J[f'{side}_ankle_pitch_joint']] = base[J[f'{side}_ankle_pitch_joint']] + ankle - forward_rad
+            goal[J[f'{side}_hip_pitch_joint']] = base[J[f'{side}_hip_pitch_joint']] - d - ankle + forward_rad
+            for name in ('hip_roll', 'hip_yaw', 'ankle_roll'):  # a walk may have left these anywhere
+                goal[J[f'{side}_{name}_joint']] = base[J[f'{side}_{name}_joint']]
+        goal[J['waist_pitch_joint']] = lean_rad
+        goal[J['waist_roll_joint']] = base[J['waist_roll_joint']]
+        clipped_goal = np.clip(goal, self.lower + margin, self.upper - margin)
+        clipped = [R.JOINT_NAMES[j] for j in np.where(np.abs(clipped_goal - goal) > 1e-9)[0]]
+        goal = clipped_goal
+        knees = [J['left_knee_joint'], J['right_knee_joint']]
+        arms = [J[f'{side}_{name}_joint'] for side in ('left', 'right')
+                for name in ('shoulder_pitch', 'shoulder_roll', 'shoulder_yaw', 'elbow', 'wrist_roll', 'wrist_pitch', 'wrist_yaw')]
+        rising = float(np.mean(q0[knees] - base[knees])) > d + 0.1
+        arms_out = float(np.abs(q0[arms] - base[arms]).max()) > 0.05
+
+        def smooth(start, end, ticks):
+            rows = []
+            for i in range(1, max(2, ticks) + 1):
+                u = i / max(2, ticks)
+                row = held.copy()
+                row[R.JOINTS] = start + (end - start) * (u * u * (3 - 2 * u))
+                rows.append(row)
+            return rows
+
+        rows, phases = [], []
+        if arms_home and rising and arms_out:
+            arm_goal = q0.copy()
+            arm_goal[arms] = base[arms]
+            goal[arms] = base[arms]
+            rows += smooth(q0, arm_goal, int(round(o['crouch_arms_home_s'] * hz)))
+            phases.append('arms home')
+            q0 = arm_goal
+        rows += smooth(q0, goal, int(round(secs * hz)))
+        phases.append('rise' if rising else 'crouch')
+        rows += [rows[-1].copy() for _ in range(o['rest_tail_rows'])]
+        report = {'pelvis_drop_m': pelvis_drop_m, 'knee_flexion_rad': round(d, 4), 'ankle_pitch_rad': round(ankle - forward_rad, 4),
+                  'lean_rad': lean_rad, 'forward_rad': forward_rad, 'phases': phases, 'clipped_to_limits': clipped,
+                  'pelvis_height_est_m': {'before': round(self.pelvis_height_estimate(snap.q, snap.base_quat), 3),
+                                          'goal': round(self.pelvis_height_estimate(goal), 3)}}
+        value, images = self._step(np.asarray(rows), 'crouch', {'crouch': report})
+        latest = self.state.latest()
+        if latest is not None:
+            report['pelvis_height_est_m']['after'] = round(self.pelvis_height_estimate(latest.q, latest.base_quat), 3)
+        return value, images
 
     def _walk(self, forward_m=0.0, turn_deg=0.0, speed_mps=0.3, carry=False):
         """Long walks run as segments of at most `walk_segment_m`, each with its own planner start and stop: the
@@ -934,7 +1025,8 @@ class G1SonicBackend:
             return report
         report.update({'state_age_s': round(self.clock() - snap.received, 3), 'tilt_deg': round(snap.tilt_deg(), 2),
                        'root_orientation_world_wxyz': np.round(snap.base_quat, 5).tolist(),
-                       'joint_positions_rad': np.round(snap.q, 4).tolist()})
+                       'joint_positions_rad': np.round(snap.q, 4).tolist(),
+                       'pelvis_height_est_m': round(self.pelvis_height_estimate(snap.q, snap.base_quat), 3)})
         return report
 
     # ----- planning -------------------------------------------------------------------------
@@ -1188,6 +1280,7 @@ class G1SonicBackend:
                                 'hand_positions_rad': {'left': np.round(snap.left_hand_q, 4).tolist(),
                                                        'right': np.round(snap.right_hand_q, 4).tolist()}}
             value['tilt_deg'] = round(snap.tilt_deg(), 2)
+            value['proprio']['pelvis_height_est_m'] = round(self.pelvis_height_estimate(snap.q, snap.base_quat), 3)
             if snap.motor_temperature is not None and snap.motor_temperature.size:
                 value['motor_temperature_max_c'] = float(snap.motor_temperature.max())
         return value

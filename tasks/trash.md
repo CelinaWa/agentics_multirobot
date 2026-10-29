@@ -22,7 +22,8 @@ Report success only when all three hold. A clean tool return or a can that merel
 
 What the robot cannot do (tool limits, not choices):
 - It cannot step backward or sideways: `g1_walk` only moves forward along the heading plus a turn (the planner does not step backward). To get away from something, turn first.
-- It cannot squat, kneel or reach the floor. If the can falls to the floor, hold and ask the operator to reset the scene.
+- It cannot kneel or reach the floor: `g1_crouch` lowers the pelvis by at most 0.32 m and the hands reach no lower than about
+  0.35 m above the floor. If the can falls to the floor, hold and ask the operator to reset the scene.
 
 How to work (from the harness skills; they apply anyway):
 - Explore by hand first (manual-robot-control). Only after a full successful pick-carry-drop by hand should you automate it under `code/`.

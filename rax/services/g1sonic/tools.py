@@ -17,12 +17,21 @@ FREE_SPACE_MOVE, EXECUTE_PLAN = "g1_free_space_move", "g1_execute_motion_plan"
 PIXEL_TO_POSITION, HOLD = "g1_pixel_to_position", "g1_hold"
 WALK = "g1_walk"
 HAND_SHAPE = "g1_hand_shape"
+CROUCH = "g1_crouch"
 
-ROBOT_TOOLS = (STATUS, OBSERVE, STEP, FREE_SPACE_MOVE, EXECUTE_PLAN, PIXEL_TO_POSITION, HOLD, WALK, HAND_SHAPE)
+ROBOT_TOOLS = (STATUS, OBSERVE, STEP, FREE_SPACE_MOVE, EXECUTE_PLAN, PIXEL_TO_POSITION, HOLD, WALK, HAND_SHAPE, CROUCH)
 GEOMETRY_TOOLS = frozenset({PIXEL_TO_POSITION})
-MUTATING = frozenset({STEP, FREE_SPACE_MOVE, EXECUTE_PLAN, WALK})
+MUTATING = frozenset({STEP, FREE_SPACE_MOVE, EXECUTE_PLAN, WALK, CROUCH})
 WALK_LIMITS = {"forward_m": (0.0, 3.0), "turn_deg": (-45.0, 45.0), "speed_mps": (0.1, 0.6)}
 WALK_FLAGS = ("carry",)
+# g1_crouch: pelvis drop below the standing height -> knee flexion added to the default stance (rad), with the
+# ankle pitched down by half of it (to its -0.5 rad margin) and the hip taking the rest, so the torso stays
+# upright. Measured in simulation (3/eng/squat_depth.py): the pelvis sat down beyond +2.0 rad.
+CROUCH_TABLE = ((0.0, 0.0), (0.074, 0.52), (0.19, 1.2), (0.304, 1.8), (0.326, 2.0))
+CROUCH_LIMITS = {"pelvis_drop_m": (0.0, 0.32), "lean_rad": (0.0, 0.5), "forward_rad": (-0.2, 0.3), "secs": (2.0, 10.0)}
+CROUCH_FLAGS = ("arms_home",)
+STANDING_PELVIS_M = 0.77          # pelvis height above the floor standing under SONIC (sim ground truth after a gantry
+                                  # release; the kinematic estimate built on it was within 1.5 cm of ground truth)
 READ_TOOLS = (STATUS, OBSERVE, PIXEL_TO_POSITION)
 BODY_FRAMES = ("pelvis", "torso")
 
@@ -103,6 +112,28 @@ def tool_definitions(geometry=True):
          "inputSchema": {"type": "object", "required": ["side"], "additionalProperties": False, "properties": {
              "side": {"type": "string", "enum": ["left", "right"]},
              "open": _vector(7), "closed": _vector(7)}}},
+        {"name": CROUCH, "description": (
+            "Crouch with the legs, or stand back up: lowers the pelvis by pelvis_drop_m below SONIC's standing height "
+            "(about 0.77 m; at most 0.32 m lower, from simulation: 0.07 m bends the knees +0.5 rad, 0.19 m +1.2, 0.30 m "
+            "+1.8; deeper the robot sits down) by bending knees, ankles and hips together so the torso stays upright, "
+            "and leans the torso forward by lean_rad (waist pitch, 0-0.5 rad). forward_rad shifts the pelvis forward over "
+            "the feet (about 6 cm per 0.1 rad). Measured in simulation: commands of 0.1 / 0.2 / 0.3 m dropped the pelvis "
+            "0.08 / 0.21 / 0.29 m, the body slid 3 / 7 / 19 cm backward on the way down and stayed about 9 cm back after "
+            "standing up, tilt stayed under 7 deg. The move takes secs "
+            "(2-10 s; use 3 s or more for deep crouches). pelvis_drop_m 0 and lean_rad 0 stands back up. Arms, hands and "
+            "waist yaw keep the last frame, except that when rising with arms_home (default true) the arms first return "
+            "to the standing pose over 2 s (standing up quickly from a lean with an arm out fell in simulation). The "
+            "hands reach down to about 0.35 m above the floor at the deepest crouch: the floor itself is out of reach; "
+            "crouch for targets at knee to hip height. Builds the frames from the held one and streams them as g1_step "
+            "does (same limits, feedback and stops), so call g1_hold first; the reply's transition.crouch has the knee "
+            "flexion used, joints clipped to their limits and the pelvis height estimated from the leg kinematics. "
+            "Needs operator arming."),
+         "inputSchema": {"type": "object", "additionalProperties": False, "properties": {
+             "pelvis_drop_m": {"type": "number", "minimum": 0.0, "maximum": 0.32, "default": 0.0},
+             "lean_rad": {"type": "number", "minimum": 0.0, "maximum": 0.5, "default": 0.0},
+             "forward_rad": {"type": "number", "minimum": -0.2, "maximum": 0.3, "default": 0.0},
+             "secs": {"type": "number", "minimum": 2.0, "maximum": 10.0, "default": 4.0},
+             "arms_home": {"type": "boolean", "default": True}}}},
         {"name": HOLD, "description": (
             "Hold: drop any motion still streaming and keep the robot at its last reference. Always allowed, "
             "armed or not. It is not an emergency stop: the operator's stop (keyboard O or the gamepad's Select "
@@ -185,6 +216,13 @@ def validate_request(name, arguments):
                 reject_unless(low <= float(arguments[key]) <= high, f"{key} must be in [{low:g}, {high:g}]")
         reject_unless(any(abs(float(arguments.get(k, 0.0))) > 1e-6 for k in ("forward_m", "turn_deg")),
                       "g1_walk needs a nonzero forward_m or turn_deg")
+    elif name == CROUCH:
+        _only(arguments, tuple(CROUCH_LIMITS) + CROUCH_FLAGS)
+        reject_unless(type(arguments.get("arms_home", True)) is bool, "arms_home must be a boolean")
+        for key, (low, high) in CROUCH_LIMITS.items():
+            if key in arguments:
+                _finite(arguments[key], key)
+                reject_unless(low <= float(arguments[key]) <= high, f"{key} must be in [{low:g}, {high:g}]")
     elif name == EXECUTE_PLAN:
         _only(arguments, ("motion_plan_id",))
         plan = arguments.get("motion_plan_id")

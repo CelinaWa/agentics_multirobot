@@ -263,6 +263,34 @@ class Check:
             results.append(r)
         self.save(result=results)
 
+    def crouch(self):
+        """Crouch deeper and deeper (g1_crouch), standing back up between levels; stops at the first level that tilts."""
+        self.wait_armed()
+        results = []
+        for drop in self.args.drops:
+            s0 = self.snap()
+            log(f'crouch {drop:.2f} m')
+            down = self.call(T.CROUCH, {'pelvis_drop_m': drop, 'secs': 3.0})
+            time.sleep(2.0)
+            s = self.snap()
+            held_height = self.backend.pelvis_height_estimate(s.q, s.base_quat)
+            up = self.call(T.CROUCH, {'pelvis_drop_m': 0.0, 'secs': 3.0})
+            time.sleep(1.0)
+            s1 = self.snap()
+            r = {'drop_m': drop, 'knee_flexion_rad': down['transition']['crouch']['knee_flexion_rad'],
+                 'pelvis_height_est_m': {'standing': round(self.backend.pelvis_height_estimate(s0.q, s0.base_quat), 3),
+                                         'held': round(held_height, 3),
+                                         'after_rise': round(self.backend.pelvis_height_estimate(s1.q, s1.base_quat), 3)},
+                 'tilt_deg_held': round(s.tilt_deg(), 2), 'tilt_deg_after_rise': round(s1.tilt_deg(), 2),
+                 'down': down['transition']['feedback'], 'up': up['transition']['feedback'],
+                 'rise_residual_rad': round(float(np.abs(s1.q - s0.q).max()), 4)}
+            print(json.dumps(r), flush=True)
+            results.append(r)
+            if r['tilt_deg_held'] > 15 or r['tilt_deg_after_rise'] > 15:
+                log('tilt over 15 deg: no deeper level')
+                break
+        self.save(result=results)
+
     def hands(self):
         self.wait_armed()
         results = []
@@ -441,7 +469,7 @@ class Check:
         self.save(result=result)
 
 
-STEPS = ('status', 'disarmed', 'hold', 'arms', 'waist', 'hands', 'pause', 'turn', 'walk', 'camera', 'report')
+STEPS = ('status', 'disarmed', 'hold', 'arms', 'waist', 'hands', 'pause', 'turn', 'walk', 'crouch', 'camera', 'report')
 
 
 def report(root):
@@ -491,6 +519,12 @@ def report(root):
                 tape = f"tape {m['tape_m']} m ({m.get('ratio_measured_over_commanded')} x)" if m.get('tape_m') else 'no tape value'
                 rows.append((f"walk {m['commanded_m']} m", f"{tape}, planner advance {m['planned_advance_m']} m, {m['seconds']} s, max tilt {m['max_tilt_deg']} deg, "
                                                            f"heading drift {m['heading_drift_deg']} deg", date))
+        elif step == 'crouch' and isinstance(r, list):
+            for m in r:
+                h = m['pelvis_height_est_m']
+                rows.append((f"crouch {m['drop_m']} m", f"knees +{m['knee_flexion_rad']} rad, pelvis est {h['standing']} -> {h['held']} -> {h['after_rise']} m, "
+                                                        f"tilt held {m['tilt_deg_held']} / after rise {m['tilt_deg_after_rise']} deg, "
+                                                        f"ref RMSE {m['down'].get('reference_error_rmse_rad')} rad", date))
         elif step == 'camera' and isinstance(r, dict):
             rows.append((step, f"depth valid {r.get('depth_valid_fraction')}, floor error {r.get('floor_error_cm', 'n/a')} cm, "
                                f"desk error {r.get('desk_error_cm', 'n/a')} cm, fx {r.get('intrinsics_fx_fy_cx_cy', ['?'])[0]}", date))
@@ -509,6 +543,7 @@ def main():
     parser.add_argument('--repeat', type=int, default=1)
     parser.add_argument('--forward', type=float, default=1.0, help='walk distance (m)')
     parser.add_argument('--turn', type=float, default=30.0, help='turn angle (deg)')
+    parser.add_argument('--drops', type=float, nargs='+', default=[0.1, 0.2, 0.3], help='crouch: pelvis drops to try (m)')
     parser.add_argument('--pelvis-z', type=float, default=None, help='tape: pelvis height above the floor (m)')
     parser.add_argument('--desk-z', type=float, default=None, help='tape: desk top above the floor (m)')
     parser.add_argument('--self-disarm', action='store_true', help='pause: write the arming file at 1.0 s instead of waiting for SPACE')

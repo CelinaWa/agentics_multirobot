@@ -23,6 +23,7 @@ declare -A WHAT=(
     [pause]="MOVES: right shoulder pitch -0.5 rad over 1.8 s; YOU press SPACE as soon as it moves, the step measures the stop"
     [turn]="MOVES (steps!): warm-up turns +-15 deg, then +30 and -30 deg, twice (~60 s)"
     [walk]="MOVES (steps!): walks 1.0 m forward, twice; asks for the tape measure after each"
+    [crouch]="MOVES: crouches 0.1, 0.2 then 0.3 m (3 s down, 2 s hold, 3 s up each); stops at the first level that tilts over 15 deg (~30 s)"
     [camera]="moves nothing: one observation, surface heights against your tape values"
 )
 step() {  # step <name> [args...]: say what the step does, wait for ENTER, run it; ask before going on if it failed
@@ -49,6 +50,8 @@ ask "Lower the gantry until the feet carry the robot; leave the straps slack but
 step turn --repeat 2
 ask "Mark the toes on the floor with tape. 2 m clear ahead. Straps slack. ENTER."
 step walk --repeat 2 --forward 1.0
+ask "Straps slack, 1 m clear around (the robot drifts back 10-15 cm while crouching). ENTER."
+step crouch
 echo
 read -rp "Tape: pelvis height above the floor, standing (m), ENTER to skip: " PZ
 read -rp "Tape: desk top above the floor (m), ENTER to skip: " DZ

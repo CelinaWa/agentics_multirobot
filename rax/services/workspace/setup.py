@@ -8,7 +8,7 @@ ROBOT_FACTS = {
         'name': 'Unitree G1 under SONIC', 'status': 'g1_status', 'observe': 'g1_observe',
         'move': 'g1_free_space_move', 'gripper': 'g1_step', 'pixel': 'g1_pixel_to_position',
         'tools': ('g1_status', 'g1_observe', 'g1_pixel_to_position', 'g1_step', 'g1_free_space_move',
-                  'g1_execute_motion_plan', 'g1_hold', 'g1_walk', 'g1_hand_shape'),
+                  'g1_execute_motion_plan', 'g1_hold', 'g1_walk', 'g1_hand_shape', 'g1_crouch'),
         'overview_camera': 'cam_front', 'overview': 'front camera (the ZED on the head, looking forward and down)',
         'cameras': ('cam_front',),
         'body': 'humanoid** (Unitree G1: 29 body joints and two three-finger Dex3 hands) balanced by the frozen '

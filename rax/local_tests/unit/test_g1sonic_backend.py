@@ -341,6 +341,52 @@ def test_a_step_streams_every_row_then_holds_and_reports_feedback(backend, sessi
     assert set(status['joint_limits_rad']) == {'lower', 'upper'} and status['limits']['fall_tilt_deg'] == DEFAULTS['fall_tilt_deg']
 
 
+def test_crouch_bends_the_legs_from_the_held_frame_and_rising_takes_the_arms_home_first(backend, session, stack):
+    J = {name: index for index, name in enumerate(R.JOINT_NAMES)}
+    with pytest.raises(ValueError, match='pelvis_drop_m must be in'):
+        backend.validate(T.CROUCH, {'pelvis_drop_m': 0.5})
+    with pytest.raises(PermissionError, match='not armed'):
+        backend.validate(T.CROUCH, {'pelvis_drop_m': 0.1})
+    start_control(backend, session)
+    standing = backend.pelvis_height_estimate(STANDING)
+    assert standing == pytest.approx(T.STANDING_PELVIS_M)
+    backend.validate(T.CROUCH, {'pelvis_drop_m': 0.19, 'lean_rad': 0.3, 'secs': 2.0})
+    value, _ = backend.call(T.CROUCH, {'pelvis_drop_m': 0.19, 'lean_rad': 0.3, 'secs': 2.0})
+    crouch = value['transition']['crouch']
+    assert value['transition']['kind'] == 'crouch' and crouch['phases'] == ['crouch'] and crouch['clipped_to_limits'] == []
+    ankle = backend.lower[J['left_ankle_pitch_joint']] + DEFAULTS['joint_limit_margin_rad'] - STANDING[J['left_ankle_pitch_joint']]
+    assert crouch['knee_flexion_rad'] == pytest.approx(1.2) and crouch['ankle_pitch_rad'] == pytest.approx(ankle, abs=1e-4)  # -0.46: the limit's margin
+    assert value['transition']['feedback']['ticks'] == 2.0 * DEFAULTS['control_hz'] + DEFAULTS['rest_tail_rows']
+    held = backend.last_row[R.JOINTS]
+    for side in ('left', 'right'):
+        assert held[J[f'{side}_knee_joint']] == pytest.approx(STANDING[J[f'{side}_knee_joint']] + 1.2)
+        assert held[J[f'{side}_hip_pitch_joint']] == pytest.approx(STANDING[J[f'{side}_hip_pitch_joint']] - 1.2 - ankle)
+    assert held[J['waist_pitch_joint']] == pytest.approx(0.3) and held[J['left_shoulder_pitch_joint']] == STANDING[J['left_shoulder_pitch_joint']]
+    assert 0.5 < crouch['pelvis_height_est_m']['goal'] < 0.65 < crouch['pelvis_height_est_m']['before']  # legs folded, pelvis lower
+    assert wait_for(lambda: np.allclose(stack.q, held, atol=0.03), timeout=2.0)
+    assert 0.5 < backend.status()['proprio']['pelvis_height_est_m'] < 0.65
+    # an arm out, then rise: the arms come home over crouch_arms_home_s before the legs straighten
+    out = held.copy()
+    out[J['right_shoulder_pitch_joint']] -= 0.8
+    backend.call(T.STEP, {'actions': [row.tolist() for row in ramp(held, out, 30)]})
+    sent = len(stack.poses())
+    value, _ = backend.call(T.CROUCH, {'pelvis_drop_m': 0.0, 'secs': 2.0})
+    assert value['transition']['crouch']['phases'] == ['arms home', 'rise']
+    ticks = value['transition']['feedback']['ticks']
+    assert ticks == (DEFAULTS['crouch_arms_home_s'] + 2.0) * DEFAULTS['control_hz'] + DEFAULTS['rest_tail_rows']
+    assert wait_for(lambda: len(stack.poses()) >= sent + ticks, timeout=5.0)
+    on_wire = np.array([p['joint_pos'].reshape(29) for p in stack.poses()[sent:sent + ticks]])
+    arms_home_at = int(np.argmax(np.abs(on_wire[:, J['right_shoulder_pitch_joint']] - STANDING[J['right_shoulder_pitch_joint']]) < 1e-3))
+    assert 0.95 * DEFAULTS['crouch_arms_home_s'] * DEFAULTS['control_hz'] <= arms_home_at < DEFAULTS['crouch_arms_home_s'] * DEFAULTS['control_hz']
+    assert np.allclose(on_wire[:arms_home_at, J['left_knee_joint']], STANDING[J['left_knee_joint']] + 1.2)  # legs wait
+    assert np.allclose(backend.last_row[R.JOINTS], STANDING, atol=1e-6)
+    assert value['transition']['crouch']['pelvis_height_est_m']['goal'] == pytest.approx(T.STANDING_PELVIS_M, abs=1e-3)
+    # the deepest crouch clips nothing; a forward shift beyond the ankle margin is reported, not hidden
+    value, _ = backend.call(T.CROUCH, {'pelvis_drop_m': 0.32, 'forward_rad': 0.3, 'secs': 2.0})
+    assert value['transition']['crouch']['knee_flexion_rad'] == pytest.approx(1.8 + 0.2 * (0.32 - 0.304) / (0.326 - 0.304), abs=1e-3)
+    assert value['transition']['crouch']['clipped_to_limits'] == ['left_ankle_pitch_joint', 'right_ankle_pitch_joint']
+
+
 def test_a_disarm_during_a_step_stops_it_within_a_tick_and_the_robot_holds(backend, session, stack):
     arming.write(session, True)
     rows = ramp(STANDING, STANDING + 0.04, 60)  # 1.3 s

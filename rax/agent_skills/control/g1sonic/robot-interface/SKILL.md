@@ -92,6 +92,18 @@ the camera frame when older than 1 s.
   0.1-0.2 m, so keep 0.3 m clear ahead and to the sides while turning. If the robot is still stepping when the
   walk ends, the planner keeps it balanced and the next armed call (g1_hold) hands over once it stands still. During the walk the planner moves the arms too: walk with empty hands or with an object you can
   afford to drop, and re-check the grip after.
+- **`g1_crouch`** lowers the pelvis with the legs (pelvis_drop_m, 0-0.32 m below the standing height of about
+  0.77 m) and leans the torso (lean_rad, 0-0.5 rad), everything else as held; `pelvis_drop_m` 0 stands back up.
+  It builds the frames from the held one and streams them like `g1_step` (same limits, feedback and stops), so
+  call `g1_hold` first and give it 3 s or more for deep crouches. Measured in simulation (ground truth): commands
+  of 0.1 / 0.2 / 0.3 m dropped the pelvis 0.08 / 0.21 / 0.29 m (knees +0.67 / +1.25 / +1.78 rad), the body slid
+  3 / 7 / 19 cm backward on the way down and stayed about 9 cm back after standing up (re-localize against the
+  scene before reaching or walking), tilt stayed under 7 degrees; deeper than 0.32 m the robot sits. The hands reach no lower than about 0.35 m above the floor even at the deepest
+  crouch and lean, so the floor is out of reach: crouch for targets between knee and hip height (a chair seat,
+  a low shelf), and ask the operator for things on the floor. Rising with an arm out first takes the arms home
+  over 2 s (`arms_home`, default true): a quick stand from a lean with an arm out fell in simulation. The
+  reply's `transition.crouch` reports the knee flexion, clipped joints and the pelvis height estimated from
+  the leg kinematics (`proprio.pelvis_height_est_m` in `{{ robot.status }}` too).
 - **`g1_hold`** is always allowed, armed or not: it drops the rows still queued and keeps the robot
   on its last frame. Use it when anything looks wrong, then observe.
 - **A stop is the operator's.** The operator's stop at the robot (keyboard `O`, the gamepad's
@@ -161,6 +173,8 @@ python3 .agents/skills/robot-interface/scripts/g1_model.py hand
 - **Whole-body motion, walking, turning, posture, hands:** `g1_step` frames built from the
   measured state, then from your last frame. The [controller-field-guide](../controller-field-guide/SKILL.md)
   describes walking, turning and contact.
+- **Low targets (knee to hip height):** `g1_crouch` to lower the pelvis and lean, then reach;
+  stand back up with `g1_crouch` at 0 before walking. The floor is out of reach.
 - **A hand to a pose in open space:** `g1_free_space_move` plans one arm (optionally the
   waist) around the robot itself only, and keeps the legs and everything else at your last
   frame ([free-space-move](../free-space-move/SKILL.md)). It needs the planner's GPU on the robot
