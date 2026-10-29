@@ -15,6 +15,8 @@ ROBOT_FACTS = {
                 'SONIC whole-body controller, which tracks the whole-body reference frames you send; it walks only '
                 'by stepping leg references',
         'move_joints': 'g1_step',
+        # The skill that characterizes the controller's motions (what a step, turn or reach delivers).
+        'tracking_skill': 'controller-field-guide',
         'neutral': 'standing still on the last frame you sent: a `g1_step` whose rows repeat the measured joints '
                    '(`g1_status` -> `proprio`) with both hands open',
         'motion_example': 'ctx.value("g1_step", actions=rows)  # rows: 1..100 semantic40 frames, one per 50 Hz tick',
@@ -63,6 +65,7 @@ ROBOT_FACTS = {
              'body': 'mobile manipulator** (differential-drive base, 6-joint torso, two 7-DoF arms with '
                      'two-finger grippers) with a head camera',
              'move_joints': 'rby1_move_joints',
+             'tracking_skill': 'robot-interface',
              'neutral': 'torso and both arms `ready`, head `zero` (`rby1_move_body`; from the arms-down '
                         'rest pose through the `half` presets first)',
              'motion_example': 'ctx.value("rby1_move_eef", arm="right", position=[x, y, z])',
@@ -144,12 +147,15 @@ ROBOT_FACTS = {
     'mock': {'name': 'mock robot', 'status': 'status', 'observe': 'mock_observe', 'move': 'mock_move',
              'gripper': 'mock_move', 'pixel': 'mock_observe', 'tools': ('mock_observe', 'mock_move'),
              'overview_camera': 'none', 'overview': 'no camera', 'cameras': (),
-             'body': 'arm** (simulated)', 'move_joints': 'mock_move', 'neutral': 'the mock at rest',
+             'body': 'arm** (simulated)', 'move_joints': 'mock_move', 'tracking_skill': 'robot-interface',
+             'neutral': 'the mock at rest',
              'motion_example': 'ctx.value("mock_move", position=[x, y, z])', 'grasp_example': None,
              'stream': None, 'look_around': None, 'safety': (), 'first_reads': (), 'model_dir': None, 'read_tools': ('mock_observe',),
              'model_note': None},
 }
 CLIS = ('claude',)
+# What the operator's demonstration images show: the completed task, or a sequence completing it.
+DEMONSTRATION_KINDS = ('terminal_state', 'completion_sequence')
 
 
 @dataclass(frozen=True)
@@ -160,6 +166,8 @@ class Setup:
     observation_profile: str = 'rgbd'
     subagents: int = 0
     gemini: bool = True
+    demonstrations: int = 0         # operator-supplied images under runtime/demonstrations/
+    demonstration_kind: str = 'terminal_state'
 
     def __post_init__(self):
         if self.robot not in ROBOT_FACTS:
@@ -168,10 +176,15 @@ class Setup:
             raise ValueError('Unknown agent CLI')
         if self.observation_profile not in ('rgbd', 'rgb-only'):
             raise ValueError('Unknown observation profile')
+        if type(self.demonstrations) is not int or self.demonstrations < 0:
+            raise ValueError('demonstrations must be a count')
+        if self.demonstration_kind not in DEMONSTRATION_KINDS:
+            raise ValueError('Unknown demonstration kind')
 
     @classmethod
     def from_config(cls, config, *, gemini=True):
-        return cls(config.robot, config.task, 'claude', config.observation_profile, config.subagents, gemini)
+        return cls(config.robot, config.task, 'claude', config.observation_profile, config.subagents, gemini,
+                   len(config.demonstration_images), config.demonstration_kind)
 
     @property
     def camera_geometry(self):
@@ -196,5 +209,8 @@ class Setup:
             'camera_geometry': self.camera_geometry,
             'subagent_cap': self.subagents,
             'gemini': self.gemini,
+            'demonstrations': self.demonstrations,
+            'demonstration_kind': self.demonstration_kind if self.demonstrations else 'none',
+            'one_demonstration_image': self.demonstrations == 1,
             'robot': ROBOT_FACTS[self.robot],
         }

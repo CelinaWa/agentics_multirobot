@@ -5,6 +5,8 @@
 #   bash scripts/g1_up.sh agent --task-file task.md  # a task session: robot service + Claude agent
 #   bash scripts/g1_up.sh agent --session <dir>      # reuse an existing session directory
 #   bash scripts/g1_up.sh agent --task-file task.md --quick-check   # 1-minute check first, then the agent
+#   bash scripts/g1_up.sh agent --task-file task.md --demo done.jpg [--demo ...] [--demo-kind completion_sequence]
+#       # photos of the finished task (or of someone doing it): the agent gets them under runtime/demonstrations/
 #
 # Run again while the tmux session is up (after the check, or for the next task): only the console and work
 # windows are replaced; camera, SONIC and the dashboard keep running. Do NOT press `s` again then: the robot
@@ -20,13 +22,16 @@
 set -euo pipefail
 MODE=${1:-}; shift || true
 [[ "$MODE" == check || "$MODE" == agent ]] || { sed -n 2,12p "$0"; exit 2; }
-TASK_FILE=""; SESSION=""; QUICK=""; WINDOWS=""
+TASK_FILE=""; SESSION=""; QUICK=""; WINDOWS=""; DEMO_ARGS=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --task-file) TASK_FILE=$2; shift 2 ;;
         --session) SESSION=$2; shift 2 ;;
         --quick-check) QUICK=1; shift ;;
         --windows) WINDOWS=1; shift ;;
+        --demo) [[ -f "$2" ]] || { echo "demonstration image $2 not found" >&2; exit 2; }
+                DEMO_ARGS+=(--demonstration-image "$(realpath "$2")"); shift 2 ;;
+        --demo-kind) DEMO_ARGS+=(--demonstration-kind "$2"); shift 2 ;;
         *) echo "unknown argument $1" >&2; exit 2 ;;
     esac
 done
@@ -80,7 +85,8 @@ if [[ -z "$SESSION" ]]; then
         [[ -f "$TASK_FILE" ]] || fail "$TASK_FILE not found"
         TASK_ID=$(basename "$TASK_FILE" .md | tr -c 'A-Za-z0-9_\n' '_')
         SESSION=$("$RAX_PYTHON" "$SCRIPT_DIR/configure_session.py" --task "$TASK_ID" --task-file "$TASK_FILE" \
-                  --robot g1sonic --observation-profile rgbd --backend-options "$OPTIONS_JSON" --agent-python "$RAX_AGENT_PYTHON")
+                  --robot g1sonic --observation-profile rgbd --backend-options "$OPTIONS_JSON" --agent-python "$RAX_AGENT_PYTHON" \
+                  "${DEMO_ARGS[@]}")
     fi
     SESSION=$(dirname "$SESSION")   # configure_session prints <root>/operator-input.json
 fi

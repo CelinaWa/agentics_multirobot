@@ -11,7 +11,8 @@ import secrets
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from services.controller.config import AGENT_EFFORTS, PROFILES, PROVIDERS, Configuration  # noqa: E402
+from services.controller.config import (AGENT_EFFORTS, DEMONSTRATION_KINDS, PROFILES, PROVIDERS,  # noqa: E402
+                                        Configuration)
 from services.storage_root import artifact_root  # noqa: E402
 
 
@@ -31,9 +32,17 @@ def main():
     parser.add_argument('--max-model-calls', type=int, default=4000)
     parser.add_argument('--subagents', type=int, default=2,
                         help='Concurrent subagents (0 removes the Agent tool); they never command the robot')
+    parser.add_argument('--demonstration-image', type=Path, action='append', default=[], metavar='IMAGE',
+                        help='An image of the task for the agent (repeatable, in order); the workspace gets them '
+                             'under runtime/demonstrations/ and the in-context-action-learning skill')
+    parser.add_argument('--demonstration-kind', choices=DEMONSTRATION_KINDS, default='terminal_state',
+                        help='What the images show: the completed task, or a sequence of someone completing it')
     args = parser.parse_args()
     if args.task_file and args.task_text:
         parser.error('use --task-file or --task-text, not both')
+    for image in args.demonstration_image:
+        if not image.is_file():
+            parser.error(f'demonstration image not found: {image}')
     description = args.task_file.read_text() if args.task_file else (args.task_text or '')
     stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
     root = artifact_root()/'sessions'/f'{stamp}_{args.task}_{secrets.token_hex(3)}'
@@ -44,7 +53,9 @@ def main():
         observation_profile=args.observation_profile, agent_provider=args.agent_provider,
         agent_effort=args.agent_effort, agent_model=args.agent_model,
         session_seconds=int(args.session_hours * 3600), max_model_calls=args.max_model_calls,
-        subagents=args.subagents)
+        subagents=args.subagents,
+        demonstration_images=[str(image.resolve()) for image in args.demonstration_image],
+        demonstration_kind=args.demonstration_kind)
     root.mkdir(parents=True, mode=0o700)
     path = root/'operator-input.json'
     path.write_text(json.dumps(config.to_dict(), indent=2) + '\n')

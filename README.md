@@ -160,6 +160,16 @@ cd ~/agentics_multirobot/rax && ~/envs/rax-g1/bin/python -m harness.claude_cli.e
    tmux 还在时它只替换 `console` 和 `work` 两个窗格，**不要再按 `s`**（机器人已经站着）。`work` 窗格就是 Claude Code 的对话，
    agent 想动机器人会先 `request_operator`，`console` 按 `SPACE` 给钥匙，按 `r` 回复它的具体请求。
 3. 中途想改任务、提示它、让它停：直接在 `work` 窗格打字。
+4. 可选：给它看"做完是什么样"的照片（RAX 论文里的 in-context action learning，论文里也是可选项，默认没有示教）：
+   ```bash
+   bash scripts/g1_up.sh agent --task-file ../tasks/trash.md --demo done.jpg
+   bash scripts/g1_up.sh agent --task-file ../tasks/trash.md --demo 1.jpg --demo 2.jpg --demo-kind completion_sequence
+   ```
+   照片只给它看意图（最终物体关系 / 动作顺序），不含任何机器人状态，它不会照抄位置。没有 `--demo` 时对应技能不会出现在它的工作目录里。
+
+agent 的工作目录里除了机器人技能还有一层"方法"技能（从 RAX 论文的 HumanoidArena 分支搬过来、改成真机语境）：
+按阶段统计每次尝试的漏斗、k/n 证据、预算、事故地图、不可逆动作先验证、控制器工程规范、结束前写 `handoff/README.md`。
+它们是人写的 harness 技能，不是 agent 自己探索出来的；完整列表见 `rax/agent_skills/README.md`。
 
 agent 在 sim 里**没有**端到端跑过（sim 的 900 多个 session 是脚本直接调工具），所以第一次 agent 真机前建议先让 Junjie 在 DGX 的 sim 上
 做一次 dry run。时间或 token 用完 session 自然结束时：Claude 先停，robot service 后停，**机器人保持最后一帧姿势站着**（SONIC 继续平衡），

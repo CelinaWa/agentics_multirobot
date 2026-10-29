@@ -198,6 +198,22 @@ def _deploy(tmp_path, **overrides):
     return config, launcher.deploy(config, key_file=key, claude=binary)
 
 
+def test_demonstration_images_are_copied_in_order(tmp_path):
+    images = []
+    for name in ('final.png', 'other.jpg'):
+        (tmp_path/name).write_bytes(b'\x89PNG fake ' + name.encode())
+        images.append(str(tmp_path/name))
+    config, d = _deploy(tmp_path, demonstration_images=images, demonstration_kind='terminal_state')
+    workspace = Path(d['workspace'])
+    copied = sorted(p.name for p in (workspace/'runtime/demonstrations').iterdir())
+    assert copied == ['01_final.png', '02_other.jpg']
+    assert (workspace/'runtime/demonstrations/02_other.jpg').read_bytes() == (tmp_path/'other.jpg').read_bytes()
+    assert (workspace/'.agents/skills/in-context-action-learning/SKILL.md').is_file()
+    assert 'images of the completed task' in (workspace/'.agents/skills/in-context-action-learning/SKILL.md').read_text()
+    with pytest.raises(ValueError, match='demonstration_images'):
+        configuration(tmp_path/'bad', demonstration_images=['relative.png'])
+
+
 def test_native_subagents_every_model_and_pinned_aliases(tmp_path):
     config, d = _deploy(tmp_path, subagents=2)
     allow = json.loads((d['claude_home']/'settings.json').read_text())['permissions']['allow']

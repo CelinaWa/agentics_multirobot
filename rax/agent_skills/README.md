@@ -12,13 +12,14 @@ skill, and an absent layer is skipped:
 
 | Layer | Contents |
 | --- | --- |
-| `task/` | `manual-robot-control`, `experience-memory` |
+| `task/` | `manual-robot-control`, `experience-memory`, `autonomous-control`, `continual-learning`, `in-context-action-learning` (only when the session has demonstration images) |
 | `perception/common/` | `live-stream` |
 | `perception/<mode>/` | perception for one observation mode, any robot (none yet) |
 | `perception/<mode>-<robot>/` | `object-localization` for that mode and robot (`depth-rby1`) |
 | `control/common/` | control for any robot (none yet) |
-| `control/<robot>/` | the robot's `robot-interface` and motion skills (`rby1`) |
-| `auto-research/` | `gemini` |
+| `control/<robot>/` | the robot's `robot-interface` and motion skills (`rby1`, `g1sonic`) |
+| `method/` | how to run the work on any robot: `evidence-and-regression`, `prioritize-by-funnel`, `change-discipline`, `engineer-the-controller`, `spend-the-budget`, `learn-from-incidents`, `verify-committal-actions`, `measure-success`, `match-precision-to-error`, `avoid-overfitting` |
+| `auto-research/` | `gemini`, `transfer-handoff` |
 
 `<mode>` is `depth` or `rgb-only` (from the observation profile) and `<robot>` is the
 backend key (`rby1`, or `mock` in tests). Agents see one flat `.agents/skills/` with stable, robot-neutral

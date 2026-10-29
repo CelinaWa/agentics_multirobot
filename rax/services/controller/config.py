@@ -9,6 +9,8 @@ import re
 AGENT_EFFORTS = ('high', 'xhigh', 'max')
 PROVIDERS = ('claude-login', 'openrouter', 'anthropic')
 PROFILES = ('rgbd', 'rgb-only')
+DEMONSTRATION_KINDS = ('terminal_state', 'completion_sequence')
+IMAGE_SUFFIXES = ('.png', '.jpg', '.jpeg')
 
 
 @dataclass(frozen=True)
@@ -28,6 +30,10 @@ class Configuration:
     session_seconds: int = 4 * 3600
     max_model_calls: int = 4000
     subagents: int = 0              # 0: the Agent tool is removed.
+    # Operator-supplied images of the task (none by default): copied in this order into the
+    # workspace's runtime/demonstrations/ and read by the in-context-action-learning skill.
+    demonstration_images: list = field(default_factory=list)
+    demonstration_kind: str = 'terminal_state'   # what the images show, see DEMONSTRATION_KINDS
 
     def __post_init__(self):
         object.__setattr__(self, 'root', Path(self.root).resolve())
@@ -58,6 +64,12 @@ class Configuration:
             raise ValueError('max_model_calls must be positive')
         if type(self.subagents) is not int or not 0 <= self.subagents <= 8:
             raise ValueError('subagents must be 0..8')
+        if not isinstance(self.demonstration_images, list) or not all(
+                isinstance(p, str) and Path(p).is_absolute() and Path(p).suffix.lower() in IMAGE_SUFFIXES
+                for p in self.demonstration_images):
+            raise ValueError(f'demonstration_images must be absolute paths to {IMAGE_SUFFIXES} files')
+        if self.demonstration_kind not in DEMONSTRATION_KINDS:
+            raise ValueError(f'demonstration_kind must be one of {DEMONSTRATION_KINDS}')
 
     @property
     def camera_geometry(self):

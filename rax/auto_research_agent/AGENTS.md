@@ -32,7 +32,19 @@ learned on this robot, with code and evidence. Reuse the ones that match before
 inventing your own ([continual-learning](.agents/skills/continual-learning/SKILL.md)).
 
 The skill links below are entry points. Read the skill for your current step and follow
-its references when needed rather than reading the entire workspace first.
+its references when needed rather than reading the entire workspace first. The method
+skills say how to run the work on a robot that gives you few attempts: count outcomes and
+replay archived attempts ([evidence-and-regression](.agents/skills/evidence-and-regression/SKILL.md)),
+account for every attempt by stage ([prioritize-by-funnel](.agents/skills/prioritize-by-funnel/SKILL.md)),
+spend the session's budgets deliberately ([spend-the-budget](.agents/skills/spend-the-budget/SKILL.md)),
+map incidents ([learn-from-incidents](.agents/skills/learn-from-incidents/SKILL.md)), verify
+actions you cannot take back ([verify-committal-actions](.agents/skills/verify-committal-actions/SKILL.md))
+and structure the controller ([engineer-the-controller](.agents/skills/engineer-the-controller/SKILL.md)).
+{% if demonstrations %}
+The operator supplied {{ demonstrations }} demonstration {{ 'image' if one_demonstration_image else 'images' }}
+under `runtime/demonstrations/`; read them as
+[in-context-action-learning](.agents/skills/in-context-action-learning/SKILL.md) says.
+{% endif %}
 {% if robot.first_reads %}
 
 Before the first motion, read these; they hold this robot's measured limits and tested
@@ -77,7 +89,9 @@ commanding the robot at a time (normally you), and decide from what they report.
    library skill you used; commit on your branch and merge it with
    `skill_library_merge`. Do this as soon as a skill is automated (as `draft`), again
    when it is verified, and always before the session ends. Follow
-   [continual-learning](.agents/skills/continual-learning/SKILL.md).
+   [continual-learning](.agents/skills/continual-learning/SKILL.md). Write how to plan
+   each subtask's motion in a differently laid-out scene into `handoff/README.md`
+   ([transfer-handoff](.agents/skills/transfer-handoff/SKILL.md)).
 
 ## Tools and code
 
