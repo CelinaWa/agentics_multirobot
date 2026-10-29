@@ -2,6 +2,7 @@
 # Bring up every window of the real-G1 procedure in one tmux session, and say where you still press a key.
 #
 #   bash scripts/g1_up.sh check                      # first day / after an upgrade: the motion check, no agent
+#   bash scripts/g1_up.sh check --preflight-only     # only the checks (settings, build, network); robot may be off
 #   bash scripts/g1_up.sh agent --task-file task.md  # a task session: robot service + Claude agent
 #   bash scripts/g1_up.sh agent --session <dir>      # reuse an existing session directory
 #   bash scripts/g1_up.sh agent --task-file task.md --quick-check   # 1-minute check first, then the agent
@@ -22,12 +23,13 @@
 set -euo pipefail
 MODE=${1:-}; shift || true
 [[ "$MODE" == check || "$MODE" == agent ]] || { sed -n 2,12p "$0"; exit 2; }
-TASK_FILE=""; SESSION=""; QUICK=""; WINDOWS=""; DEMO_ARGS=()
+TASK_FILE=""; SESSION=""; QUICK=""; WINDOWS=""; PREFLIGHT_ONLY=""; DEMO_ARGS=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --task-file) TASK_FILE=$2; shift 2 ;;
         --session) SESSION=$2; shift 2 ;;
         --quick-check) QUICK=1; shift ;;
+        --preflight-only) PREFLIGHT_ONLY=1; shift ;;
         --windows) WINDOWS=1; shift ;;
         --demo) [[ -f "$2" ]] || { echo "demonstration image $2 not found" >&2; exit 2; }
                 DEMO_ARGS+=(--demonstration-image "$(realpath "$2")"); shift 2 ;;
@@ -46,6 +48,8 @@ TMUX_SESSION=g1
 
 say() { printf '\033[1m%s\033[0m\n' "$*"; }
 fail() { echo "ERROR: $*" >&2; exit 1; }
+# network checks: a warning instead of an exit with --preflight-only (the robot may simply be off)
+net_fail() { if [[ -n "$PREFLIGHT_ONLY" ]]; then echo "WARN: $*"; else fail "$*"; fi; }
 
 # ---- preflight: nothing here touches the robot ----------------------------------------------
 say "== preflight"
@@ -63,9 +67,9 @@ PING_FROM=(); [[ -n "${SONIC_SSH:-}" ]] && PING_FROM=(ssh -o BatchMode=yes -o Co
 if "${PING_FROM[@]}" ping -c 1 -W 2 "$ROBOT_IP" >/dev/null 2>&1; then
     echo "robot network ok: $ROBOT_IP answers${SONIC_SSH:+ (from $SONIC_SSH)}"
 else
-    fail "$ROBOT_IP does not answer${SONIC_SSH:+ from $SONIC_SSH}: robot off, or not on the 192.168.123.x network"
+    net_fail "$ROBOT_IP does not answer${SONIC_SSH:+ from $SONIC_SSH}: robot off, or not on the 192.168.123.x network"
 fi
-ssh -o BatchMode=yes -o ConnectTimeout=5 "$JETSON_SSH" true 2>/dev/null || fail "cannot ssh to $JETSON_SSH without a password (set up a key)"
+ssh -o BatchMode=yes -o ConnectTimeout=5 "$JETSON_SSH" true 2>/dev/null || net_fail "cannot ssh to $JETSON_SSH without a password (set up a key)"
 if [[ -n "${SONIC_SSH:-}" ]]; then
     ssh -o BatchMode=yes -o ConnectTimeout=5 "$SONIC_SSH" "test -x '$SONIC_DEPLOY_DIR/deploy.sh' && test -d '$SONIC_DEPLOY_DIR/$SONIC_REF_DIR'" \
         || fail "on $SONIC_SSH: $SONIC_DEPLOY_DIR/deploy.sh or $SONIC_REF_DIR is missing"
@@ -73,6 +77,8 @@ else
     [[ -x "$SONIC_DEPLOY_DIR/deploy.sh" ]] || fail "$SONIC_DEPLOY_DIR/deploy.sh is missing"
     [[ -d "$SONIC_DEPLOY_DIR/$SONIC_REF_DIR" ]] || fail "$SONIC_DEPLOY_DIR/$SONIC_REF_DIR is missing (copy reference/standing/ there)"
 fi
+
+[[ -n "$PREFLIGHT_ONLY" ]] && { say "== preflight done, nothing started (WARN lines above are the robot network; fine while the robot is off)"; exit 0; }
 
 # ---- session directory ----------------------------------------------------------------------
 say "== session"

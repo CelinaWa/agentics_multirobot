@@ -70,6 +70,27 @@ bash setup_rax_host.sh --with-sonic
 没机器人时能验证到哪：`cd ~/GR00T-WholeBodyControl/gear_sonic_deploy && ./deploy.sh --help` 能打印出用法说明编译是好的；
 `~/envs/rax-g1/bin/python -m pytest rax/local_tests/unit -q -k g1sonic` 全绿。
 
+### 1.5 装完之后、没机器人时就能做的事（照顺序敲）
+
+```bash
+# a. 编译和单元测试（约 2 分钟）
+cd ~/GR00T-WholeBodyControl/gear_sonic_deploy && ./deploy.sh --help          # 能打印用法 = 编译没问题
+~/envs/rax-g1/bin/python -m pytest ~/agentics_multirobot/rax/local_tests/unit -q -k g1sonic   # 应全绿
+
+# b. 两份设置文件（上面的表）
+nano ~/.g1_up.env            # ROBOT_IP / JETSON_SSH 改成 Jetson 的；RAX_HOST_IP=127.0.0.1；SONIC_SSH 留空
+nano ~/g1_real_options.json  # state_host 127.0.0.1，camera_host 填 Jetson IP
+
+# c. Claude Code + 登录（agent 模式用，第 5 节）
+npm install -g @anthropic-ai/claude-code             # 需要 node >= 18
+cd ~/agentics_multirobot/rax && ~/envs/rax-g1/bin/python -m harness.claude_cli.experiment_login
+
+# d. 预检（不动机器人；没接机器人时 ping Jetson 这一项会失败，其它项应全过）
+cd ~/agentics_multirobot/rax && bash scripts/g1_up.sh check --preflight-only
+```
+
+然后按第 2 节装 Jetson（机器人开机即可），第 3 节是真机第一天。
+
 ---
 
 ## 2. Jetson 一次性安装（约 20 分钟，机器人开机即可，不需要站起来）
