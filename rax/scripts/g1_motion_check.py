@@ -144,7 +144,7 @@ class Check:
         anchor = self.backend.converter.anchor
         yaw = 0.0 if anchor is None or np.ndim(anchor) == 0 else yaw_of(snap.base_quat) - yaw_of(anchor)
         row[R.ROT6D] = R.rot6d_from_yaw(yaw)
-        row[R.JOINTS] = snap.q
+        row[R.JOINTS] = self.backend._within_limits(snap.q)  # a joint resting past its limit (hanging) is pulled inside it
         fractions = self.backend._command_report().get('hands_fraction')
         if fractions:
             row[R.HANDS] = fractions
@@ -249,6 +249,13 @@ class Check:
             base = self.base_row()
             q0 = self.snap().q.copy()
             yaw0 = yaw_of(self.snap().base_quat)
+            # hanging, the policy can rest the waist near a limit: move into the room that is there (sign flipped if need be)
+            margin = self.backend.options['joint_limit_margin_rad']
+            room_up = float(self.backend.upper[J[name]] - margin - base[R.JOINTS][J[name]])
+            room_down = float(base[R.JOINTS][J[name]] - self.backend.lower[J[name]] - margin)
+            if delta > room_up:
+                delta = room_up if room_up >= 0.05 else -min(delta, room_down)
+                log(f'{name}: only {room_up:.2f} rad of room towards the upper limit; moving {delta:+.2f} rad instead')
             goal = base.copy(); goal[R.JOINTS][J[name]] += delta
             fb_out, _ = self.go(goal, 1.5)
             time.sleep(0.5)

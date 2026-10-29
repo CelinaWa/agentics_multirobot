@@ -342,7 +342,7 @@ class G1SonicBackend:
                 time.sleep(o['planner_settle_s'])
                 snap = self._wait_until_quiet()
         self._last_index = snap.index
-        self.streamer.prime(snap.q, snap.base_quat)
+        self.streamer.prime(self._within_limits(snap.q), snap.base_quat)
         self.streamer.command(start=True, planner=False)
         self.control_mode = 'streamed'
         self._event('streamed motion on; the hold stream starts from the measured pose')
@@ -443,7 +443,7 @@ class G1SonicBackend:
         self._carry_hands = None
         if hands is None or hands[0] is None:
             hands = (False, False)
-        self.streamer.prime(snap.q, snap.base_quat, hands=hands)
+        self.streamer.prime(self._within_limits(snap.q), snap.base_quat, hands=hands)
         for _ in range(4):  # the measured pose is on the wire before the stack switches back to it
             if keepalive is not None:
                 keepalive()  # (a carrying walk: keep the arms held meanwhile)
@@ -575,6 +575,12 @@ class G1SonicBackend:
             arming.write(self.config.root, False, by='g1sonic-backend', reason=reason)
 
     # ----- checks ---------------------------------------------------------------------------
+    def _within_limits(self, q):
+        """Measured joints clipped inside the limits minus the margin: a hold primed on a joint resting at (or, in the
+        gantry, slightly past) its limit would otherwise make every row built from it fail _check_rows."""
+        margin = self.options['joint_limit_margin_rad']
+        return np.clip(np.asarray(q, dtype=float), self.lower + margin, self.upper - margin)
+
     def _check_rows(self, rows, snap):
         o = self.options
         if rows.ndim != 2 or rows.shape[1] != R.ACTION_DIM:
@@ -588,7 +594,7 @@ class G1SonicBackend:
         for row_index, six in enumerate(rows[:, R.ROT6D]):
             if np.linalg.norm(six[0::2]) < 0.5 or np.linalg.norm(six[1::2]) < 0.5:
                 raise RejectedBeforeAction(f'actions[{row_index}][3:9] is not a rotation (degenerate rot6d)')
-        reference = self.last_row[R.JOINTS] if self.last_row is not None else (None if snap is None else snap.q)
+        reference = self.last_row[R.JOINTS] if self.last_row is not None else (None if snap is None else self._within_limits(snap.q))
         first = None if reference is None else np.abs(joints[0] - reference)  # None before control runs: checked again at the step
         if first is not None and first.max() > o['max_first_step_rad']:
             j = int(first.argmax())
@@ -1059,7 +1065,7 @@ class G1SonicBackend:
                 raise RuntimeError(f"the robot did not come to rest within {o.get('console_start_timeout_s', 180.0):g} s; "
                                    'it stays under the planner (balancing). START again once it stands still')
         self._last_index = quiet.index
-        self.streamer.prime(quiet.q, quiet.base_quat)
+        self.streamer.prime(self._within_limits(quiet.q), quiet.base_quat)
         self.streamer.command(start=True, planner=False)
         self.control_mode = 'streamed'
         self._event('streamed motion on; the hold stream starts from the measured pose')
@@ -1168,7 +1174,7 @@ class G1SonicBackend:
         frame = np.zeros(R.ACTION_DIM)
         frame[R.ACTION_SLICES['root_height_m']] = 0.75
         frame[R.ROT6D] = self.converter.relative_rot6d(snap.base_quat)
-        frame[R.JOINTS] = snap.q
+        frame[R.JOINTS] = self._within_limits(snap.q)
         if self.converter.last is not None:
             for index, side in ((38, 'left'), (39, 'right')):  # the closing fraction the held hand target encodes
                 frame[index] = self.converter.hand_fraction(side, getattr(self.converter.last, f'{side}_hand'))

@@ -766,6 +766,20 @@ def test_a_fresh_start_eases_from_the_measured_stance_to_the_default_one(session
         stack.stop()
 
 
+def test_a_hold_primed_on_a_joint_past_its_limit_pulls_it_inside_the_margin(session, stack):
+    backend = make_backend(session, stack)
+    j = R.JOINT_NAMES.index('waist_pitch_joint')
+    stack.q[j] = backend.upper[j] + 0.02  # hanging in the gantry the policy can rest a joint past its limit
+    start_control(backend, session)
+    snap = backend.state.latest()
+    held = backend._held_frame(snap)
+    margin = backend.options['joint_limit_margin_rad']
+    assert held[R.JOINTS][j] == pytest.approx(backend.upper[j] - margin)
+    assert np.all(held[R.JOINTS] <= backend.upper - margin + 1e-9) and np.all(held[R.JOINTS] >= backend.lower + margin - 1e-9)
+    backend.validate(T.STEP, {'actions': [held.tolist()] * 5})  # rows built from the held frame pass the limit check
+    backend.close()
+
+
 def test_a_fresh_start_stands_under_the_planner_before_the_hold_is_primed(session, stack):
     backend = make_backend(session, stack, planner_settle_s=0.4)
     try:
