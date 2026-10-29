@@ -11,6 +11,7 @@ rax/scripts/         g1_up.sh（一个 tmux 开齐 camera/sonic/console/dashboar
                      g1_check_all.sh（第一天标定）、g1_check_quick.sh（每次开机检查）、g1_motion_check.py、g1_console.py
 jetson_camera/       Jetson 上跑的相机服务：RealSense（--camera realsense）或 ZED（--camera zedsdk|zed），TCP 7790
 sonic/               SONIC 的 commit 号、v1.1 模型下载 + 哈希校验、站立参考动作、sim 专用 patch、手动安装说明
+tasks/               agent 任务描述：trash.md（桌上的罐子扔进垃圾桶）；文件名就是 session 的任务 id
 docs/                REAL_ROBOT_WORKFLOW.md（开机→标定→agent 全流程）、REAL_ROBOT_DEPLOY*.md、AGENT_WORKFLOW.md、
                      g1_real_options.example.json
 setup_rax_host.sh    主机一次性安装：两个 venv、设置模板，--with-sonic 顺带装 SONIC
@@ -149,11 +150,12 @@ cd ~/agentics_multirobot/rax && ~/envs/rax-g1/bin/python -m harness.claude_cli.e
 
 每次跑任务：
 
-1. 写 `task.md`：物品、位置、目标、禁区、什么时候停下来问人。**第一次真机只写一件事**，例如"把桌上的罐子拿起来再放回去；
-   同一个物体失败两次就停下来问我"。
+1. 任务文件。`tasks/trash.md` 是现成的（桌上的罐子扔进垃圾桶：场景、成功条件、规则、sim 里学到的提示、什么时候问人）；
+   开 session 前按房间改一下里面垃圾桶的位置。自己写新任务照它的结构：物品、位置、目标、禁区、什么时候停下来问人。
+   **第一次真机建议先用更小的任务**，例如"把桌上的罐子拿起来再放回去；同一个物体失败两次就停下来问我"。
 2. 机器人已经在 SONIC 下站着（`g1_up.sh check --quick-check` 跑过），然后：
    ```bash
-   bash scripts/g1_up.sh agent --task-file task.md
+   bash scripts/g1_up.sh agent --task-file ../tasks/trash.md
    ```
    tmux 还在时它只替换 `console` 和 `work` 两个窗格，**不要再按 `s`**（机器人已经站着）。`work` 窗格就是 Claude Code 的对话，
    agent 想动机器人会先 `request_operator`，`console` 按 `SPACE` 给钥匙，按 `r` 回复它的具体请求。
