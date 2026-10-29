@@ -12,7 +12,7 @@ rax/scripts/         g1_up.sh（一个 tmux 开齐 camera/sonic/console/dashboar
 jetson_camera/       Jetson 上跑的相机服务：RealSense（--camera realsense）或 ZED（--camera zedsdk|zed），TCP 7790
 sonic/               SONIC 的 commit 号、v1.1 模型下载 + 哈希校验、站立参考动作、sim 专用 patch、手动安装说明
 tasks/               agent 任务描述：trash.md（桌上的罐子扔进垃圾桶）；文件名就是 session 的任务 id
-docs/                REAL_ROBOT_WORKFLOW.md（开机→标定→agent 全流程）、REAL_ROBOT_DEPLOY*.md、AGENT_WORKFLOW.md、
+docs/                REAL_ROBOT_WORKFLOW.md（开机→标定→agent 全流程）、REAL_ROBOT_DEPLOY*.md、AGENT_WORKFLOW.md、RAX_INSIDE.md（打开黑盒：进程、说明书、安检关卡、真实 session 逐步）、
                      g1_real_options.example.json
 setup_rax_host.sh    主机一次性安装：两个 venv、设置模板，--with-sonic 顺带装 SONIC
 requirements-*.txt   robot service 环境 / agent 环境 / 相机机器
