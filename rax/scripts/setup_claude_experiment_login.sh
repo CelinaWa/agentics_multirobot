@@ -17,7 +17,7 @@ cd "$PROJECT_ROOT"
 helper() { PYTHONPATH="$PROJECT_ROOT" "$PYTHON" -m harness.claude_cli.experiment_login "$@"; }
 
 if [[ "${1:-}" == "--personal" ]]; then
-    claude auth status --text
+    claude auth status --text || { echo "Not logged in yet: signing in to YOUR account first"; claude auth login; claude auth status --text; }
     echo
     echo "== 1/2 Issue a long-lived token for YOUR signed-in account (shown above)"
     echo "   Copy the token that setup-token prints; you will paste it in step 2."
