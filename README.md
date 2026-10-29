@@ -171,7 +171,13 @@ cd ~/agentics_multirobot/rax && bash scripts/setup_claude_experiment_login.sh --
 
 每次跑任务：
 
-1. 任务文件。`tasks/trash.md` 是现成的（桌上的罐子扔进垃圾桶：场景、成功条件、规则、sim 里学到的提示、什么时候问人），
+1. 任务文件。**真机第一个任务建议用 `tasks/puppy_box.md`**：把桌上的毛绒小狗抓起来放进旁边的纸箱（Hugging Face 数据集 `Celina717/g1_pnp_pour` 里遥操作示教过 29 次的那个任务：站着不走、一只手、目标是个大箱子），开 session 前把文件里 `<...>` 的距离填成今天量的；示教帧在 `tasks/demos/puppy_box/`，用 `--demo` 按顺序喂给 agent：
+   ```bash
+   bash scripts/g1_up.sh agent --task-file ../tasks/puppy_box.md \
+       --demo ../tasks/demos/puppy_box/1_start.jpg --demo ../tasks/demos/puppy_box/2_grasp.jpg \
+       --demo ../tasks/demos/puppy_box/3_over_box.jpg --demo ../tasks/demos/puppy_box/4_done.jpg --demo-kind completion_sequence
+   ```
+   `tasks/trash.md` 是第二个（桌上的罐子扔进垃圾桶：场景、成功条件、规则、sim 里学到的提示、什么时候问人），
    `tasks/crouch_pick.md` 是蹲下从矮面（椅子/矮架）拿罐子再放回（用 `g1_crouch`，只在 sim 验证过：0.1/0.2/0.3 m 指令实际下蹲 0.08/0.21/0.29 m，不倒）；
    开 session 前按房间改一下里面垃圾桶的位置。自己写新任务照它的结构：物品、位置、目标、禁区、什么时候停下来问人。
    **第一次真机建议先用更小的任务**，例如"把桌上的罐子拿起来再放回去；同一个物体失败两次就停下来问我"。
