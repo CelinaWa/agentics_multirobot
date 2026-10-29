@@ -107,6 +107,8 @@ DEFAULTS = {
     'console_start_mode': 'stand',    # console START: 'planner' = stand under the walking planner until quiet (it
                                       # steps in place first); 'stand' = switch to streamed mode right after the first
                                       # state, where the stack holds its standing reference (frame 0, paused): no steps
+    'console_start_timeout_s': 180.0, # console START then gives the robot this long to come to rest on its feet (the
+                                      # operator lowers the gantry meanwhile); it stays under the planner if it never does
     'camera': 'network',              # 'network': HomeBody's camera_server.py on the robot computer; 'ma-teleop': the
                                       # lab's Jetson publisher (ZMQ 5620, colour only, needs camera_intrinsics); None
     'camera_host': '192.168.123.164',
@@ -1052,7 +1054,7 @@ class G1SonicBackend:
                 self._event('the stack is in control under the planner: lower the robot to the floor; the hold takes over once it is quiet')
             if o['planner_settle_s'] > 0:
                 time.sleep(o['planner_settle_s'])
-        deadline = self.clock() + float(o.get('console_start_timeout_s', 180.0))
+        deadline = self.clock() + o['console_start_timeout_s']
         while True:
             self._write_console_status()
             quiet = self._wait_until_quiet(timeout=2.0, raise_on_timeout=False, strict=True)
@@ -1062,7 +1064,7 @@ class G1SonicBackend:
                 self._event('console start abandoned: STOP pressed')
                 return
             if self.clock() > deadline:
-                raise RuntimeError(f"the robot did not come to rest within {o.get('console_start_timeout_s', 180.0):g} s; "
+                raise RuntimeError(f"the robot did not come to rest within {o['console_start_timeout_s']:g} s; "
                                    'it stays under the planner (balancing). START again once it stands still')
         self._last_index = quiet.index
         self.streamer.prime(self._within_limits(quiet.q), quiet.base_quat)

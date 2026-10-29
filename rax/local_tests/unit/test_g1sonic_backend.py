@@ -1,7 +1,9 @@
 """The G1 + SONIC backend against a fake deploy stack on real ZMQ sockets: nothing here touches hardware."""
+import json
 import math
 import threading
 import time
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -824,3 +826,11 @@ def test_the_planner_is_optional_and_a_missing_one_is_reported_not_crashed(backe
         assert 'plan' in value
     with pytest.raises(ValueError, match='plan again'):
         backend.validate(T.EXECUTE_PLAN, {'motion_plan_id': 'nope'})
+
+
+def test_the_shipped_options_example_only_names_options_the_backend_knows():
+    """docs/g1_real_options.example.json is what the operator copies to their own options file; an option the
+    backend reads but never declared (console_start_timeout_s did not exist in DEFAULTS) made the guard in
+    G1SonicBackend.__init__ reject every session that used the documented file."""
+    example = json.loads((Path(__file__).resolve().parents[3]/'docs'/'g1_real_options.example.json').read_text())
+    assert set(example) <= set(DEFAULTS), f'undeclared: {sorted(set(example) - set(DEFAULTS))}'
