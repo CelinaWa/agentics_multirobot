@@ -155,7 +155,8 @@ $(say "== up. One screen, five panes (or tabs with --windows). Ctrl-b + arrow ke
   camera     nothing (Jetson camera server; type the password if it asks)
   sonic      Y   when it asks "Proceed with deployment? [Y/n]"; then wait for "Init Done". Touch nothing else here.
              Its O key is the outermost software stop (every joint goes limp: only while hanging).
-  console    s      robot stands in the gantry (after Init Done); then lower the gantry until the feet carry it
+  console    s      ONLY after Init Done AND the feet carry the robot (straps still lightly supporting): SONIC takes
+             over balance; within a few seconds slacken the straps completely. Never s with the feet off the floor.
              SPACE  toggles the key: 1st press = arm (motion allowed), next press = pause, next = resume
              o      stop (hangs limp; relaunch deploy.sh afterwards)
   dashboard  nothing (open the URL it prints in a browser)
