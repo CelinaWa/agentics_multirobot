@@ -26,6 +26,7 @@ import io
 import json
 import math
 import os
+import sys
 import threading
 import time
 import uuid
@@ -71,6 +72,15 @@ DEFAULTS = {
     'walk_quiet_timeout_s': 6.0,      # ... and then up to this long until it is quiet (settle_* thresholds); if it is
                                       # not, the planner keeps balancing it and the next armed call hands over
     'walk_warmup': True,              # g1_walk: the first walk after a start begins with two short turns (planner warm-up)
+    'walk_stuck_recover_s': 20.0,     # a walk left the robot stepping under the planner: the next armed call realigns the
+                                      # planner's facing with the measured heading, then takes one slow step and idles
+                                      # again (gait reset), waiting for quiet at most this long after the walk ended
+    'walk_stuck_min_wait_s': 3.0,     # ... and at least this long for quiet after the gait reset
+    'walk_stuck_reset_s': 1.0,        # ... the gait reset's slow step (0.1 m/s; about 0.1 m forward); 0: none
+    'walk_stuck_force_handover': False,  # still stepping after that: False = the planner keeps balancing the robot and the
+                                      # call fails asking for the operator; True = prime the hold at the least-moving
+                                      # instant of walk_stuck_pick_s and ease to the default stance (sim: fell 1 in 2)
+    'walk_stuck_pick_s': 1.5,
     'walk_segment_m': 0.5,            # g1_walk: longer walks run as segments of at most this (planner re-started each)
     'walk_ramp_s': 0.0,               # g1_walk: ramp the commanded speed between 0.1 m/s and speed_mps over this long
                                       # at the start and before the stop (robot time)
@@ -308,12 +318,8 @@ class G1SonicBackend:
         if self.streamer.primed:
             return
         o = self.options
-        if self.control_mode == 'planner':  # a walk left the robot under the planner: hand over once it is quiet
-            quiet = self._wait_until_quiet(timeout=o['walk_quiet_timeout_s'], raise_on_timeout=False, strict=True)
-            if quiet is None:
-                raise RuntimeError('the robot is still stepping under the walking planner, which keeps it balanced; '
-                                   'call g1_hold again in a few seconds')
-            self._hand_over_to_hold(quiet)
+        if self.control_mode == 'planner':  # a walk left the robot under the planner: hand over, within a bounded time
+            self._recover_from_stepping()
             return
         started = self.clock()
         snap = self.state.latest()
@@ -343,6 +349,90 @@ class G1SonicBackend:
         if fresh_start and o['stand_ramp_s'] > 0:
             self._ease_to_default_stance(snap.q)
 
+    def _recover_from_stepping(self, budget_s=None):
+        """A walk left the robot stepping under the planner (it never met the quiet thresholds): try, within
+        `walk_stuck_recover_s` of the walk's end, to bring it to rest so the streamed hold can take over. (1) The
+        keepalive's IDLE facing is realigned with the measured heading: an IDLE facing the robot never quite reaches
+        keeps the planner turning it (sim: 15 min of stepping in place after a warm-up turn). (2) One slow step
+        forward (`walk_stuck_reset_s` at 0.1 m/s), then idle again: a fresh short motion ends in a stand far more
+        reliably than a stuck idle (sim: 84 of 84 short planner motions handed over). Still stepping after that, the
+        planner keeps balancing the robot and the caller is told to involve the operator: the hold is not forced onto
+        a stepping robot unless `walk_stuck_force_handover` is on (priming the least-moving instant and easing to the
+        default stance fell 1 time in 2 in sim)."""
+        o = self.options
+        since = getattr(self, '_stepping_since', None)
+        since = self.clock() if since is None else since
+        budget = o['walk_stuck_recover_s'] if budget_s is None else budget_s
+        deadline = max(since + budget, self.clock() + (o['walk_stuck_min_wait_s'] if budget_s is None else 0.0))
+        extra = getattr(self, '_planner_extra', None) or {}
+        frame_yaw = getattr(self, '_planner_frame_yaw', None)
+
+        def facing_now():
+            snap = self.state.latest()
+            if snap is None or frame_yaw is None:
+                return [1.0, 0.0, 0.0], None
+            d = snap.yaw_rad() - frame_yaw
+            return [math.cos(d), math.sin(d), 0.0], math.degrees(math.atan2(math.sin(d), math.cos(d)))
+
+        def keep(facing):
+            self._planner_keepalive = lambda: self.streamer.planner(IDLE, [0.0, 0.0, 0.0], facing, -1.0, **extra)
+            self.streamer.keepalive = self._planner_keepalive
+
+        facing, d = facing_now()
+        if d is not None:
+            keep(facing)
+            self._event(f'still stepping {self.clock() - since:.0f} s after the walk: the planner facing is realigned with '
+                        f'the measured heading ({d:+.0f} deg in its frame)')
+        half = self.clock() + max(0.0, (deadline - self.clock()) / 2)
+        quiet = self._wait_until_quiet(timeout=max(0.0, half - self.clock()), raise_on_timeout=False, strict=True)
+        if quiet is None and o['walk_stuck_reset_s'] > 0:
+            facing, _ = facing_now()
+            self._event(f"still stepping: one slow step forward ({o['walk_stuck_reset_s']:g} s at 0.1 m/s) to reset the gait, then idle")
+            self.streamer.keepalive = None
+            for phase_end, mode, speed in ((self.clock() + o['walk_stuck_reset_s'], SLOW_WALK, 0.1),
+                                           (self.clock() + o['walk_stuck_reset_s'] + o['walk_settle_s'] * o['wall_time_scale'], IDLE, -1.0)):
+                while self.clock() < phase_end:
+                    self.streamer.planner(mode, facing if mode == SLOW_WALK else [0.0, 0.0, 0.0], facing, speed, **extra)
+                    time.sleep(0.05)
+            keep(facing)
+            quiet = self._wait_until_quiet(timeout=max(o['walk_stuck_min_wait_s'], deadline - self.clock()),
+                                           raise_on_timeout=False, strict=True)
+        if quiet is not None:
+            self._hand_over_to_hold(quiet)
+            self._event('quiet: the streamed hold took over from the planner')
+            return
+        if not o['walk_stuck_force_handover']:
+            self._event(f'still stepping {self.clock() - since:.0f} s after the walk: the planner keeps balancing the robot (operator)')
+            raise RuntimeError(f'the robot is still stepping under the walking planner {self.clock() - since:.0f} s after the '
+                               'walk (facing realigned and one gait reset tried); the planner keeps it balanced, which is safe. '
+                               'Ask the operator (request_operator): they watch it settle, or STOP the stack with the band on. '
+                               'Then call g1_hold again. The hold is not forced onto a stepping robot (that fell in sim)')
+        best, pick_end = None, self.clock() + o['walk_stuck_pick_s']
+        while self.clock() < pick_end:
+            keepalive = getattr(self, '_planner_keepalive', None)
+            if keepalive is not None:
+                keepalive()
+            snap = self.state.wait_after(self.clock() - 0.01, 0.5)
+            if snap is None:
+                continue
+            speed = float(np.abs(snap.dq).max()) if snap.dq is not None else 0.0
+            if best is None or speed < best[0]:
+                best = (speed, snap)
+        if best is None:
+            raise RuntimeError('no state from the deploy stack while the robot was stepping under the planner')
+        speed, snap = best
+        if snap.tilt_deg() > o['settle_static_tilt_deg']:
+            raise RuntimeError(f'the robot is still stepping under the walking planner {self.clock() - since:.0f} s after '
+                               f'the walk, tilted {snap.tilt_deg():.0f} deg: too far from upright for the hold to take over; '
+                               'the planner keeps balancing it. The operator checks the robot; then call g1_hold again')
+        carry = getattr(self, '_carry_hands', None)
+        self._event(f'the robot never settled ({self.clock() - since:.0f} s): walk_stuck_force_handover: the hold is primed at '
+                    f'the least-moving instant (fastest joint {speed:.1f} rad/s, tilt {snap.tilt_deg():.1f} deg) and eased to '
+                    'the default stance' + (' (arms and hands kept: carrying)' if carry is not None and carry[0] is not None else ''))
+        self._hand_over_to_hold(snap)
+        if o['stand_ramp_s'] > 0:
+            self._ease_to_default_stance(snap.q, keep_upper=carry is not None and carry[0] is not None)
+
     def _hand_over_to_hold(self, snap, hands=None):
         """From the walking planner back to the streamed hold of the measured (quiet) pose (with `hands`, the
         Dex3 targets a carrying walk held; else those of a carry the next call hands over from, else open)."""
@@ -368,6 +458,7 @@ class G1SonicBackend:
         self.streamer.command(start=True, planner=False)
         self.control_mode = 'streamed'
         self._last_index = snap.index
+        self._stepping_since = None
 
     def _wait_until_quiet(self, timeout=None, raise_on_timeout=True, strict=False):
         """The first state after the robot has stood still for `settle_quiet_s` under the planner."""
@@ -402,19 +493,28 @@ class G1SonicBackend:
                            f'(last tilt {worst[0] if worst else "?"} deg, fastest joint {worst[1] if worst else "?"} rad/s): '
                            'it may be hanging unevenly or falling; the operator checks it before the next start')
 
-    def _ease_to_default_stance(self, measured):
-        """A smoothstep from the measured joints to SONIC's default standing pose at the anchored heading."""
+    def _ease_to_default_stance(self, measured, keep_upper=False):
+        """A smoothstep from the measured joints to SONIC's default standing pose at the anchored heading (with
+        `keep_upper`, the legs only: the waist, arms and hands stay as held, for a carried object)."""
         o = self.options
         ticks = max(2, int(round(o['stand_ramp_s'] * o['control_hz'])))
         start = np.clip(np.asarray(measured, dtype=float), self.lower + o['joint_limit_margin_rad'],
                         self.upper - o['joint_limit_margin_rad'])
+        goal = R.DEFAULT_STANDING.copy()
+        hands = (0.0, 0.0)
+        if keep_upper:
+            goal[list(UPPER_BODY_INDICES)] = start[list(UPPER_BODY_INDICES)]
+            held = self.converter.last
+            if held is not None:
+                hands = tuple(self.converter.hand_fraction(side, getattr(held, f'{side}_hand')) for side in ('left', 'right'))
         rows = []
         for i in range(1, ticks + 1):
             u = i / ticks
             row = np.zeros(R.ACTION_DIM)
             row[R.ACTION_SLICES['root_height_m']] = 0.75
             row[R.ROT6D] = R.IDENTITY_ROT6D
-            row[R.JOINTS] = start + (R.DEFAULT_STANDING - start) * (u * u * (3 - 2 * u))
+            row[R.JOINTS] = start + (goal - start) * (u * u * (3 - 2 * u))
+            row[38], row[39] = hands
             rows.append(row)
         rows += [rows[-1].copy() for _ in range(o['rest_tail_rows'])]
         self.streamer.execute(rows, None)
@@ -652,9 +752,11 @@ class G1SonicBackend:
         """Long walks run as segments of at most `walk_segment_m`, each with its own planner start and stop: the
         planner's reference runs ahead of a lagging robot over a long walk, and the policy then lunges to catch up
         (sim: falls and runaways in 0.9 m walks, none in 99 walks of 0.5 m)."""
+        warmed_up = False
         if self.options['walk_warmup'] and not getattr(self, '_planner_warm', False):
             # the first planner use after a start lags its own reference by 0.2-0.7 m and then lunges to catch up
             # (sim: falls); two short turns first warm it up (first-walk lag 0.04-0.07 m afterwards)
+            warmed_up = True
             self._event('walk warm-up: +15 / -15 deg turns before the first walk')
             for d in (15.0, -15.0):
                 self._walk_segment(0.0, d, speed_mps, carry)
@@ -667,7 +769,9 @@ class G1SonicBackend:
             self._planner_warm = True
         seg = self.options['walk_segment_m']
         if seg <= 0 or forward_m <= seg * 1.2:
-            return self._walk_segment(forward_m, turn_deg, speed_mps, carry)
+            packet = self._walk_segment(forward_m, turn_deg, speed_mps, carry)
+            self._walk_notes(packet, warmed_up)
+            return packet
         count = int(math.ceil(forward_m / seg))
         packet = None
         start = self.state.latest()
@@ -684,7 +788,22 @@ class G1SonicBackend:
         if start is not None and end is not None:
             d = end.yaw_rad() - start.yaw_rad()
             fb['measured_turn_deg'] = round(math.degrees(math.atan2(math.sin(d), math.cos(d))), 1)
+        self._walk_notes(packet, warmed_up)
         return packet
+
+    def _walk_notes(self, packet, warmed_up):
+        """What else the walk did: the first-walk warm-up turns, and whether the hold took over or the planner still
+        balances a stepping robot (the next armed call then hands over within walk_stuck_recover_s)."""
+        fb = packet[0]['transition']['feedback'] if isinstance(packet, tuple) else packet['transition']['feedback']
+        if warmed_up:
+            fb['warm_up'] = 'first walk after a start: two 15 deg turns (left, right) ran before the commanded motion'
+        if self.control_mode == 'planner':
+            fb['control'] = (f"the robot was still stepping {self.options['walk_quiet_timeout_s']:g} s after the walk, so "
+                             "SONIC's planner keeps balancing it (safe); call g1_hold: it tries for up to "
+                             f"{self.options['walk_stuck_recover_s']:g} s to bring the robot to rest and take over, and says "
+                             'so if it could not (then ask the operator)')
+        else:
+            fb['control'] = 'standing in the streamed hold'
 
     def _walk_segment(self, forward_m=0.0, turn_deg=0.0, speed_mps=0.3, carry=False):
         """Walk under SONIC's planner, then hold the measured pose in streamed motion again.
@@ -731,6 +850,7 @@ class G1SonicBackend:
             self.streamer.hold()
             self.streamer.command(start=True, planner=True)
             self.control_mode = 'planner'
+            self._planner_frame_yaw, self._planner_extra, self._stepping_since = start_yaw, extra, None
             self._event(f'walk: forward {forward_m:g} m, turn {turn_deg:g} deg at {speed_mps:g} m/s'
                         + (' carrying (arms, waist and hands held)' if carry else ''))
             trace, stop_reason = [], None
@@ -819,8 +939,10 @@ class G1SonicBackend:
                         self._hand_over_to_hold(quiet, hands=hands if carry else None)
                     else:
                         self._carry_hands = hands if carry else None
+                        self._stepping_since = self.clock()
                         self.converter.clear()  # the planner keeps the robot balanced; the next armed call hands over
-                        self._event('the robot was still stepping after the walk: the planner keeps it balanced')
+                        self._event(f"the robot was still stepping {o['walk_quiet_timeout_s']:g} s after the walk: the planner "
+                                    f"keeps it balanced; the next armed call tries up to {o['walk_stuck_recover_s']:g} s to hand over")
             if stop_reason:
                 error = MotionStopped(stop_reason)
                 error.robot_state = self._state_report()
@@ -1012,9 +1134,11 @@ class G1SonicBackend:
         dropped = self.streamer.hold()
         report = {'held': True, 'dropped_rows': dropped}
         self._check_stack()
-        if self.control_mode == 'idle' and arming.read(self.config.root)['armed']:
+        if self.control_mode in ('idle', 'planner') and arming.read(self.config.root)['armed']:
             try:
-                self._require_armed()  # an armed hold starts the stack's control: the robot stands on its measured pose
+                # an armed hold starts the stack's control (the robot stands on its measured pose), or takes a robot
+                # the walking planner still balances over, within walk_stuck_recover_s
+                self._require_armed()
             except PermissionError as exc:
                 report['start_error'] = str(exc)[:300]
         return {**report, **self._state_report()}, []
@@ -1023,6 +1147,9 @@ class G1SonicBackend:
         snap = self.state.latest()
         report = {'streaming': {'primed': self.streamer.primed, 'executing': self.streamer.executing,
                                 'frames_sent': self.streamer.sent, 'frame_index': self.streamer.frame_index},
+                  'control': {'idle': 'no control yet', 'streamed': 'streamed hold',
+                              'planner': "SONIC's walking planner (stepping; an armed call hands over)"}.get(
+                                  self.control_mode, self.control_mode),
                   'step_id': self.step_id}
         if snap is None:
             report['state'] = 'no state from the deploy stack'
@@ -1301,6 +1428,16 @@ class G1SonicBackend:
     def close(self):
         self._watching = False
         try:
+            if self.control_mode == 'planner' and self.fault is None:
+                # without planner messages the deploy times its planner out after 1 s and jumps to its reference
+                # motion's frame 0: the robot lunged and fell when a session ended here (sim)
+                try:
+                    self._recover_from_stepping()
+                except Exception as exc:
+                    self._event(f'the robot stays with the planner at exit: {str(exc)[:160]}')
+                    print('WARNING: the robot service exits while SONIC\'s planner still balances a stepping robot; the deploy '
+                          'times its planner out 1 s from now and jumps to its reference motion (the robot may lunge): band on, '
+                          'or STOP the stack', file=sys.stderr, flush=True)
             self.streamer.hold()
         finally:
             self.streamer.stop()

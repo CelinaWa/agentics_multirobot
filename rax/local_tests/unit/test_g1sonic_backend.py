@@ -475,6 +475,72 @@ def test_the_first_walk_after_a_start_warms_the_planner_up_with_two_short_turns(
         backend.close()
 
 
+STUCK = dict(walk_settle_s=0.2, walk_turn_rate_deg_s=200.0, walk_quiet_timeout_s=0.4, settle_quiet_s=0.3,
+             walk_stuck_recover_s=1.5, walk_stuck_min_wait_s=0.4, walk_stuck_reset_s=0.2, walk_stuck_pick_s=0.3, stand_ramp_s=0.2)
+
+
+def test_a_walk_that_leaves_the_robot_stepping_gets_a_bounded_recovery_and_then_the_operator(session, stack):
+    backend = make_backend(session, stack, **STUCK)
+    try:
+        start_control(backend, session)
+        stack.planner_stepping = True  # the planner never brings the legs to rest
+        frame_yaw = yaw_of(stack.base_quat)  # the walk's planner frame: x along the heading when the planner took over
+        value, _ = backend.call(T.WALK, {'forward_m': 0.1, 'turn_deg': 20, 'speed_mps': 0.5})
+        fb = value['transition']['feedback']
+        assert backend.control_mode == 'planner' and 'still stepping' in fb['control'] and stack.planner_mode is True
+        walked = sum(1 for p in stack.planners if p[0] == 1)
+        t0 = time.monotonic()
+        hold, _ = backend.call(T.HOLD, {})  # the agent's natural next call: realign, one slow step, wait; then the operator
+        took = time.monotonic() - t0
+        assert backend.control_mode == 'planner' and 'still stepping' in hold['start_error'] and 'operator' in hold['start_error']
+        assert 0.4 <= took < 1.5 + 0.2 + 0.2 + 0.4 + 1.5, took  # recover budget + reset step + settle + min wait, with slack
+        events = ' '.join(e['what'] for e in backend.events)
+        assert 'realigned with the measured heading' in events and 'reset the gait' in events and 'least-moving' not in events
+        assert sum(1 for p in stack.planners if p[0] == 1) > walked  # the gait reset's slow step went out
+        idle = [p for p in stack.planners if p[0] == 0][-1]  # the realigned facing: the measured heading in the planner frame
+        wanted = yaw_of(stack.base_quat) - frame_yaw
+        assert abs(math.sin(math.atan2(idle[2][1], idle[2][0]) - wanted)) < 0.15
+        n = len(stack.planners)
+        assert wait_for(lambda: len(stack.planners) > n + 3)  # the keepalive goes on: the planner keeps the robot balanced
+        with pytest.raises(PermissionError, match='operator'):
+            backend.call(T.STEP, {'actions': [frame(STANDING).tolist()] * 6})  # motion still waits (one more bounded try)
+        stack.planner_stepping = False  # the robot comes to rest
+        hold, _ = backend.call(T.HOLD, {})
+        assert backend.control_mode == 'streamed' and hold['control'] == 'streamed hold' and 'start_error' not in hold
+        assert wait_for(lambda: stack.planner_mode is False)
+        assert 'transition' in backend.call(T.STEP, {'actions': [frame(STANDING).tolist()] * 6})[0]  # motion runs again
+    finally:
+        backend.close()
+
+
+def test_walk_stuck_force_handover_primes_the_least_moving_instant_and_eases_to_the_default_stance(session, stack):
+    backend = make_backend(session, stack, walk_stuck_force_handover=True, **STUCK)
+    try:
+        start_control(backend, session)
+        stack.planner_stepping = True
+        backend.call(T.WALK, {'forward_m': 0.1, 'speed_mps': 0.5})
+        assert backend.control_mode == 'planner'
+        hold, _ = backend.call(T.HOLD, {})
+        assert backend.control_mode == 'streamed' and 'start_error' not in hold
+        assert wait_for(lambda: stack.planner_mode is False)
+        assert 'least-moving instant' in ' '.join(e['what'] for e in backend.events)
+        assert np.allclose(backend.last_row[R.JOINTS], R.DEFAULT_STANDING, atol=1e-6)  # eased to the default stance
+    finally:
+        backend.close()
+
+
+def test_closing_while_the_planner_still_balances_the_robot_hands_it_to_the_hold_first(session, stack):
+    backend = make_backend(session, stack, **STUCK)
+    start_control(backend, session)
+    stack.planner_stepping = True
+    backend.call(T.WALK, {'forward_m': 0.1, 'speed_mps': 0.5})
+    assert backend.control_mode == 'planner'
+    stack.planner_stepping = False  # the robot settles while the service closes
+    backend.close()  # the service exits: without planner messages the deploy would time out and lunge
+    assert backend.control_mode == 'streamed'
+    assert wait_for(lambda: [c['planner'] for c in stack.commands if c.get('start')][-1] is False)
+
+
 def test_walk_ramps_the_speed_up_and_down_around_the_full_speed(session, stack):
     backend = make_backend(session, stack, walk_settle_s=0.2, walk_ramp_s=0.4)
     try:

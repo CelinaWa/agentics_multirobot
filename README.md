@@ -194,6 +194,11 @@ agent 在 sim 里**没有**端到端跑过（sim 的 900 多个 session 是脚�
 骨盆高度和倾角、发现场景摆错时停下来问人。暴露出的两点：(1) 主机必须装 `bubblewrap socat`（上面已加）；(2) Docker 容器里沙箱建不了
 user namespace，agent 的 Bash 用不了，所以 sim 里只验证了手动调工具的路径，`code/` 下写控制器和 skill library 提交要在真主机上才跑得通。
 
+第二次 sim 跑（书架版 crouch_pick）暴露了 backend 的一个真问题：第一次 `g1_walk` 的 planner 热身转身之后，机器人在 SONIC planner 下
+原地踏步不停（15 分钟，倾角 3–10°），backend 只在机器人"安静"后才把控制交回 streamed hold，所以所有运动工具一直回答 still stepping，
+agent 被卡死；而 robot service 退出时 planner keepalive 一停，deploy 1 s 后超时跳回参考动作第 0 帧，机器人倒了。已修（见第 7 节）：
+`g1_hold` 现在会用约 20 s 尝试把 planner 下踏步的机器人接回来，接不回来会明说让 agent 找 operator；service 退出前也先这样试一次。
+
 ## 7. 已知的坑 / 还没验证的事
 
 - **`g1_free_space_move`（cuRobo 手臂规划器）没装就不可用。** `requirements-robot.txt` 故意不含 torch/cuRobo（装起来重，要 CUDA）；
@@ -202,6 +207,12 @@ user namespace，agent 的 Bash 用不了，所以 sim 里只验证了手动调�
 
 - **这里的一切都没在真机上跑过。** 顺序：第 1、2 节 → 第 3 节 → 第 4 节 → 第 5 节，每一节的结果都决定下一节要不要做。
 - sim 里 SONIC 开始走的第一步有约 5–10% 概率扑倒（策略本身，不是我们的代码），所以第一次 `turn`/`walk` 带子一定挂着。
+- **走完后原地踏步不停（"still stepping"）。** 偶发（sim 里脚本时代约 1/10 轮，agent 第二次 sim 跑撞上一次 15 分钟；之后 84 次短
+  planner 动作里 0 次）。现在 backend 有限时恢复：下一次 armed 调用（`g1_hold` 就行）先把 planner 的 facing 对齐到实测朝向等安静，再让
+  它慢走一步（`walk_stuck_reset_s` 1 s、0.1 m/s，约前进 0.1 m）后 idle 重置步态，总共等 `walk_stuck_recover_s`（默认 20 s）。还不安静
+  就让 planner 继续平衡（这是安全的），调用报错叫 agent 找 operator（operator 挂带子按 STOP 或等它停）。**不会**硬把 hold 压到踏步中的
+  机器人上：sim 里试过挑关节最慢瞬间接管再缓到站姿，2 次倒 1 次；要这种行为得显式开 `walk_stuck_force_handover`。工具回复
+  `feedback.warm_up` / `feedback.control` 会告诉 agent 热身转身跑了、是否还在踏步。
 - 机器人伸手时骨盆会后退 5–10 cm，agent 的技能里已经考虑，但真机数字要用第 3 节的 `arms` 步核对。
 - **MA-Teleop 的 `g1_client` 和这里的 robot service 不能同时跑**，两个都往 5556 发命令。
 - 没做的：agent 沙箱审计、sim 里的 agent 端到端 dry run、`G1.md`（等第 3 节的数字）。

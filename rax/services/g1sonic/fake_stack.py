@@ -15,6 +15,9 @@ from .bridge import quat_normalize, slerp
 from .zmq_protocol import POSE_TOPIC, STATE_TOPIC, pack_state, parse_message
 
 
+STANDING_Q = R.DEFAULT_STANDING
+
+
 class FakeSonicStack:
     def __init__(self, *, host="127.0.0.1", state_port=0, hz=R.CONTROL_HZ, tau_s=0.08, joints=None,
                  base_quat=(1.0, 0.0, 0.0, 0.0), context=None):
@@ -42,6 +45,8 @@ class FakeSonicStack:
         self.control_active = False
         self.damped = False
         self.tilt_override_deg = None  # tests: report this tilt instead of the heading-only quaternion
+        self.planner_stepping = False  # tests: under the planner the legs keep cycling (the robot never gets quiet)
+        self._stepping_phase = 0.0
         self.index = 0
         self.published = 0
         self._lock = threading.Lock()
@@ -126,6 +131,15 @@ class FakeSonicStack:
                 error = float(np.arctan2(np.sin(self.facing_yaw - yaw), np.cos(self.facing_yaw - yaw)))
                 yaw += float(np.clip(error, -0.05, 0.05))
                 self.base_quat = np.array([np.cos(yaw / 2), 0.0, 0.0, np.sin(yaw / 2)])
+            if self.planner_mode and self.planner_stepping and not self.damped:  # knees and hips cycle at 2 Hz
+                self._stepping_phase += 2 * np.pi * 2.0 * self.dt
+                previous = self.q.copy()
+                self.q = self.q.copy()
+                for name in ("left_knee_joint", "right_knee_joint", "left_hip_pitch_joint", "right_hip_pitch_joint"):
+                    self.q[R.JOINT_NAMES.index(name)] = STANDING_Q[R.JOINT_NAMES.index(name)] + 0.15 * np.sin(self._stepping_phase)
+                self.dq = (self.q - previous) / self.dt
+            elif self.planner_mode:
+                self.dq = np.zeros(29)  # standing under the planner
             if self.target is not None and not self.damped and not self.planner_mode:
                 alpha = min(1.0, self.dt / self.tau)
                 joints, quat = self.target

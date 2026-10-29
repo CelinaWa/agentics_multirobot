@@ -91,11 +91,16 @@ def tool_definitions(geometry=True):
             "so leave room ahead. Speed speed_mps (slow walk, "
             "0.1-0.6 m/s, default 0.3), then stops and "
             "stands. Distances are commanded, not measured: the robot has no odometry, so re-localize against the "
-            "scene afterwards. Without carry, arms and hands follow the planner during the walk (they swing; "
+            "scene afterwards. The first walk after a start begins with a planner warm-up (a 15 deg turn left, then "
+            "right, about 10 s) before the commanded motion; the reply says so. Without carry, arms and hands follow "
+            "the planner during the walk (they swing; "
             "anything held is dropped). With carry=true the waist, both arms and both hands stay at the last "
             "commanded frame for the whole walk and afterwards (carrying a held object). The last frame is held "
-            "again afterwards from the measured pose (g1_step continues from there). Needs operator arming; a "
-            "disarm, a stale link or a large tilt stops the walk and the robot stands."),
+            "again afterwards from the measured pose (g1_step continues from there). If the robot is still stepping "
+            "a few seconds after the walk, the planner keeps balancing it (safe) and the reply's feedback.control says so: "
+            "call g1_hold, which tries for about 20 s to bring it to rest and take over (then re-observe: the robot "
+            "moved); if it reports the robot still stepping, ask the operator instead of polling. Needs operator "
+            "arming; a disarm, a stale link or a large tilt stops the walk and the robot stands."),
          "inputSchema": {"type": "object", "additionalProperties": False, "properties": {
              "forward_m": {"type": "number", "minimum": 0.0, "maximum": 3.0},
              "turn_deg": {"type": "number", "minimum": -45, "maximum": 45},

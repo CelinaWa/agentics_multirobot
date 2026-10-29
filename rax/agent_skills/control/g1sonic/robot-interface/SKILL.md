@@ -89,9 +89,15 @@ the camera frame when older than 1 s.
   ±45 per call; turn further in several calls), speed_mps 0.1-0.6, then it holds the measured pose again; the
   next `g1_step` starts from `proprio`, and the step id moves on, so observe again. It cannot step backward or
   sideways: to go anywhere else, turn toward it first, then walk forward. A turn steps slowly forward about
-  0.1-0.2 m, so keep 0.3 m clear ahead and to the sides while turning. If the robot is still stepping when the
-  walk ends, the planner keeps it balanced and the next armed call (g1_hold) hands over once it stands still. During the walk the planner moves the arms too: walk with empty hands or with an object you can
-  afford to drop, and re-check the grip after.
+  0.1-0.2 m, so keep 0.3 m clear ahead and to the sides while turning. The first walk after a start begins with a
+  planner warm-up, a 15 deg turn left then right (about 10 s), before the commanded motion; the reply's
+  `feedback.warm_up` says so. If the robot is still stepping a few seconds after a walk, the planner keeps it
+  balanced (safe) and `feedback.control` says so: call `g1_hold`, which tries for about 20 s to bring it to rest
+  and take over (it realigns the planner's facing with the measured heading, then takes one slow step and idles
+  again). If `g1_hold` answers that the robot is still stepping, ask the operator with `request_operator` instead
+  of polling for minutes; after a hand-over, observe again, since the robot moved meanwhile. During the walk the
+  planner moves the arms too: walk with empty hands or with an object you can afford to drop, and re-check the
+  grip after.
 - **`g1_crouch`** lowers the pelvis with the legs (pelvis_drop_m, 0-0.32 m below the standing height of about
   0.77 m) and leans the torso (lean_rad, 0-0.5 rad), everything else as held; `pelvis_drop_m` 0 stands back up.
   It builds the frames from the held one and streams them like `g1_step` (same limits, feedback and stops), so
