@@ -19,9 +19,9 @@ requirements-*.txt   robot service env, agent env, camera machine
 
 ## One-time setup (RAX/SONIC host, Ubuntu 22.04, NVIDIA GPU)
 
-1. `bash setup_rax_host.sh` → envs in `~/envs/rax-g1` and `~/envs/rax-agent`, writes `~/.g1_up.env` and
+1. `bash setup_rax_host.sh --with-sonic` → envs in `~/envs/rax-g1` and `~/envs/rax-agent`, writes `~/.g1_up.env` and
    `~/g1_real_options.json` from the templates. Edit the IPs. Same-host SONIC: `state_host` 127.0.0.1, `RAX_HOST_IP` 127.0.0.1.
-2. Build SONIC and download its models: `sonic/SONIC_SETUP.md`.
+2. `--with-sonic` also clones SONIC (fork @ 6c821f1), fetches the **v1.1** models and builds it; details and the by-hand path: `sonic/SONIC_SETUP.md`.
 3. Camera. Stock RealSense: copy `jetson_camera/` to the Jetson (`scp -r jetson_camera unitree@192.168.123.164:~/`),
    `pip install -r requirements-jetson-camera.txt` there, ssh key so `g1_up.sh` can start it. The camera pose then
    comes from the URDF (`d435_link`), no calibration. A helmet ZED instead needs `camera_pose_override`

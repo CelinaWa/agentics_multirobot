@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # One-time setup of the RAX host (the same machine runs SONIC in this layout). Creates the two Python envs,
 # installs the requirements and drops the settings templates in $HOME. Re-runnable.
-#   bash setup_rax_host.sh            # envs under $HOME/envs
-#   ENVS=/data/envs bash setup_rax_host.sh
+#   bash setup_rax_host.sh                 # envs under $HOME/envs
+#   bash setup_rax_host.sh --with-sonic    # also clone + build SONIC and fetch its models (sonic/SONIC_SETUP.md)
+#   ENVS=/data/envs SONIC_DIR=/data/GR00T-WholeBodyControl bash setup_rax_host.sh --with-sonic
 set -euo pipefail
+WITH_SONIC=0; [ "${1:-}" = "--with-sonic" ] && WITH_SONIC=1
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENVS=${ENVS:-$HOME/envs}
 PY=${PYTHON:-python3}
@@ -30,4 +32,26 @@ fi
 
 # unit tests that need no robot
 "$ENVS/rax-g1/bin/python" -m pytest -q "$HERE/rax/local_tests/unit/test_g1sonic_backend.py" -x 2>&1 | tail -3 || true
-echo "done. Next: build SONIC (sonic/SONIC_SETUP.md), then 'bash rax/scripts/g1_up.sh check'"
+
+if [ "$WITH_SONIC" = 1 ]; then
+    SONIC_DIR=${SONIC_DIR:-$HOME/GR00T-WholeBodyControl}
+    COMMIT=$(cat "$HERE/sonic/GR00T_WBC_COMMIT.txt")
+    echo "=== SONIC: $SONIC_DIR @ ${COMMIT:0:7}"
+    [ -d "$SONIC_DIR/.git" ] || git clone https://github.com/Jay-Ye/GR00T-WholeBodyControl.git "$SONIC_DIR"
+    git -C "$SONIC_DIR" fetch -q origin && git -C "$SONIC_DIR" checkout -q "$COMMIT"
+    DEPLOY="$SONIC_DIR/gear_sonic_deploy"
+    # the standing-only reference the console's 's' uses
+    mkdir -p "$DEPLOY/reference/standing" && cp -r "$HERE/sonic/reference_standing/stand_000" "$DEPLOY/reference/standing/"
+    # the v1.1 model set we validated (the checkout's own observation_config.yaml is the OLD v1.0 one and gets replaced)
+    "$ENVS/rax-g1/bin/python" -m pip install -q "huggingface_hub>=0.23"
+    "$ENVS/rax-g1/bin/python" "$HERE/sonic/download_models.py" "$DEPLOY"
+    (cd "$DEPLOY" && sha256sum -c "$HERE/sonic/models.sha256") || { echo "MODEL HASH MISMATCH: do not deploy"; exit 1; }
+    # C++ deps (apt/sudo: unitree_sdk2, yaml-cpp, zmq, cmake, clang, just) and the build. Needs CUDA + TensorRT 10
+    # already installed (the sim container had TensorRT 10.13 / CUDA 12.9); install_deps.sh does not install those.
+    (cd "$DEPLOY" && chmod +x scripts/install_deps.sh && ./scripts/install_deps.sh)
+    (cd "$DEPLOY" && set +e && source scripts/setup_env.sh && set -e && just build)
+    echo "SONIC built. The TensorRT engines (*.trt) are generated on the first deploy.sh run (several minutes)."
+    [ -f "$HOME/.g1_up.env" ] && sed -i "s|^SONIC_DEPLOY_DIR=.*|SONIC_DEPLOY_DIR=$DEPLOY|" "$HOME/.g1_up.env"
+fi
+echo "done. Next: ${WITH_SONIC:+}'bash rax/scripts/g1_up.sh check' (first robot day) — see README.md"
+[ "$WITH_SONIC" = 1 ] || echo "SONIC not set up: re-run with --with-sonic, or follow sonic/SONIC_SETUP.md by hand"
