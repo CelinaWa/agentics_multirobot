@@ -97,7 +97,7 @@ cd ~/jetson_camera && python3 camera_server.py --camera realsense --port 7790
 目的：拿到这台机器人在 SONIC 下的真实数字（转 30° 实际转多少、走 1 m 实际走多少、停车延迟、相机高度误差），
 和 sim 的数字对照，写进 `G1.md`。**不跑任何任务。**
 
-1. 机器人挂上吊架，脚离地约 20 cm，周围 1.5 m 清空。开机，等 Unitree 自检完成，遥控器放手边。
+1. 机器人挂上吊架，脚离地约 20 cm，周围 1.5 m 清空。开机，等 Unitree 自检完成，遥控器放手边。（吊着只是为了开机和 SONIC 启动；按 `s` 之前要放到脚承重，见 `docs/CALIBRATION_WALKTHROUGH.md`。）
    Unitree 自带的运动服务不用手动停：SONIC 启动时自己接管（`docs/REAL_ROBOT_WORKFLOW.md` 第 B 节第 3 行）。
 2. 主机上：
    ```bash

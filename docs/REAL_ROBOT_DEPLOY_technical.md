@@ -75,7 +75,8 @@ Sections: 1 system map, 2 safety layers, 3 one-time setup, 4 a session step by s
 
 ## 4. A session step by step
 
-Hardware state at the start: the G1 hangs from the gantry, feet about 0.2 m above the floor, motors on,
+Hardware state at the start: the G1 hangs from the gantry, feet about 0.2 m above the floor (lowered onto its feet,
+straps still attached, before the console START: with no ground contact the policy paddles its legs), motors on,
 the deploy stack running (`g1_deploy_onnx_ref` with the flags in section 1, planner loaded) and in INIT:
 it publishes **no state until its control runs**.
 

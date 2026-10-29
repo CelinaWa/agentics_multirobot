@@ -12,7 +12,7 @@ step waits up to 5 minutes for the arming, runs, prints its numbers and appends 
 robot's G1.md). Every motion is small, starts from the measured pose and returns to it. A person stays
 at the stop (console `o`, the deploy's `O`, the gamepad's Select).
 
-Steps, in the order to run them (the robot hangs in the gantry for the first group):
+Steps, in the order to run them (the robot stands on its feet, straps slack, from `s` on):
   status      connect and print the backend status: the stack link, the state age, armed or not. Moves nothing.
   disarmed    a g1_step while disarmed must be refused (prints the refusal text). Moves nothing.
   hold        10 s standing hold: joint drift, tilt range, the controller's own tracking RMSE (the baseline
@@ -111,7 +111,7 @@ class Check:
     def wait_armed(self):
         state = arming.read(self.root)
         if not state['armed']:
-            log(f'waiting for the operator to arm {self.root.name}: console `s` (stand), then SPACE (arm) ...')
+            log(f'waiting for the operator to arm {self.root.name}: feet carrying the robot (straps slack), then console `s` (stand), then SPACE (arm) ...')
             deadline = time.time() + 300
             while not arming.read(self.root)['armed']:
                 if time.time() > deadline:

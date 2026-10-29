@@ -37,16 +37,18 @@ step() {  # step <name> [args...]: say what the step does, wait for ENTER, run i
 ask() { echo; read -rp ">>> $1  [ENTER] " _; }
 
 echo "motion check, session $ROOT" | tee -a "$LOG"
-ask "Robot hanging in the gantry, feet ~20 cm off the floor. SONIC window shows 'Init Done'. Console window open. Start?"
+ask "Robot in the gantry, SONIC window shows 'Init Done' (it ramped to its standing pose while hanging). Console window open. Start?"
 step status
 step disarmed
-ask "Console: press s. The robot stands in the gantry (legs snap straight once). When it is still: press SPACE (arm). Then ENTER here."
+ask "LOWER the gantry until the robot STANDS ON ITS FEET and the straps go SLACK (still attached; the INIT pose is rigid, it stands like a statue). Only then console: press s.
+    (With the feet off the floor, or only touching it, SONIC paddles its legs: in sim 35 rad/s hanging, never quiet; feet loaded: still in 3 s.)
+    The robot settles on its feet; when it is still: press SPACE (arm). Then ENTER here."
 step hold
 step arms
 step waist
 step hands
 step pause
-ask "Lower the gantry until the feet carry the robot; leave the straps slack but attached. Clear 1.5 m around. Console: SPACE (arm again). ENTER."
+ask "Slacken the straps (attached, no load). Clear 1.5 m around. Console: SPACE (arm again). ENTER."
 step turn --repeat 2
 ask "Mark the toes on the floor with tape. 2 m clear ahead. Straps slack. ENTER."
 step walk --repeat 2 --forward 1.0
