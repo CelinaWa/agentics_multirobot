@@ -357,6 +357,8 @@ def test_crouch_bends_the_legs_from_the_held_frame_and_rising_takes_the_arms_hom
     ankle = backend.lower[J['left_ankle_pitch_joint']] + DEFAULTS['joint_limit_margin_rad'] - STANDING[J['left_ankle_pitch_joint']]
     assert crouch['knee_flexion_rad'] == pytest.approx(1.2) and crouch['ankle_pitch_rad'] == pytest.approx(ankle, abs=1e-4)  # -0.46: the limit's margin
     assert value['transition']['feedback']['ticks'] == 2.0 * DEFAULTS['control_hz'] + DEFAULTS['rest_tail_rows']
+    assert value['transition']['rows_executed'] == value['transition']['feedback']['ticks']
+    assert len(value['transition']['steps']) == 2 and value['transition']['steps'][-1]['step_id'] == value['step_id']  # not every synthesized row
     held = backend.last_row[R.JOINTS]
     for side in ('left', 'right'):
         assert held[J[f'{side}_knee_joint']] == pytest.approx(STANDING[J[f'{side}_knee_joint']] + 1.2)

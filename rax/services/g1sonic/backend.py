@@ -510,7 +510,9 @@ class G1SonicBackend:
                                            '(the robot holds the last row until the next call)')
 
     # ----- motion ---------------------------------------------------------------------------
-    def _step(self, rows, kind, extra=None):
+    def _step(self, rows, kind, extra=None, record_steps=True):
+        """Stream ROWS and reply with the observation; `record_steps` False keeps the per-frame action list out of the
+        reply (a crouch streams up to 500 synthesized rows the agent did not write: listing them only truncates its view)."""
         o = self.options
         with self.lock:
             snap = self._require_armed()
@@ -555,8 +557,10 @@ class G1SonicBackend:
             self.last_feedback = feedback
             steps = [{'step_id': self.step_id - count + i + 1, 'observation_step_id': self.step_id - count + i,
                       'executed_action': rows[i].tolist()} for i in range(count)]
+            if not record_steps:  # first and last frame only, with the count
+                steps = [steps[0], steps[-1]] if count > 1 else steps
             transition = {'kind': kind, 'control_frequency_hz': o['control_hz'], 'feedback': feedback, 'steps': steps,
-                          **(extra or {})}
+                          'rows_executed': count, **(extra or {})}
             return self._observation_packet(transition=transition)
 
     # ----- crouch ---------------------------------------------------------------------------
@@ -638,7 +642,7 @@ class G1SonicBackend:
                   'lean_rad': lean_rad, 'forward_rad': forward_rad, 'phases': phases, 'clipped_to_limits': clipped,
                   'pelvis_height_est_m': {'before': round(self.pelvis_height_estimate(snap.q, snap.base_quat), 3),
                                           'goal': round(self.pelvis_height_estimate(goal), 3)}}
-        value, images = self._step(np.asarray(rows), 'crouch', {'crouch': report})
+        value, images = self._step(np.asarray(rows), 'crouch', {'crouch': report}, record_steps=False)
         latest = self.state.latest()
         if latest is not None:
             report['pelvis_height_est_m']['after'] = round(self.pelvis_height_estimate(latest.q, latest.base_quat), 3)

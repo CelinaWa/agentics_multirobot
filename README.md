@@ -196,6 +196,10 @@ user namespace，agent 的 Bash 用不了，所以 sim 里只验证了手动调�
 
 ## 7. 已知的坑 / 还没验证的事
 
+- **`g1_free_space_move`（cuRobo 手臂规划器）没装就不可用。** `requirements-robot.txt` 故意不含 torch/cuRobo（装起来重，要 CUDA）；
+  没有它 agent 会按 skill 里写的自己拼手臂帧（sim 里 agent 已经验证了这条退路：preview 报错后它改用 `g1_step`）。想要规划器：在 robot service 的
+  venv 里装 torch + cuRobo（`services/g1sonic/g1/solvers.py` 第一次调用时才 import），再用 `g1_free_space_move preview_only=true` 验证。
+
 - **这里的一切都没在真机上跑过。** 顺序：第 1、2 节 → 第 3 节 → 第 4 节 → 第 5 节，每一节的结果都决定下一节要不要做。
 - sim 里 SONIC 开始走的第一步有约 5–10% 概率扑倒（策略本身，不是我们的代码），所以第一次 `turn`/`walk` 带子一定挂着。
 - 机器人伸手时骨盆会后退 5–10 cm，agent 的技能里已经考虑，但真机数字要用第 3 节的 `arms` 步核对。
