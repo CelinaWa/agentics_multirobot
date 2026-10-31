@@ -15,8 +15,11 @@ for d in memory handoff code; do
     [[ -d "$WS/$d" ]] || continue
     rm -rf "$DEST/workspace/$d"
     # text only: frames and logs stay with the session (the skill library carries its own evidence images)
-    rsync -a --exclude '__pycache__' --exclude '*.png' --exclude '*.jpg' --exclude '*.npy' --exclude '*.npz' \
-          "$WS/$d/" "$DEST/workspace/$d/"
+    python3 - "$WS/$d" "$DEST/workspace/$d" <<'PY'
+import shutil, sys
+shutil.copytree(sys.argv[1], sys.argv[2], symlinks=False,
+                ignore=shutil.ignore_patterns('__pycache__', '*.png', '*.jpg', '*.jpeg', '*.npy', '*.npz', '*.mp4', '*.pyc'))
+PY
 done
 ROBOT=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['robot'])" "$ROOT/configuration.json")
 LIB=${RAX_SKILL_LIBRARY:-$(dirname "$(dirname "$(realpath "$ROOT")")")/skill-library}/$ROBOT
@@ -28,4 +31,6 @@ else
 fi
 { echo "session: $(basename "$ROOT")"; echo "robot: $ROBOT"; echo "exported: $(date -u +%Y-%m-%dT%H:%M:%SZ)";
   echo "host: $(hostname)"; } > "$DEST/SOURCE.txt"
+# the session directory is private to the harness user (often root); hand the export to the repository's owner
+if [[ $(id -u) -eq 0 ]]; then chown -R "$(stat -c %u:%g "$(dirname "$(realpath "$DEST")")")" "$DEST"; fi
 echo "exported to $DEST:"; find "$DEST" -type f | sed "s#^$DEST/#  #"
