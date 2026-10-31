@@ -284,6 +284,8 @@ def test_an_earlier_sessions_experience_seeds_the_workspace(tmp_path):
     assert manifest['experience']['session'] == 'earlier'
     assert 'memory/history/earlier/PROGRESS.md' in manifest['experience']['files']
     assert 'memory/history' in (workspace/'AGENTS.md').read_text()
+    assert (workspace/'.agents/skills/inherited-experience/SKILL.md').is_file()
+    assert 'inherited-experience' in (workspace/'AGENTS.md').read_text()
 
 
 def test_experience_must_be_an_existing_directory(tmp_path):

@@ -36,7 +36,8 @@ task (possibly in simulation, or in a differently laid-out scene) left them for 
 `handoff/README.md` and `memory/TIPS.md` before planning, and treat `memory/history/*/PROGRESS.md`
 as that session's story, not your state. Its scene, its robot's calibration and its numbers
 can differ from yours: verify every inherited position and parameter with your own observation
-before relying on it, and record where it held and where it did not.
+before relying on it, and record where it held and where it did not
+([inherited-experience](.agents/skills/inherited-experience/SKILL.md)).
 
 The skill links below are entry points. Read the skill for your current step and follow
 its references when needed rather than reading the entire workspace first. The method
