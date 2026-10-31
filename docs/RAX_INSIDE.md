@@ -173,3 +173,19 @@ agent 发 `g1_step(actions=[40 维 × N 行])`，robot service 按顺序做：
 - **沙箱是启动的前提**：bubblewrap 起不来，launcher 直接拒绝启动，不会无沙箱运行。
 
 相关文件：`docs/AGENT_WORKFLOW.md`（按你的操作顺序讲它每一步在做什么）、`docs/REAL_ROBOT_WORKFLOW.md`（真机清单）、`docs/CALIBRATION_WALKTHROUGH.md`（第一天标定）、`tasks/puppy_box.md`（第一个任务）。
+
+## 9. 经验怎么在 session 之间、在 sim 和真机之间传
+
+| 通道 | 谁写 | 装什么 | 怎么到下一个 session |
+|---|---|---|---|
+| `skill-library/<robot>/` | agent，`skill_library_merge` 合并 | 可执行技能（`main(ctx)` 代码 + 证据 + 图） | 自动：每个新 session clone 这个库（同一台机器）；换机器用 `export_experience.sh` 打 git bundle，`import_experience.sh` 装进去 |
+| `memory/` | agent | 这个任务的 TIPS（条件→动作→测得结果）、RUNS、INDEX、`memory/skills/` | `configure_session.py --experience <上一个 session>`（`g1_up.sh agent --experience`）：整份拷进新工作区，上一个 session 的 `PROGRESS.md` 放到 `memory/history/<session>/` 当历史 |
+| `handoff/README.md` | agent（transfer-handoff 技能） | 换个布局怎么规划每个子任务、每次操作怎么定位、参数范围、失败怎么认 | 同上，随 `--experience` 拷入 |
+| `code/` | agent | 它写的控制器 | 同上拷入；但真正可复用的应进 skill-library |
+
+2026-10-31 之前只有第一行是自动的，后三行没有任何代码搬运（技能文件假设有，harness 没做）。现在 `--experience` 补上了；
+AGENTS.md 多了一段：继承来的东西可能来自 sim 或另一个布局，每个数字先自己观测验证。
+
+**sim 里的限制**：sim2sim 容器里 Claude Code 的 bash 沙箱（bubblewrap）建不了 namespace，agent 的 Bash 是死的，所以 sim
+session 只能产出 memory/handoff 文字，写不了、跑不了 skill-library 代码。要让 sim 也产技能代码，容器需要允许 user namespace
+（重建容器加 `--security-opt seccomp=unconfined`，或等价的 cap），真机主机（普通 Ubuntu）没有这个问题。

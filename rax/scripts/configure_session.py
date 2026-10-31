@@ -35,11 +35,21 @@ def main():
     parser.add_argument('--demonstration-image', type=Path, action='append', default=[], metavar='IMAGE',
                         help='An image of the task for the agent (repeatable, in order); the workspace gets them '
                              'under runtime/demonstrations/ and the in-context-action-learning skill')
+    parser.add_argument('--experience', type=Path, metavar='DIR',
+                        help="an earlier session's root or agent-workspace (any directory with memory/, handoff/, "
+                             'code/): its memory and handoff seed this session, see the experience-memory skill')
     parser.add_argument('--demonstration-kind', choices=DEMONSTRATION_KINDS, default='terminal_state',
                         help='What the images show: the completed task, or a sequence of someone completing it')
     args = parser.parse_args()
     if args.task_file and args.task_text:
         parser.error('use --task-file or --task-text, not both')
+    experience = None
+    if args.experience is not None:
+        experience = args.experience.resolve()
+        if (experience/'agent-workspace').is_dir():   # a session root
+            experience = experience/'agent-workspace'
+        if not experience.is_dir():
+            parser.error(f'experience directory not found: {args.experience}')
     for image in args.demonstration_image:
         if not image.is_file():
             parser.error(f'demonstration image not found: {image}')
@@ -55,7 +65,8 @@ def main():
         session_seconds=int(args.session_hours * 3600), max_model_calls=args.max_model_calls,
         subagents=args.subagents,
         demonstration_images=[str(image.resolve()) for image in args.demonstration_image],
-        demonstration_kind=args.demonstration_kind)
+        demonstration_kind=args.demonstration_kind,
+        experience_from=str(experience) if experience else None)
     root.mkdir(parents=True, mode=0o700)
     path = root/'operator-input.json'
     path.write_text(json.dumps(config.to_dict(), indent=2) + '\n')

@@ -43,6 +43,8 @@ def main():
     ap.add_argument("--port", type=int, default=7790)
     ap.add_argument("--qpos-port", type=int, default=5591)
     ap.add_argument("--snapshot-dir", default=None)
+    ap.add_argument("--depth-hide-group", type=int, default=4,
+                    help="geom group left out of the DEPTH render only (clear plastic a RealSense cannot range); -1 keeps all")
     ap.add_argument("--record", default=None, help="mp4 path: record the scene's overview camera at --hz")
     args = ap.parse_args()
 
@@ -54,6 +56,9 @@ def main():
     colour = mujoco.Renderer(model, height=args.height, width=args.width)
     depth = mujoco.Renderer(model, height=args.height, width=args.width)
     depth.enable_depth_rendering()
+    if 0 <= args.depth_hide_group < 6:
+        depth._scene_option.geomgroup[args.depth_hide_group] = 0
+        print(f"[sim_camera] depth render ignores geom group {args.depth_hide_group} (clear plastic)", flush=True)
     overview, writer = None, None
     has_overview = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_CAMERA, "overview") >= 0
     if (args.snapshot_dir or args.record) and has_overview:

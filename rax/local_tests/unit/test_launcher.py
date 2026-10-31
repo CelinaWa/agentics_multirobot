@@ -250,3 +250,44 @@ def test_resume_refreshes_the_harness_and_keeps_the_agents_work(tmp_path):
     assert not (home/'agents'/'perception-check.md').exists()
     assert json.loads((config.root/'model-relay.json').read_text())['models'] == ['*']
     assert 'Agent' in json.loads((home/'settings.json').read_text())['permissions']['allow']
+
+
+def test_an_earlier_sessions_experience_seeds_the_workspace(tmp_path):
+    earlier = tmp_path/'earlier'/'agent-workspace'
+    (earlier/'memory'/'skills'/'top-grasp').mkdir(parents=True)
+    (earlier/'memory'/'PROGRESS.md').write_text('# PROGRESS\n- grasp #2 next\n')
+    (earlier/'memory'/'TIPS.md').write_text('- Condition: plush on a table. Action: press the palm down first.\n')
+    (earlier/'memory'/'skills'/'top-grasp'/'SKILL.md').write_text('# top grasp\n')
+    (earlier/'handoff').mkdir()
+    (earlier/'handoff'/'README.md').write_text('# Handoff\n')
+    (earlier/'code').mkdir()
+    (earlier/'code'/'grasp.py').write_text('def main(ctx):\n    return {"ok": True}\n')
+    (earlier/'output').mkdir()
+    (earlier/'output'/'big.log').write_text('not carried\n')
+    config = configuration(tmp_path, subagents=0, experience_from=str(earlier))
+    binary = tmp_path/'bin/claude'
+    binary.parent.mkdir()
+    binary.write_text('')
+    key = tmp_path/'anthropic.key'
+    key.write_text('sk-ant-api-secret')
+    key.chmod(0o600)
+    d = launcher.deploy(config, key_file=key, claude=binary)
+    workspace = d['workspace']
+    assert (workspace/'memory'/'TIPS.md').read_text().startswith('- Condition: plush')
+    assert (workspace/'memory'/'skills'/'top-grasp'/'SKILL.md').is_file()
+    assert (workspace/'handoff'/'README.md').is_file() and (workspace/'code'/'grasp.py').is_file()
+    # the earlier progress is history, not this session's state
+    assert not (workspace/'memory'/'PROGRESS.md').exists()
+    assert (workspace/'memory'/'history'/'earlier'/'PROGRESS.md').read_text().endswith('next\n')
+    assert not (workspace/'output'/'big.log').exists()
+    manifest = json.loads((config.root/'workspace-manifest.json').read_text())
+    assert manifest['experience']['session'] == 'earlier'
+    assert 'memory/history/earlier/PROGRESS.md' in manifest['experience']['files']
+    assert 'memory/history' in (workspace/'AGENTS.md').read_text()
+
+
+def test_experience_must_be_an_existing_directory(tmp_path):
+    with pytest.raises(ValueError, match='experience_from'):
+        configuration(tmp_path, experience_from=str(tmp_path/'missing'))
+    with pytest.raises(ValueError, match='experience_from'):
+        configuration(tmp_path, experience_from='relative/dir')

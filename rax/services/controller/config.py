@@ -34,6 +34,9 @@ class Configuration:
     # workspace's runtime/demonstrations/ and read by the in-context-action-learning skill.
     demonstration_images: list = field(default_factory=list)
     demonstration_kind: str = 'terminal_state'   # what the images show, see DEMONSTRATION_KINDS
+    # An earlier session's agent-workspace (or any directory with memory/, handoff/, code/) whose
+    # experience this session starts from: its memory and handoff are copied into the new workspace.
+    experience_from: str | None = None
 
     def __post_init__(self):
         object.__setattr__(self, 'root', Path(self.root).resolve())
@@ -70,6 +73,10 @@ class Configuration:
             raise ValueError(f'demonstration_images must be absolute paths to {IMAGE_SUFFIXES} files')
         if self.demonstration_kind not in DEMONSTRATION_KINDS:
             raise ValueError(f'demonstration_kind must be one of {DEMONSTRATION_KINDS}')
+        if self.experience_from is not None and not (isinstance(self.experience_from, str)
+                                                     and Path(self.experience_from).is_absolute()
+                                                     and Path(self.experience_from).is_dir()):
+            raise ValueError('experience_from must be an absolute path to an existing directory')
 
     @property
     def camera_geometry(self):

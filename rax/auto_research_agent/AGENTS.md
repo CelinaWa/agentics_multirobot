@@ -31,6 +31,13 @@ the conversation resumed. Then read `skill-library/INDEX.md`: skills earlier ses
 learned on this robot, with code and evidence. Reuse the ones that match before
 inventing your own ([continual-learning](.agents/skills/continual-learning/SKILL.md)).
 
+If `handoff/README.md` or `memory/history/` exists at the start, an earlier session on this
+task (possibly in simulation, or in a differently laid-out scene) left them for you: read
+`handoff/README.md` and `memory/TIPS.md` before planning, and treat `memory/history/*/PROGRESS.md`
+as that session's story, not your state. Its scene, its robot's calibration and its numbers
+can differ from yours: verify every inherited position and parameter with your own observation
+before relying on it, and record where it held and where it did not.
+
 The skill links below are entry points. Read the skill for your current step and follow
 its references when needed rather than reading the entire workspace first. The method
 skills say how to run the work on a robot that gives you few attempts: count outcomes and

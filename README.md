@@ -205,6 +205,22 @@ agent 在 sim 里**没有**端到端跑过（sim 的 900 多个 session 是脚�
 
 ---
 
+### 5.5 带着 sim 里学到的经验跑（经验从 DGX 带到真机）
+
+agent 每个 session 留下三样东西：`memory/`（这个任务的 TIPS/RUNS，可复用的条件→动作→结果）、`handoff/README.md`
+（"换个布局怎么规划每个子任务"）、`skill-library/`（验证过的可执行技能，git 库）。真机 session 默认从零开始；要让它
+接着 sim 的经验探索，用 `experience/<task>/`（见 `experience/README.md`）：
+
+```bash
+git pull                                                    # experience/<task>/ 是在 DGX 上 export 后提交的
+bash rax/scripts/import_experience.sh experience/puppy_box   # 技能库 bundle -> 本机的 skill-library/g1sonic
+bash rax/scripts/g1_up.sh agent --task-file tasks/puppy_box.md --experience experience/puppy_box/workspace
+```
+
+agent 会在工作区里看到 `handoff/README.md`、`memory/TIPS.md`、`memory/history/<sim session>/PROGRESS.md` 和库里的技能；
+AGENTS.md 要求它把继承来的每个位置和参数先用自己的观测验证再用。真机跑完后反向 export
+（`bash rax/scripts/export_experience.sh <session root> experience/puppy_box` 然后 commit），下一批 sim 就从真机经验开始。
+
 ## 6. 关机顺序
 
 1. 挂带子、吊起（脚离地）。

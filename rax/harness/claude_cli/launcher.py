@@ -60,6 +60,11 @@ PROTECTED_PATHS = (PROJECT, HOME/'.config/rax', HOME/'.claude', HOME/'.claude.js
 # robot-controller checkouts, vendor SDK environments and other robot servers, whose code could reach
 # the controller past the backend. Colon-separated absolute paths.
 SITE_PROTECTED_ENVIRONMENT = 'RAX_PROTECTED_PATHS'
+# What an earlier session's workspace hands the next one (see experience_from in the configuration):
+# task memory, the handoff and the code are copied in place; its PROGRESS.md is history, kept apart
+# from this session's own progress so a fresh session never mistakes it for its current state.
+EXPERIENCE_DIRS = ('memory', 'handoff', 'code')
+EXPERIENCE_HISTORY = ('PROGRESS.md',)
 # On Linux the Bash sandbox can only allow all Unix sockets or none (seccomp cannot filter
 # by path), and the agent's scripts need the robot service socket. These host sockets
 # would bypass the robot service (docker controls robot containers) or leak the
@@ -200,11 +205,38 @@ def settings(config, workspace, socket):
             'ENABLE_TOOL_SEARCH': 'false'}}
 
 
+def inherit_experience(source, workspace):
+    """Copy an earlier session's memory/, handoff/ and code/ into a new workspace; returns what was copied.
+
+    The source's memory/PROGRESS.md goes under memory/history/<source session>/ (history it carried
+    itself stays under memory/history/), so the new session's own PROGRESS.md starts empty.
+    """
+    source = Path(source)
+    session = source.parent.name if source.name == WORKSPACE_NAME else source.name
+    copied = []
+    for name in EXPERIENCE_DIRS:
+        folder = source/name
+        if not folder.is_dir():
+            continue
+        for path in sorted(folder.rglob('*')):
+            if path.is_symlink() or not path.is_file():
+                continue
+            relative = path.relative_to(source)
+            if name == 'memory' and len(relative.parts) == 2 and relative.parts[1] in EXPERIENCE_HISTORY:
+                relative = Path('memory', 'history', session, relative.parts[1])
+            target = workspace/relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(path, target)
+            copied.append(str(relative))
+    return {'source': str(source), 'session': session, 'files': copied}
+
+
 def populate_workspace(config, workspace, *, gemini=True):
     """Template, skills, TASK.md and the contract for a new agent workspace."""
     from services.workspace import Setup, build, recipe_for
     for name in ('code', 'memory', 'output', 'runtime/frames', 'tmp', '.pylib'):
         (workspace/name).mkdir(parents=True, exist_ok=True)
+    experience = inherit_experience(config.experience_from, workspace) if config.experience_from else None
     model = robot_model_dir(config)
     if model is not None:  # the vendor's URDF and meshes, shared read-only by every session
         (workspace/'robot-model').symlink_to(model, target_is_directory=True)
@@ -223,6 +255,7 @@ def populate_workspace(config, workspace, *, gemini=True):
     (workspace/'.claude/skills').symlink_to('../.agents/skills', target_is_directory=True)
     from services import skill_library  # the persistent, agent-written task skills (separate from .agents/skills)
     built['skill_library'] = skill_library.checkout(config, workspace)
+    built['experience'] = experience
     return built
 
 
