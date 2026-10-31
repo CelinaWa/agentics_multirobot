@@ -43,6 +43,9 @@ Limits set for this session (operator's rules):
 - Simulation on this robot: the pelvis moves back 5–10 cm whenever an arm reaches far forward while leaning, so the hand lands short of the target; aim slightly past the first estimate and re-observe. Do not use `g1_crouch` to gain reach at a table; waist pitch of about 0.3 rad through `g1_step` rows worked better.
 - Wrist roll 0 means palm facing inward (toward the body centre). For a top-down grasp the right hand needs the palm down (roll of about −1.3; the left hand mirrors this). Check the palm direction in an observation before descending.
 - Release above the box centre, not near a wall: a soft body dropped near the rim folds over it.
+- Simulation session 2026-10-31 (two failed top-down grasps): with the right wrist rolled to −1.3 (palm down) the Dex3 thumb points straight down, about 10 cm below the back of the hand. It touches the plush first and rolls it away before the palm arrives, and closing then pinches only the top of the 20 cm wide body. Treat the thumb tip as the lowest point of the hand; descend vertically only; consider a vertical hand (wrist roll near 0) that straddles the torso with thumb and fingers, or the narrower neck-and-front-legs bundle.
+- The right hand at its home pose sits at the table's front edge when the hips are 0.2 m from it: move the arm back (shoulder pitch +0.45) and the forearm up (elbow −0.5) before swinging it forward over the table, and bring the other arm back (shoulder pitch 0.5) before leaning.
+- Commanded minus measured joint offsets under load were large in simulation (elbow +0.3 rad, shoulder yaw up to −0.4, waist yaw not tracking at all): plan from the measured joints and the camera after every step, not from the command.
 
 ## Ask the operator (`request_operator`) when
 
