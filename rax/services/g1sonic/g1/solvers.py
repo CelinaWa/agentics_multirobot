@@ -432,8 +432,16 @@ def plan(ctx, joints, target, position_only, obstacles, base_T_frame, max_attemp
         elapsed = time.perf_counter() - started
         if result is None or not bool(result.success.reshape(-1).any().item()):
             status = "planning_failed" if result is None else str(getattr(result, "status", "failed"))
-            return {"success": False, "status": status, "positions": None, "dt_s": None,
-                    "planning_time_s": elapsed, **notes}
+            out = {"success": False, "status": status, "positions": None, "dt_s": None,
+                   "planning_time_s": elapsed, **notes}
+            # cuRobo plans only from a collision-free start (its trajectory optimisation treats the start
+            # as fixed and self-collision as a hard constraint): say so, and which links touch, so the
+            # caller can move them apart with a small step first instead of retrying the same plan.
+            pairs = self_collision_pairs(joints)
+            if pairs:
+                out["status"] = "start_state_in_self_collision"
+                out["self_collision_pairs_at_start"] = pairs
+            return out
         plan_js = result.get_interpolated_plan()
         positions = plan_js.position.reshape(-1, plan_js.position.shape[-1]).detach().cpu().numpy()
         names = list(plan_js.joint_names) if plan_js.joint_names else list(ctx.active)
@@ -542,6 +550,38 @@ def collision(joints, obstacles, base_T_frame):
         scene_value = float(checker.collision_constraint.forward(state).reshape(-1).max().item())
         return {"self_collision": self_value > 0.0, "obstacle_collision": scene_value > 0.0,
                 "self_penetration_m": self_value, "obstacle_penetration_sum_m": scene_value}
+
+
+def self_collision_pairs(joints, tolerance_m=2 * WORLD_COLLISION_MARGIN_M):
+    """Link pairs whose collision spheres overlap at ``joints`` by more than the solvers tolerate.
+
+    The solvers shrink every sphere by ``WORLD_COLLISION_MARGIN_M`` for self-collision, so a pair
+    counts from a ``2 * margin`` overlap. Ignored pairs (the shipped matrix plus kinematic
+    neighbours) are skipped. Returns ``[{"links": [a, b], "penetration_m": depth}, ...]``, deepest first.
+    """
+    body = full_body()
+    with _LOCK:
+        checker = body.collision_checker()
+        q = body.vector(joints, body.checker_order).view(1, 1, -1)
+        spheres = checker.get_kinematics(q).robot_spheres.view(-1, 4).detach().cpu().numpy()
+        config = checker.kinematics.kinematics_config
+        index_to_link = {v: k for k, v in config.link_name_to_idx_map.items()}
+        link_of = [index_to_link[int(i)] for i in config.link_sphere_idx_map.detach().cpu().numpy().reshape(-1)]
+    ignore = self_collision_ignore(list(body.joint_names))
+    deepest = {}
+    for i in range(len(spheres)):
+        if spheres[i, 3] <= 0:
+            continue
+        for j in range(i + 1, len(spheres)):
+            a, b = link_of[i], link_of[j]
+            if a == b or spheres[j, 3] <= 0 or b in ignore.get(a, ()) or a in ignore.get(b, ()):
+                continue
+            depth = spheres[i, 3] + spheres[j, 3] - np.linalg.norm(spheres[i, :3] - spheres[j, :3])
+            if depth > tolerance_m:
+                key = tuple(sorted((a, b)))
+                deepest[key] = max(deepest.get(key, 0.0), float(depth))
+    return [{"links": list(k), "penetration_m": round(v, 4)}
+            for k, v in sorted(deepest.items(), key=lambda kv: -kv[1])]
 
 
 def self_check(samples=5, seed=0):

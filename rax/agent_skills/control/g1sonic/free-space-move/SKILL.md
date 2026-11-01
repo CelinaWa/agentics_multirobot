@@ -35,6 +35,10 @@ your first frame). The legs keep their references, so the robot does not step. `
 - `preview_only: true` returns the plan (duration, end-effector error, solved joints) and a
   `motion_plan_id` without moving; `g1_execute_motion_plan` runs it only if the robot has
   not moved since. A plan that fails executes nothing.
+- `status: start_state_in_self_collision` means the planner refused to start from the current pose:
+  `self_collision_pairs_at_start` names the touching links (typically a thumb against a hip when the
+  hands rest beside the body). Move those links a few centimetres apart with one `g1_step` and plan
+  again. `planning_failed` with no pairs usually means the target is out of reach for that arm.
 - The reply carries the usual `transition.feedback` and executed frames. Check the measured
   result, not just planning success: the controller follows arm references with a lag of a few
   tenths of a second, and a hand that met something the planner cannot see stops short.

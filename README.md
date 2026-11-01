@@ -247,6 +247,11 @@ agent 被卡死；而 robot service 退出时 planner keepalive 一停，deploy 
 - **`g1_free_space_move`（cuRobo 手臂规划器）没装就不可用。** `requirements-robot.txt` 故意不含 torch/cuRobo（装起来重，要 CUDA）；
   没有它 agent 会按 skill 里写的自己拼手臂帧（sim 里 agent 已经验证了这条退路：preview 报错后它改用 `g1_step`）。想要规划器：在 robot service 的
   venv 里装 torch + cuRobo（`services/g1sonic/g1/solvers.py` 第一次调用时才 import），再用 `g1_free_space_move preview_only=true` 验证。
+  **Warp 版本坑（2026-11-01 在 sim 里踩到）**：cuRobo 依赖的 `warp-lang` 从 1.10 起 PyPI 轮子是 CUDA 13 编译的，驱动低于 580（CUDA 13.0）的机器上
+  Warp 只看到 CPU，规划器报 `list index out of range`。驱动是 5xx 时装 GitHub release 里的 `+cu12` 轮子：
+  `pip install --no-deps --force-reinstall https://github.com/NVIDIA/warp/releases/download/v<版本>/warp_lang-<版本>%2Bcu12-py3-none-manylinux_2_28_x86_64.whl`
+  （`<版本>` 用 `python -c "import warp; print(warp.__version__)"` 查），然后 `python -c "import warp as wp; wp.init(); print(wp.get_cuda_devices())"` 要列出 GPU。
+  规划器还要求起始姿态无自碰撞：手贴在髋部时它会返回 `start_state_in_self_collision` 和碰到的连杆对，先用 `g1_step` 把手挪开几厘米再规划。
 
 - **这里的一切都没在真机上跑过。** 顺序：第 1、2 节 → 第 3 节 → 第 4 节 → 第 5 节，每一节的结果都决定下一节要不要做。
 - sim 里 SONIC 开始走的第一步有约 5–10% 概率扑倒（策略本身，不是我们的代码），所以第一次 `turn`/`walk` 带子一定挂着。

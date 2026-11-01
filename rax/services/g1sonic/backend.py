@@ -1200,7 +1200,7 @@ class G1SonicBackend:
         summary = {key: result.get(key) for key in (
             'success', 'status', 'joint_names', 'frame', 'end_effector', 'position_only', 'planning_time_s',
             'duration_s', 'position_error_m', 'rotation_error_rad', 'achieved_pose', 'max_abs_velocity_rad_s',
-            'limit_violations')}
+            'limit_violations', 'self_collision_pairs_at_start')}
         if not result.get('success') or not result.get('trajectory_canonical29'):
             return {'planned': False, 'plan': summary, 'executed_rows': 0, **self._state_report()}, []
         base = self._held_frame(snap)

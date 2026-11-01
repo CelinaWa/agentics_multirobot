@@ -250,6 +250,7 @@ def plan_arm_motion(side, target_position_m, target_quaternion_wxyz=None, curren
         "call_time_s": None, "solver_build_time_s": built, "defaulted_joints": defaulted,
         "held_links_excluded_from_collision": raw.get("held_links_excluded_from_collision", []),
         "moving_links_touching_obstacles_at_start": raw.get("moving_links_touching_obstacles_at_start", []),
+        "self_collision_pairs_at_start": raw.get("self_collision_pairs_at_start", []),
     }
     if raw["positions"] is None:
         out["call_time_s"] = time.perf_counter() - started
