@@ -1,4 +1,4 @@
-Grasp the puppy doll lying on the table in front of you and place it into the open cardboard box next to it, then return to a safe standing pose. No walking is needed: everything is within reach from where you stand.
+Grasp the puppy doll lying on the table in front of you and place it into the open clear plastic box next to it, then return to a safe standing pose. No walking is needed: everything is within reach from where you stand.
 
 ## Scene
 
@@ -7,7 +7,7 @@ Grasp the puppy doll lying on the table in front of you and place it into the op
 
 - The robot stands at a wooden table, facing it squarely, its hips about <distance, e.g. 0.15> m from the table edge. The table top is about <height, e.g. 0.75> m above the floor, roughly at the robot's pelvis height.
 - The object: one plush puppy doll, cream coloured, about 30 cm long and 12 cm thick, soft and deformable, lying on its side on the table directly in front of the robot, about <distance, e.g. 0.3> m from the table edge, its head pointing <left/right>.
-- The box: an open-top brown cardboard box, about <width> × <depth> cm opening and <height, e.g. 20> cm tall, standing on the table to the robot's front-left, about 10 cm to the left of the puppy, its near wall about <distance> m from the table edge. Its walls are low enough to reach over.
+- The box: an open-top clear plastic storage box, about <width, e.g. 39> × <depth, e.g. 28> cm and <height, e.g. 14> cm tall, standing on the table <on the puppy's left / on its right / behind it, the puppy between the robot and the box>, about <gap, e.g. 10> cm from the puppy, its near wall about <distance> m from the table edge. Its walls are clear: the colour image shows them faintly and the depth image looks through them to the table.
 - People: an operator at the stop and one at the safety harness. The straps stay attached and slack.
 
 ## Goal and success conditions
@@ -31,7 +31,7 @@ How to work (from the harness skills; they apply anyway):
 
 Limits set for this session (operator's rules):
 - One puppy. If the same grasp has failed twice (missed, pushed it away, dropped it), stop and `request_operator` with what you saw.
-- Use one hand, the one on the puppy's side (the demonstrations used the right hand with the box on the left). Before moving it, tuck the other arm back and up (shoulder pitch about +0.45, elbow about −0.5) so it stays clear of the table.
+- Use only the right hand, wherever the puppy and the box are (the demonstrations used the right hand). Before moving it, tuck the left arm back and up (shoulder pitch about +0.45, elbow about −0.5) and keep it there for the whole task.
 - Lift no higher than needed to clear the box wall, carry the puppy close to the body, and release only when the hand is above the inside of the box.
 - Never push the box: if a hand touches a box wall, back off upward first.
 
