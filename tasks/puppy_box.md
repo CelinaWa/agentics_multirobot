@@ -31,7 +31,7 @@ How to work (from the harness skills; they apply anyway):
 
 Limits set for this session (operator's rules):
 - One puppy. If the same grasp has failed twice (missed, pushed it away, dropped it), stop and `request_operator` with what you saw.
-- Use only the right hand, wherever the puppy and the box are (the demonstrations used the right hand). Before moving it, tuck the left arm back and up (shoulder pitch about +0.45, elbow about −0.5) and keep it there for the whole task.
+- Use only the right hand, wherever the puppy and the box are (the demonstrations used the right hand). Before moving it, tuck the left arm back and up (shoulder pitch about +0.45, elbow about −0.5) and keep it there for the whole task. The left hand must not touch the puppy at any point: an attempt where it does, even a brush, does not count. Check the left arm is still tucked before every grasp and lift.
 - Lift no higher than needed to clear the box wall, carry the puppy close to the body, and release only when the hand is above the inside of the box.
 - Never push the box: if a hand touches a box wall, back off upward first.
 
