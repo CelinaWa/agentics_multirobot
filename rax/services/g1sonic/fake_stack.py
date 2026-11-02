@@ -47,6 +47,7 @@ class FakeSonicStack:
         self.tilt_override_deg = None  # tests: report this tilt instead of the heading-only quaternion
         self.planner_stepping = False  # tests: under the planner the legs keep cycling (the robot never gets quiet)
         self._stepping_phase = 0.0
+        self.leg_motion = None         # tests: f(q, t) -> q applied in streamed mode (the policy stepping by itself)
         self.index = 0
         self.published = 0
         self._lock = threading.Lock()
@@ -148,6 +149,8 @@ class FakeSonicStack:
                 self.dq = (self.q - previous) / self.dt
                 if quat is not None:
                     self.base_quat = slerp(self.base_quat, quat, alpha)
+            if self.leg_motion is not None and not self.planner_mode and not self.damped:
+                self.q = self.leg_motion(self.q.copy(), self.index * self.dt)
             base_quat = self.base_quat
             if self.tilt_override_deg is not None:
                 half = np.radians(self.tilt_override_deg) / 2

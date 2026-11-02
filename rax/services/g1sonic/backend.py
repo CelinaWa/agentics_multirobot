@@ -65,6 +65,13 @@ DEFAULTS = {
     'max_root_delta_deg': 26.0,       # a larger root-rotation jump per tick is slerped down, as in HumanoidArena
     'rest_tail_rows': 5,              # a call longer than this must end with this many identical rows
     'fall_tilt_deg': 60.0,            # above this the stack is told to stop (damp) and the session disarms
+    # outside a walk, this much leg-odometry travel within runaway_window_s, with at least runaway_min_steps
+    # stance changes, is the policy walking off by itself: the session disarms (no damping: it is stepping) for the
+    # operator (sim seed 33: 1 m backward in 10 s while holding, a forward lunge and a fall 70 s later; clean sessions
+    # moved <= 0.05 m per 4 s, stepping in place up to 5 changes); 0 turns the check off
+    'runaway_m': 0.15,
+    'runaway_window_s': 4.0,
+    'runaway_min_steps': 2,
     'fall_damp': True,
     'walk_turn_rate_deg_s': 30.0,     # g1_walk: how fast the commanded facing turns (a 170 deg turn at 45 deg/s
                                       # spun the waist at 7 rad/s and the robot fell)
@@ -187,6 +194,7 @@ class G1SonicBackend:
         self.fault = None
         self.last_fault = None
         self.fault_disarmed_at = None
+        self._runaway_odo = None      # leg odometry of the runaway watch (outside walks)
         self.control_mode = 'idle'    # 'idle' until the first armed motion starts the stack; then 'streamed'
         self._last_index = None       # the stack's state index last seen; a smaller one means it restarted
         self.lock = threading.Lock()  # one motion at a time
@@ -1038,18 +1046,49 @@ class G1SonicBackend:
         return feedback
 
     def _watch_falls(self):
-        """Between calls nothing else looks at the robot: a fall while it holds a frame damps and disarms too."""
+        """Between calls nothing else looks at the robot: a fall while it holds a frame damps and disarms too. During
+        calls and between them, a robot stepping away by itself outside a walk disarms (_watch_runaway)."""
+        history = []
         while self._watching:
             time.sleep(0.05)
             snap = self.state.latest()
-            if snap is None or not self.streamer.primed or self.streamer.executing or self.fault is not None:
+            if snap is None or not self.streamer.primed or (self.fault is not None and self.fault['kind'] == 'fall'):
+                history = []
                 continue
             if self.clock() - snap.received > self.options['state_max_age_s']:
+                continue
+            history = self._watch_runaway(history, snap) if self.fault is None else []
+            if self.streamer.executing:
                 continue
             tilt = snap.tilt_deg()
             if tilt > self.options['fall_tilt_deg']:
                 self.streamer.hold()
                 self._fall(tilt)
+
+    def _watch_runaway(self, history, snap):
+        """history: [(time, odometry xy, stance)] over the last runaway_window_s, outside walks; returns it updated."""
+        o = self.options
+        if o['runaway_m'] <= 0 or self.control_mode != 'streamed':
+            self._runaway_odo = None
+            return []
+        try:
+            if self._runaway_odo is None:
+                self._runaway_odo = {'xy': np.zeros(2), 'feet': None, 'stance': None}
+            self._odometry_update(self._runaway_odo, snap)
+        except Exception:
+            return history
+        now = snap.received
+        history = [h for h in history if now - h[0] <= o['runaway_window_s']]
+        history.append((now, self._runaway_odo['xy'].copy(), self._runaway_odo['stance']))
+        travel = float(np.linalg.norm(history[-1][1] - history[0][1]))
+        steps = sum(1 for a, b in zip(history, history[1:]) if a[2] is not None and b[2] is not None and a[2] != b[2])
+        if travel >= o['runaway_m'] and steps >= o['runaway_min_steps']:
+            self._disarm(f"the robot stepped {travel:.2f} m by itself in {o['runaway_window_s']:g} s without a walk "
+                         '(leg odometry): it keeps balancing; operator, check its footing and the space around it, '
+                         'then arm again', fault='runaway')
+            self._runaway_odo = None
+            return []
+        return history
 
     def _fall(self, tilt):
         if self.fault is not None and self.fault.get('kind') == 'fall':

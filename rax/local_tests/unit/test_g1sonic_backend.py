@@ -552,6 +552,37 @@ def test_walk_ramps_the_speed_up_and_down_around_the_full_speed(session, stack):
         backend.close()
 
 
+def walking_off(q, t, step_s=0.5, swing_rad=0.25):
+    """Legs of a robot stepping backward by itself: the planted leg sweeps forward, the other is lifted."""
+    names = R.JOINT_NAMES
+    phase, left = (t % step_s) / step_s, int(t // step_s) % 2 == 0
+    stance, swing = ('left', 'right') if left else ('right', 'left')
+    q[names.index(f'{stance}_hip_pitch_joint')] = STANDING[names.index(f'{stance}_hip_pitch_joint')] + swing_rad * (2 * phase - 1)
+    q[names.index(f'{stance}_knee_joint')] = STANDING[names.index(f'{stance}_knee_joint')]
+    q[names.index(f'{swing}_knee_joint')] = STANDING[names.index(f'{swing}_knee_joint')] + 0.6
+    return q
+
+
+def test_a_robot_stepping_away_by_itself_while_holding_disarms_for_the_operator(session, stack):
+    backend = make_backend(session, stack)
+    try:
+        start_control(backend, session)
+        time.sleep(1.0)
+        assert backend.fault is None  # holding still: no runaway
+        stack.leg_motion = walking_off
+        assert wait_for(lambda: backend.fault is not None, timeout=6.0)
+        assert backend.fault['kind'] == 'runaway' and 'by itself' in backend.fault['what']
+        assert wait_for(lambda: not arming.read(session)['armed']) and not stack.damped  # disarmed, not damped: it is stepping
+        stack.leg_motion = None
+        with pytest.raises(PermissionError):
+            backend.validate(T.STEP, {'actions': [frame(STANDING).tolist()]})
+        arming.write(session, True)  # the operator arms again on purpose
+        backend.call(T.HOLD, {})  # an armed call acknowledges the fault
+        assert backend.fault is None and backend.last_fault['kind'] == 'runaway'
+    finally:
+        backend.close()
+
+
 def test_an_odometry_walk_that_never_covers_its_distance_ends_after_the_extension(session, stack):
     # the stack's feet do not move: covered stays 0 (sim seed 30: a 0.05 m carrying walk at the table never ended,
     # the walk extended itself every tick and held the backend lock until the session timed out)
