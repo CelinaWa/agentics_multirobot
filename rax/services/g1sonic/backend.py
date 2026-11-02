@@ -82,6 +82,13 @@ DEFAULTS = {
                                       # instant of walk_stuck_pick_s and ease to the default stance (sim: fell 1 in 2)
     'walk_stuck_pick_s': 1.5,
     'walk_segment_m': 0.5,            # g1_walk: longer walks run as segments of at most this (planner re-started each)
+    'walk_odometry': False,           # g1_walk: move until leg odometry (planted-foot kinematics + IMU) has covered the
+                                      # distance, up to walk_odometry_extend_s longer than distance / speed (sim: 0-4 cm
+                                      # per walk vs ground truth; the planned base advanced while the robot stood still)
+    'walk_odometry_extend_s': 4.0,
+    'walk_odometry_lead_m': 0.02,     # stop commanding this short of the distance: the robot keeps stepping briefly
+    'walk_any_direction': False,      # g1_walk: allow backward (forward_m < 0) and sideways (left_m) movement while facing
+                                      # ahead (SONIC's planner takes movement and facing directions separately)
     'walk_ramp_s': 0.0,               # g1_walk: ramp the commanded speed between 0.1 m/s and speed_mps over this long
                                       # at the start and before the stop (robot time)
     'walk_closed_below_m': 0.3,       # g1_walk: walks shorter than this run until the planned base has advanced the
@@ -754,7 +761,7 @@ class G1SonicBackend:
             report['pelvis_height_est_m']['after'] = round(self.pelvis_height_estimate(latest.q, latest.base_quat), 3)
         return value, images
 
-    def _walk(self, forward_m=0.0, turn_deg=0.0, speed_mps=0.3, carry=False):
+    def _walk(self, forward_m=0.0, turn_deg=0.0, speed_mps=0.3, carry=False, left_m=0.0):
         """Long walks run as segments of at most `walk_segment_m`, each with its own planner start and stop: the
         planner's reference runs ahead of a lagging robot over a long walk, and the policy then lunges to catch up
         (sim: falls and runaways in 0.9 m walks, none in 99 walks of 0.5 m)."""
@@ -774,22 +781,24 @@ class G1SonicBackend:
                             self._hand_over_to_hold(quiet)
             self._planner_warm = True
         seg = self.options['walk_segment_m']
-        if seg <= 0 or forward_m <= seg * 1.2:
-            packet = self._walk_segment(forward_m, turn_deg, speed_mps, carry)
+        span = math.hypot(forward_m, left_m)
+        if seg <= 0 or span <= seg * 1.2:
+            packet = self._walk_segment(forward_m, turn_deg, speed_mps, carry, left_m)
             self._walk_notes(packet, warmed_up)
             return packet
-        count = int(math.ceil(forward_m / seg))
+        count = int(math.ceil(span / seg))
         packet = None
         start = self.state.latest()
         for k in range(count):
-            packet = self._walk_segment(forward_m / count, turn_deg if k == 0 else 0.0, speed_mps, carry)
+            packet = self._walk_segment(forward_m / count, turn_deg if k == 0 else 0.0, speed_mps, carry, left_m / count)
             if self.control_mode == 'planner':  # still stepping: let the next segment's start hand over after quiet
                 quiet = self._wait_until_quiet(timeout=self.options['walk_quiet_timeout_s'], raise_on_timeout=False, strict=True)
                 if quiet is not None:
                     with self.lock:
                         self._hand_over_to_hold(quiet)
         fb = packet[0]['transition']['feedback'] if isinstance(packet, tuple) else packet['transition']['feedback']
-        fb['commanded'] = {'forward_m': forward_m, 'turn_deg': turn_deg, 'speed_mps': speed_mps, 'segments': count}
+        fb['commanded'] = {'forward_m': forward_m, 'left_m': left_m, 'turn_deg': turn_deg, 'speed_mps': speed_mps,
+                           'segments': count}
         end = self.state.latest()
         if start is not None and end is not None:
             d = end.yaw_rad() - start.yaw_rad()
@@ -811,7 +820,23 @@ class G1SonicBackend:
         else:
             fb['control'] = 'standing in the streamed hold'
 
-    def _walk_segment(self, forward_m=0.0, turn_deg=0.0, speed_mps=0.3, carry=False):
+    def _feet_world(self, snap):
+        """Both ankle positions relative to the pelvis, rotated into the world frame by the IMU orientation."""
+        from .g1.model import quat_to_matrix
+        joints = dict(zip(R.JOINT_NAMES, np.asarray(snap.q, dtype=float).tolist()))
+        rotation = quat_to_matrix(np.asarray(snap.base_quat, dtype=float))
+        return [rotation @ self.model.link_transform(f'{side}_ankle_roll_link', joints)[:3, 3] for side in ('left', 'right')]
+
+    def _odometry_update(self, odo, snap):
+        """Leg odometry: while the same foot stays planted (the lower ankle), the pelvis moves opposite to that foot's
+        position relative to it. `odo` is {'xy', 'feet', 'stance'}, updated in place."""
+        feet = self._feet_world(snap)
+        stance = 0 if feet[0][2] < feet[1][2] - 0.005 else 1 if feet[1][2] < feet[0][2] - 0.005 else odo['stance']
+        if odo['feet'] is not None and stance is not None and stance == odo['stance']:
+            odo['xy'] = odo['xy'] - (feet[stance][:2] - odo['feet'][stance][:2])
+        odo['feet'], odo['stance'] = feet, stance if stance is not None else odo['stance']
+
+    def _walk_segment(self, forward_m=0.0, turn_deg=0.0, speed_mps=0.3, carry=False, left_m=0.0):
         """Walk under SONIC's planner, then hold the measured pose in streamed motion again.
 
         The stack's planner frame has x along the heading the robot had when the planner took over, so the
@@ -825,8 +850,11 @@ class G1SonicBackend:
         with self.lock:
             snap = self._require_armed()
             start_yaw, started = snap.yaw_rad(), self.clock()
-            distance = forward_m  # the planner steps forward only (measured: backward and sideways commands do not move it)
-            direction = 0.0
+            if o['walk_any_direction']:
+                # movement direction relative to the facing; facing stays along the heading (plus the turn)
+                distance, direction = math.hypot(forward_m, left_m), math.atan2(left_m, forward_m)
+            else:
+                distance, direction = forward_m, 0.0  # forward only (an early test saw backward and sideways commands not move it)
             turn = math.radians(turn_deg)
             move_s = distance / speed_mps
             if o['walk_ramp_s'] > 0 and distance > 0:
@@ -860,6 +888,8 @@ class G1SonicBackend:
             self._event(f'walk: forward {forward_m:g} m, turn {turn_deg:g} deg at {speed_mps:g} m/s'
                         + (' carrying (arms, waist and hands held)' if carry else ''))
             trace, stop_reason = [], None
+            odo = {'xy': np.zeros(2), 'feet': None, 'stance': None}
+            ux, uy = math.cos(start_yaw + direction), math.sin(start_yaw + direction)  # commanded movement, world frame
             dt = 0.05
             try:
                 begin = self.clock()
@@ -868,7 +898,18 @@ class G1SonicBackend:
                 for phase, moving in (('stand', False), ('move', True), ('settle', False)):
                     while True:
                         t = (self.clock() - begin) / scale - 0.5  # 0.5 s of standing under the planner first
-                        if moving and 0 < distance and t >= 0:
+                        latest_snap = self.state.latest()
+                        if latest_snap is not None:
+                            self._odometry_update(odo, latest_snap)
+                        if moving and 0 < distance and t >= 0 and o['walk_odometry']:
+                            covered = float(odo['xy'][0] * ux + odo['xy'][1] * uy)
+                            if covered >= distance - o['walk_odometry_lead_m'] and t < move_s:
+                                move_s = t
+                                total = max(move_s, turn_s)
+                            elif t >= move_s and covered < distance - o['walk_odometry_lead_m'] and t < move_s + o['walk_odometry_extend_s']:
+                                move_s = t + dt
+                                total = max(move_s, turn_s)
+                        elif moving and 0 < distance and t >= 0:
                             # walk until the stack's planned base has advanced `distance` (base_trans_target), not
                             # for distance / speed: the plan starts from standing, and short timed walks (under 0.2 m
                             # commanded) moved nothing (median 0 of 28); capped at walk_extend_max_s more. Longer walks
@@ -955,7 +996,11 @@ class G1SonicBackend:
                 raise error
             end = self.state.latest()
             turned = math.degrees(math.atan2(math.sin(end.yaw_rad() - start_yaw), math.cos(end.yaw_rad() - start_yaw)))
-            feedback = {'commanded': {'forward_m': forward_m, 'turn_deg': turn_deg, 'speed_mps': speed_mps},
+            c, sn = math.cos(start_yaw), math.sin(start_yaw)
+            odo_fwd, odo_left = odo['xy'][0] * c + odo['xy'][1] * sn, -odo['xy'][0] * sn + odo['xy'][1] * c
+            feedback = {'commanded': {'forward_m': forward_m, 'left_m': left_m, 'turn_deg': turn_deg, 'speed_mps': speed_mps},
+                        'odometry_m': {'forward': round(float(odo_fwd), 3), 'left': round(float(odo_left), 3),
+                                       'note': 'leg odometry during the walk (planted-foot kinematics + IMU), a few cm'},
                         'measured_turn_deg': round(turned, 1), 'tilt_deg': round(end.tilt_deg(), 2),
                         'max_tilt_deg': round(max(trace), 2) if trace else None, 'fallen': False,
                         'wall_seconds': round(self.clock() - started, 2),
