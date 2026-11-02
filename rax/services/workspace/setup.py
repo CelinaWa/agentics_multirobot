@@ -168,6 +168,7 @@ class Setup:
     gemini: bool = True
     demonstrations: int = 0         # operator-supplied images under runtime/demonstrations/
     demonstration_kind: str = 'terminal_state'
+    environment: str = 'real'       # real robot or simulation, see Configuration.environment
 
     def __post_init__(self):
         if self.robot not in ROBOT_FACTS:
@@ -180,11 +181,13 @@ class Setup:
             raise ValueError('demonstrations must be a count')
         if self.demonstration_kind not in DEMONSTRATION_KINDS:
             raise ValueError('Unknown demonstration kind')
+        if self.environment not in ('real', 'sim'):
+            raise ValueError('Unknown environment')
 
     @classmethod
     def from_config(cls, config, *, gemini=True):
         return cls(config.robot, config.task, 'claude', config.observation_profile, config.subagents, gemini,
-                   len(config.demonstration_images), config.demonstration_kind)
+                   len(config.demonstration_images), config.demonstration_kind, config.environment)
 
     @property
     def camera_geometry(self):
@@ -213,4 +216,6 @@ class Setup:
             'demonstration_kind': self.demonstration_kind if self.demonstrations else 'none',
             'one_demonstration_image': self.demonstrations == 1,
             'robot': ROBOT_FACTS[self.robot],
+            'environment': self.environment,
+            'simulated': self.environment == 'sim',
         }

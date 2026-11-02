@@ -193,6 +193,8 @@ def settings(config, workspace, socket):
         'autoUpdates': False, 'includeCoAuthoredBy': False, 'cleanupPeriodDays': 3650,
         'env': {
             'RAX_MCP_SOCKET': str(socket),
+            # real or sim: api/params.py reads and records measured numbers for this environment
+            'RAX_ENVIRONMENT': config.environment,
             # .pylib: packages the agent adds itself (pip install --target .pylib); its env is read-only.
             'PYTHONPATH': f'{workspace}:{workspace}/.pylib', 'PYTHONDONTWRITEBYTECODE': '1',
             'PATH': f'{agent_python(config)}:/usr/local/bin:/usr/bin:/bin',
@@ -237,6 +239,11 @@ def populate_workspace(config, workspace, *, gemini=True):
     for name in ('code', 'memory', 'output', 'runtime/frames', 'tmp', '.pylib'):
         (workspace/name).mkdir(parents=True, exist_ok=True)
     experience = inherit_experience(config.experience_from, workspace) if config.experience_from else None
+    if experience is not None:  # [sim-only] rows set aside, memory/TRANSFER.md for a change of environment
+        from services import sim_to_real
+        experience['transfer'] = sim_to_real.prepare(
+            workspace, experience['session'], sim_to_real.source_environment(config.experience_from),
+            config.environment)
     model = robot_model_dir(config)
     if model is not None:  # the vendor's URDF and meshes, shared read-only by every session
         (workspace/'robot-model').symlink_to(model, target_is_directory=True)

@@ -10,6 +10,7 @@ AGENT_EFFORTS = ('high', 'xhigh', 'max')
 PROVIDERS = ('claude-login', 'openrouter', 'anthropic')
 PROFILES = ('rgbd', 'rgb-only')
 DEMONSTRATION_KINDS = ('terminal_state', 'completion_sequence')
+ENVIRONMENTS = ('real', 'sim')
 IMAGE_SUFFIXES = ('.png', '.jpg', '.jpeg')
 
 
@@ -37,6 +38,9 @@ class Configuration:
     # An earlier session's agent-workspace (or any directory with memory/, handoff/, code/) whose
     # experience this session starts from: its memory and handoff are copied into the new workspace.
     experience_from: str | None = None
+    # Where the robot is: the physical robot or a simulation of it. Experience carries this as its source, so a
+    # real session can tell sim-measured numbers from its own (see the sim-to-real skill).
+    environment: str = 'real'
 
     def __post_init__(self):
         object.__setattr__(self, 'root', Path(self.root).resolve())
@@ -77,6 +81,8 @@ class Configuration:
                                                      and Path(self.experience_from).is_absolute()
                                                      and Path(self.experience_from).is_dir()):
             raise ValueError('experience_from must be an absolute path to an existing directory')
+        if self.environment not in ENVIRONMENTS:
+            raise ValueError(f'environment must be one of {ENVIRONMENTS}')
 
     @property
     def camera_geometry(self):

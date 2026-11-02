@@ -186,6 +186,33 @@ agent 发 `g1_step(actions=[40 维 × N 行])`，robot service 按顺序做：
 2026-10-31 之前只有第一行是自动的，后三行没有任何代码搬运（技能文件假设有，harness 没做）。现在 `--experience` 补上了；
 AGENTS.md 多了一段：继承来的东西可能来自 sim 或另一个布局，每个数字先自己观测验证。
 
-**sim 里的限制**：sim2sim 容器里 Claude Code 的 bash 沙箱（bubblewrap）建不了 namespace，agent 的 Bash 是死的，所以 sim
-session 只能产出 memory/handoff 文字，写不了、跑不了 skill-library 代码。要让 sim 也产技能代码，容器需要允许 user namespace
-（重建容器加 `--security-opt seccomp=unconfined`，或等价的 cap），真机主机（普通 Ubuntu）没有这个问题。
+**sim 里的限制（已解决）**：2026-10-31 sim2sim 容器重建（加了 SYS_ADMIN）后 bubblewrap 沙箱能用了，sim session 的 agent
+可以写、跑 `code/` 和 skill-library 代码（例如 puppy_box 的 `code/puppy_box/pb3.py`）。
+
+### 9.1 统一的 sim↔real 框架（2026-11-02）
+
+sim 和真机是**同一套** agent、工具、memory 格式、代码；区别只有一个字段：
+
+- **session 的环境**：`configure_session.py --environment real|sim`（默认 real；`g1_up.sh` 起的是真机，sim 批跑脚本传 `sim`）。
+  agent 的进程环境里有 `RAX_ENVIRONMENT`，AGENTS.md 和技能里写着"这个 session 跑在 real/sim"。
+- **三类知识，三个标签**（技能 `sim-to-real`）：TIPS.md / handoff 的每一行开头标
+  `[strategy]`（怎么做、为什么，换环境当规则用）、`[param]`（测出来的数，换环境当先验、要重测）、
+  `[sim-only]`（只因为是仿真才成立：脚本 operator、接触模型、场景生成器）。
+- **数字放在 `memory/PARAMS.json`，按环境分层**：代码里 `from api.params import param, record`；
+  `param('reach.forward_m')` 取本环境的值，没有就取另一环境的值并在 stderr 说明（真机上用了 sim 的数一定看得见）；
+  `param(..., verified=True)` 在本环境没测过时直接报错，用在提交性动作（抓取高度、放置点、走路距离）上；
+  `record(...)` 写进本环境那一层，另一层保留。`python -m api.params` 列出哪些还没在本环境测过。
+- **继承时自动适配**（launcher → `services/sim_to_real.py`）：sim 经验进真机 session 时，`[sim-only]` 行移到
+  `memory/history/<session>/SIM_ONLY.md`；生成 `memory/TRANSFER.md`：来源环境、只在 sim 测过的数字清单（勾选框）、先测什么。
+- **导出时检查**：`export_experience.sh` 在 `SOURCE.txt` 记 `environment:`（旧 session 用 `RAX_EXPORT_ENVIRONMENT=sim`），
+  并写 `TRANSFER_REPORT.txt`：各标签行数、PARAMS 两层各多少、哪些没打标签却写了数字。
+- **operator 契约**：真 operator 能做的（arm、reset、扶 gantry、大致放回、说看到什么）sim operator 才能做；
+  sim operator 不报 GT 数字。依赖 GT 的东西标 `[sim-only]`。
+- **real → sim 回流**：真机测到的数（如 `scene.table_height_m` 的 real 层）喂回 sim 场景随机化
+  （`3/eng/recon_dog/build_dog_scene.py` 读 `REAL_PARAMS=<PARAMS.json>`，桌高改成真值 ±2 cm）。
+- **能不能上真机**：`3/eng/console_art/transfer_gate.py` 按摆放（左/右/前）统计 GT 确认的成功、摔倒，再对最新 session 的
+  memory 做标签检查；每种摆放 ≥2 次成功、0 摔倒、memory 打完标签才 PASS。
+
+真机第一个 session 的顺序（技能里写死）：读 TRANSFER.md → 列出第一个子任务要用的 `[param]` → 每个用最便宜、不提交的方式测
+（先看、再空手 hover、再慢速局部动作）并 `record()` → 才执行。机器人层面的数（手在桌高能伸多远、Dex3 闭合后抬 5 cm 还抓不抓得住、
+短距离 walk 实际走多少、真相机下桌边/物体检测读数）用 `robot.` / `walk.` / `hand.` 命名，后面所有任务都继承。

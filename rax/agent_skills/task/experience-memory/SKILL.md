@@ -19,6 +19,8 @@ uncertain; do not load the entire history. Keep learned procedures under
 - Record the observable preconditions, task phase, tool and arguments or reusable pose
   relation, visible effect, and the saved frame paths. State what made it work so
   later attempts avoid repeating exploration or a superseded failure.
+- Start each row with its kind, `[strategy]`, `[param]` or `[sim-only]`, and keep the numbers a
+  controller reads in `{{ vocab.memory }}/PARAMS.json` ([sim-to-real](../sim-to-real/SKILL.md)).
 - Update the matching tip when the same maneuver is refined.
 - The real scene drifts between attempts (objects are moved back by hand, lighting
   changes): record the conditions under which a tip held, not only its numbers.

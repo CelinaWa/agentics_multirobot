@@ -11,8 +11,8 @@ import secrets
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from services.controller.config import (AGENT_EFFORTS, DEMONSTRATION_KINDS, PROFILES, PROVIDERS,  # noqa: E402
-                                        Configuration)
+from services.controller.config import (AGENT_EFFORTS, DEMONSTRATION_KINDS, ENVIRONMENTS, PROFILES,  # noqa: E402
+                                        PROVIDERS, Configuration)
 from services.storage_root import artifact_root  # noqa: E402
 
 
@@ -40,6 +40,8 @@ def main():
                              'code/): its memory and handoff seed this session, see the experience-memory skill')
     parser.add_argument('--demonstration-kind', choices=DEMONSTRATION_KINDS, default='terminal_state',
                         help='What the images show: the completed task, or a sequence of someone completing it')
+    parser.add_argument('--environment', choices=ENVIRONMENTS, default='real',
+                        help='real: the physical robot; sim: a simulation of it (tags what the session learns)')
     args = parser.parse_args()
     if args.task_file and args.task_text:
         parser.error('use --task-file or --task-text, not both')
@@ -66,7 +68,7 @@ def main():
         subagents=args.subagents,
         demonstration_images=[str(image.resolve()) for image in args.demonstration_image],
         demonstration_kind=args.demonstration_kind,
-        experience_from=str(experience) if experience else None)
+        experience_from=str(experience) if experience else None, environment=args.environment)
     root.mkdir(parents=True, mode=0o700)
     path = root/'operator-input.json'
     path.write_text(json.dumps(config.to_dict(), indent=2) + '\n')

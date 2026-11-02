@@ -39,6 +39,12 @@ can differ from yours: verify every inherited position and parameter with your o
 before relying on it, and record where it held and where it did not
 ([inherited-experience](.agents/skills/inherited-experience/SKILL.md)).
 
+This session runs on **{{ environment }}**{% if simulated %} (a simulation of the robot){% endif %}. Simulation and real
+sessions share one memory format so experience moves between them: tag every tip `[strategy]`,
+`[param]` or `[sim-only]`, keep the numbers your code uses in `memory/PARAMS.json` through
+`api/params.py`, and when `memory/TRANSFER.md` exists, measure what it lists before relying on it
+([sim-to-real](.agents/skills/sim-to-real/SKILL.md)).
+
 The skill links below are entry points. Read the skill for your current step and follow
 its references when needed rather than reading the entire workspace first. The method
 skills say how to run the work on a robot that gives you few attempts: count outcomes and

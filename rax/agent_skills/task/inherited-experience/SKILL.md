@@ -20,7 +20,7 @@ layout. Its knowledge is in your workspace; its scene, calibration and numbers a
 
 ## Order of work at the start
 
-1. `TASK.md`, then `handoff/README.md`, then `memory/TIPS.md` and `memory/INDEX.md`, then `skill-library/INDEX.md`.
+1. `TASK.md`, then `memory/TRANSFER.md` if present, then `handoff/README.md`, then `memory/TIPS.md` and `memory/INDEX.md`, then `skill-library/INDEX.md`.
    Do not read `memory/history/` unless a tip or the handoff refers to it.
 2. Observe before planning. For every inherited position, distance or height, find the
    corresponding feature in your own observation and measure it; the inherited number is a
@@ -39,11 +39,19 @@ heights, joint tracking offsets, hand stiffness and how much a soft object compr
 walking distances per command. A simulated hand and a real hand close differently; a
 simulated table is where the model put it.
 
+The earlier session tagged its rows `[strategy]`, `[param]` or `[sim-only]` and kept its numbers in
+`memory/PARAMS.json` ([sim-to-real](../sim-to-real/SKILL.md)). When it ran in the other environment,
+the launcher already moved its `[sim-only]` rows to `memory/history/<session>/SIM_ONLY.md` and listed
+the numbers to measure in `memory/TRANSFER.md`; work that list first. Untagged rows predate the tags:
+read their numbers as `[param]`.
+
 ## Bookkeeping
 
 - When an inherited tip holds here, append to its row in `memory/TIPS.md`: `held on <sim|real> <date>`.
   When it does not, write what differed on a new line under it; do not delete it.
-- Give new rows `where: sim` or `where: real` so the next session knows the source.
+- Give new rows a kind tag and `where: sim` or `where: real` so the next session knows the source.
+- A number you measured here goes into `memory/PARAMS.json` with `api.params.record()`; the
+  other environment's entry stays next to it.
 - A library skill from simulation keeps status `draft` until it has run unattended here;
   the merge tool enforces this, your evidence rows make it possible.
 - Before the session ends, update `handoff/README.md` for the next scene as
