@@ -70,6 +70,10 @@ measurement a person could not make, do not build a strategy on it and tag what 
    moves the robot (`feedback.odometry_m` against a mark on the floor the operator can confirm), how
    your edge and object detection reads with the real camera. Record them under `robot.` / `walk.` /
    `hand.` names so the next task inherits them too.
+5. Scene numbers come from your own sensing, never from a person: nobody beside the robot measures the
+   table. Record what your depth sees: the table top above the floor as `scene.table_height_m` (top in
+   the level frame minus the sole height from the robot model), the edge distance as
+   `table.edge_from_pelvis_m`. The simulation rebuilds its scene from these real entries.
 {% else %}
 4. In simulation, explore for strategies that do not depend on a lucky number: vary what the scene
    randomizes, keep the controller reading its numbers from PARAMS.json, and record the spread you saw
@@ -80,4 +84,6 @@ measurement a person could not make, do not build a strategy on it and tag what 
 
 - Every row you added this session carries a tag; every number your code uses has a PARAMS.json
   name with this environment's entry.
+- Inherited rows without a tag: tag them too, or merge them into a tagged row. On the other
+  environment an untagged row that states a number is read as an unverified `[param]`.
 - The handoff names, per subtask, which `[param]` the next environment must measure first.
