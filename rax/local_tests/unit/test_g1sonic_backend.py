@@ -552,6 +552,24 @@ def test_walk_ramps_the_speed_up_and_down_around_the_full_speed(session, stack):
         backend.close()
 
 
+def test_an_odometry_walk_that_never_covers_its_distance_ends_after_the_extension(session, stack):
+    # the stack's feet do not move: covered stays 0 (sim seed 30: a 0.05 m carrying walk at the table never ended,
+    # the walk extended itself every tick and held the backend lock until the session timed out)
+    backend = make_backend(session, stack, walk_settle_s=0.2, walk_ramp_s=0.0, walk_odometry=True,
+                           walk_odometry_extend_s=0.5)
+    try:
+        start_control(backend, session)
+        result = {}
+        worker = threading.Thread(target=lambda: result.update(value=backend.call(
+            T.WALK, {'forward_m': 0.05, 'speed_mps': 0.5, 'carry': True})[0]), daemon=True)
+        worker.start()
+        worker.join(timeout=10.0)
+        assert not worker.is_alive(), 'the walk did not end'
+        assert result['value']['transition']['feedback']['odometry_m']['forward'] < 0.05
+    finally:
+        backend.close()
+
+
 def test_walk_drives_sonics_planner_then_holds_the_measured_pose_in_streamed_motion(session, stack):
     backend = make_backend(session, stack, walk_settle_s=0.2, walk_turn_rate_deg_s=200.0, walk_ramp_s=0.0)
     try:

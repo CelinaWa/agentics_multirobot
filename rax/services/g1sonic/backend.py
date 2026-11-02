@@ -862,6 +862,7 @@ class G1SonicBackend:
                 move_s += ramp * (speed_mps - 0.1) / speed_mps  # the two ramps cover less ground than full speed
             turn_s = abs(turn_deg) / o['walk_turn_rate_deg_s']
             total = max(move_s, turn_s)
+            planned_move_s = move_s  # the extensions below are capped against this, not the extended move_s
             held = self.converter.last
             upper, hands = None, (None, None)
             if held is not None:
@@ -906,7 +907,8 @@ class G1SonicBackend:
                             if covered >= distance - o['walk_odometry_lead_m'] and t < move_s:
                                 move_s = t
                                 total = max(move_s, turn_s)
-                            elif t >= move_s and covered < distance - o['walk_odometry_lead_m'] and t < move_s + o['walk_odometry_extend_s']:
+                            elif (t >= move_s and covered < distance - o['walk_odometry_lead_m']
+                                  and t < planned_move_s + o['walk_odometry_extend_s']):
                                 move_s = t + dt
                                 total = max(move_s, turn_s)
                         elif moving and 0 < distance and t >= 0:
@@ -920,7 +922,7 @@ class G1SonicBackend:
                                 trans0 = tt if trans0 is None else trans0
                                 advanced = float(np.linalg.norm(tt - trans0))
                                 closed = distance < o['walk_closed_below_m']
-                                if closed and t >= move_s and advanced < distance and t < move_s + o['walk_extend_max_s']:
+                                if closed and t >= move_s and advanced < distance and t < planned_move_s + o['walk_extend_max_s']:
                                     move_s = t + dt
                                     total = max(move_s, turn_s)
                                 elif closed and advanced >= distance and t < move_s:
