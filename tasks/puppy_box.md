@@ -31,7 +31,7 @@ How to work (from the harness skills; they apply anyway):
 
 Limits set for this session (operator's rules):
 - One puppy. If the same grasp has failed twice (missed, pushed it away, dropped it), stop and `request_operator` with what you saw.
-- Use one hand, the one on the puppy's side (the demonstrations used the right hand with the box on the left). Keep the other arm home.
+- Use one hand, the one on the puppy's side (the demonstrations used the right hand with the box on the left). Before moving it, tuck the other arm back and up (shoulder pitch about +0.45, elbow about −0.5) so it stays clear of the table.
 - Lift no higher than needed to clear the box wall, carry the puppy close to the body, and release only when the hand is above the inside of the box.
 - Never push the box: if a hand touches a box wall, back off upward first.
 
@@ -41,6 +41,7 @@ Limits set for this session (operator's rules):
 - A plush body compresses: close the hand fully, then check it has stopped on the doll (hand joints stop moving before the full fist) before lifting. If the fingers reach the full fist, nothing is in the hand.
 - The puppy is longer than the hand: grasp the middle of the body, not a leg or the head, or it hangs and catches on the rim.
 - Simulation on this robot: the pelvis moves back 5–10 cm whenever an arm reaches far forward while leaning, so the hand lands short of the target; aim slightly past the first estimate and re-observe. Do not use `g1_crouch` to gain reach at a table. A waist lean is the hazard zone: six sim sessions (2026-10-31/11-01) saw the pelvis slide back 8-19 cm and the robot fall to its side once (lean 0.3 held with an arm stretched forward). Lean at most 0.2 rad, in its own ramp, observe twice a few seconds apart before reaching, never hold a leaned reach while you think (retract or plan the next rows first), and stand closer to the table instead of leaning further.
+- Simulation on this robot, reach: standing upright the palm reaches about 0.32-0.36 m ahead of the pelvis at table height. To reach further sideways, turn the waist (yaw, up to about ±0.5 rad) instead of leaning. A waist turn swings the whole upper body, so the idle hand sweeps sideways across the table unless it is tucked first.
 - Wrist roll 0 means palm facing inward (toward the body centre). For a top-down grasp the right hand needs the palm down (roll of about −1.3; the left hand mirrors this). Check the palm direction in an observation before descending.
 - Release above the box centre, not near a wall: a soft body dropped near the rim folds over it.
 - Simulation session 2026-10-31 (two failed top-down grasps): with the right wrist rolled to −1.3 (palm down) the Dex3 thumb points straight down, about 10 cm below the back of the hand. It touches the plush first and rolls it away before the palm arrives, and closing then pinches only the top of the 20 cm wide body. Treat the thumb tip as the lowest point of the hand; descend vertically only; consider a vertical hand (wrist roll near 0) that straddles the torso with thumb and fingers, or the narrower neck-and-front-legs bundle.
