@@ -1,0 +1,5 @@
+session: 20261102T130220Z_puppy_box_996d97
+robot: g1sonic
+exported: 2026-11-02T13:33:33Z
+environment: sim
+host: Puget-271739-04

@@ -32,3 +32,17 @@ the robot host and commit, so the next sim batch starts from the real experience
   "only a torso straddle can work") were artefacts and would mislead a session on the real robot. A new export
   follows from the sessions on the corrected simulation (soft, floppy puppy; reachable layouts). Until then, start
   the robot without `--experience`.
+
+## Sim to real (2026-11-02)
+
+An export records where it ran (`SOURCE.txt`: `environment: sim|real`) and how its memory is tagged
+(`TRANSFER_REPORT.txt`). Tips are tagged `[strategy]` (follow), `[param]` (re-measure; values in
+`workspace/memory/PARAMS.json` with a `sim` and a `real` entry) or `[sim-only]` (dropped on the robot). When a real
+session starts from a sim export, the launcher moves the `[sim-only]` rows into `memory/history/` and writes
+`memory/TRANSFER.md`, the list of sim numbers to measure first (rax skill `sim-to-real`, `docs/RAX_INSIDE.md` 9.1).
+
+`puppy_box/`: sim session 20261102T130220Z_puppy_box_996d97 and its 16 predecessors (memory inherited along the chain),
+kind tags and PARAMS.json curated by hand for the export. Sim result on the randomized layouts, right hand only:
+puppy left of the box 10 confirmed successes, right of it 5, in front of it 3; one fall (seed 33, before the runaway
+watch), none in the 6 sessions since. The front layout (box behind the puppy) is the weakest: the release sits at the
+right hand's loaded reach (`reach.loaded_palm_max_x_m`).

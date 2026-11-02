@@ -215,6 +215,10 @@ def inherit_experience(source, workspace):
     """
     source = Path(source)
     session = source.parent.name if source.name == WORKSPACE_NAME else source.name
+    stamp = source.parent/'SOURCE.txt'  # an export (export_experience.sh): its workspace/ names no session
+    if stamp.is_file():
+        session = next((line.split(':', 1)[1].strip() for line in stamp.read_text().splitlines()
+                        if line.startswith('session:')), session)
     copied = []
     for name in EXPERIENCE_DIRS:
         folder = source/name

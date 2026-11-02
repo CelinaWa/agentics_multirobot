@@ -1,0 +1,146 @@
+{
+  "carry.palm_z_m": {
+    "note": "palm height above the pelvis while carrying (the body hangs ~15 cm)",
+    "sim": {
+      "how": "puppy_box sim sessions 2026-11-02 (memory/TIPS.md [param] rows)",
+      "measured": "2026-11-02",
+      "value": 0.35
+    },
+    "unit": "m"
+  },
+  "crouch.edge_change_per_0p1rad_m": {
+    "note": "g1_crouch forward_rad +0.1 brought the edge closer by this much",
+    "sim": {
+      "how": "puppy_box sim sessions 2026-11-02 (memory/TIPS.md [param] rows)",
+      "measured": "2026-11-02",
+      "value": 0.02
+    },
+    "unit": "m"
+  },
+  "grasp.finger_links_ahead_of_palm_m": {
+    "note": "open Dex3 finger links ahead of the palm frame (wrist yaw 0): check against box walls",
+    "sim": {
+      "how": "puppy_box sim sessions 2026-11-02 (memory/TIPS.md [param] rows)",
+      "measured": "2026-11-02",
+      "value": 0.11
+    },
+    "unit": "m"
+  },
+  "grasp.palm_stall_above_depth_top_m": {
+    "note": "pressed palm stops this far above the depth-measured plush top",
+    "sim": {
+      "how": "puppy_box sim sessions 2026-11-02 (memory/TIPS.md [param] rows)",
+      "measured": "2026-11-02",
+      "value": 0.03
+    },
+    "unit": "m"
+  },
+  "grip.lift_step_m": {
+    "note": "lift step per 4 s that kept the grip (a 4 cm / 3 s step slipped)",
+    "sim": {
+      "how": "puppy_box sim sessions 2026-11-02 (memory/TIPS.md [param] rows)",
+      "measured": "2026-11-02",
+      "value": 0.03
+    },
+    "unit": "m"
+  },
+  "grip.lost_threshold_rad": {
+    "note": "index/middle base joint above this during the carry = grip lost (empty fist ~1.53)",
+    "sim": {
+      "how": "puppy_box sim sessions 2026-11-02 (memory/TIPS.md [param] rows)",
+      "measured": "2026-11-02",
+      "value": 1.45
+    },
+    "unit": "rad"
+  },
+  "hand.dex3_opening_m": {
+    "note": "Dex3 opening between thumb and fingers",
+    "sim": {
+      "how": "puppy_box sim sessions 2026-11-02 (memory/TIPS.md [param] rows)",
+      "measured": "2026-11-02",
+      "value": 0.12
+    },
+    "unit": "m"
+  },
+  "reach.loaded_palm_max_x_m": {
+    "note": "farthest measured palm ahead of the pelvis with the puppy in hand (waist yaw cmd 0.7, lean 0.1)",
+    "sim": {
+      "how": "puppy_box sim sessions 2026-11-02 (memory/TIPS.md [param] rows)",
+      "measured": "2026-11-02",
+      "value": 0.44
+    },
+    "unit": "m"
+  },
+  "reach.right_lateral_limit_y_m": {
+    "note": "right hand cannot press into the plush beyond this y (pelvis frame)",
+    "sim": {
+      "how": "puppy_box sim sessions 2026-11-02 (memory/TIPS.md [param] rows)",
+      "measured": "2026-11-02",
+      "value": -0.3
+    },
+    "unit": "m"
+  },
+  "release.lean_rad": {
+    "note": "gated lean at release for a box behind the puppy, unlean right after",
+    "sim": {
+      "how": "puppy_box sim sessions 2026-11-02 (memory/TIPS.md [param] rows)",
+      "measured": "2026-11-02",
+      "value": 0.2
+    },
+    "unit": "rad"
+  },
+  "release.palm_past_near_wall_m": {
+    "note": "measured palm past the box near wall before opening (+0.04 fell back out)",
+    "sim": {
+      "how": "puppy_box sim sessions 2026-11-02 (memory/TIPS.md [param] rows)",
+      "measured": "2026-11-02",
+      "value": 0.07
+    },
+    "unit": "m"
+  },
+  "robot.hands_hanging_ahead_m": {
+    "note": "standing, hands hang this far ahead of the pelvis at table height (and read as the table edge)",
+    "sim": {
+      "how": "puppy_box sim sessions 2026-11-02 (memory/TIPS.md [param] rows)",
+      "measured": "2026-11-02",
+      "value": 0.26
+    },
+    "unit": "m"
+  },
+  "robot.stance_from_edge_m": {
+    "note": "pelvis to table edge the controllers work from; closer and the hanging hands hit the edge",
+    "sim": {
+      "how": "puppy_box sim sessions 2026-11-02 (memory/TIPS.md [param] rows)",
+      "measured": "2026-11-02",
+      "value": 0.2
+    },
+    "unit": "m"
+  },
+  "waist.yaw_tracking_ratio": {
+    "note": "measured / commanded waist yaw (cmd 0.7 -> 0.24-0.37), keeps creeping for seconds",
+    "sim": {
+      "how": "puppy_box sim sessions 2026-11-02 (memory/TIPS.md [param] rows)",
+      "measured": "2026-11-02",
+      "value": 0.45
+    },
+    "unit": ""
+  },
+  "walk.carry_advance_short_m": {
+    "note": "what a 0.07-0.15 m carry=true g1_walk near the table actually moved (often ~0); verify with a floor mark",
+    "sim": {
+      "how": "puppy_box sim sessions 2026-11-02 (memory/TIPS.md [param] rows)",
+      "measured": "2026-11-02",
+      "value": 0.02
+    },
+    "unit": "m"
+  },
+  "walk.odometry_error_m": {
+    "note": "leg odometry vs truth on forward walks of 0.1-0.3 m (first walk after start can read 0 and still move)",
+    "sim": {
+      "how": "puppy_box sim sessions 2026-11-02 (memory/TIPS.md [param] rows)",
+      "measured": "2026-11-02",
+      "value": 0.04
+    },
+    "unit": "m"
+  }
+}
