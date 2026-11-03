@@ -1,12 +1,31 @@
 # Handoff: puppy_box (G1 + Dex3 under SONIC), curated by the operator, 2026-11-01
 
+## Start here (curated for the real robot, 2026-11-03)
+
+1. [strategy] One program for every layout: `code/puppy_box/run.py` v18.8 (commit 80b8524 of `code/`), the same as the
+   library skill `plush-pick-place-box-any-layout` (library main 604b743). Run it as the f20de8 and 3b3f99 sections near
+   the end describe: `scene` -> approach -> `grasp,lift` -> carry -> place, looking at each checkpoint overlay. The
+   per-layout skills, `code/<session>/` folders and the session sections in between are history: read them for
+   failure signatures, do not start from them.
+2. [strategy] Evidence (all simulation): last no-code-change evaluation of v18.8 placed 7 of 8 (box right of the puppy
+   5/5, box left 1/1, box behind 1/2; one diagonal puppy dropped on the table); v18.2 5/8 on a low table. No fall in any
+   evaluation. Remaining weak spots: a low table with the puppy left of centre, puppies lying far back, diagonal puppies.
+3. [param] Every number in `memory/PARAMS.json` was measured in simulation. Before the first committal motion, measure
+   here and `record()`: the table edge with both arms tucked (`table.edge_from_pelvis_m`), the table height from depth
+   (`scene.table_height_m`), the empty-hand reach at table height (one hover), whether the closed hand holds the puppy
+   through a 5 cm raise, and how the clear box shows in the real colour and depth images (in simulation depth saw the rim).
+4. [sim-only] In simulation a scripted operator slid the table to 0.20 m on request and laid out a new scene on every
+   reset; its replies carried ground truth. On the robot a person does this by eye and cannot give distances.
+
+## History: the 2026-11-01 curation
+
 This is not one session's handoff. Eleven earlier sim sessions ran on a puppy model that was wrong (one rigid
 body, nothing could squash it) and on layouts that were mostly out of reach. Their grasp conclusions are void and
 are not copied here. What follows are facts about the ROBOT that those sessions measured, which still hold.
 Nobody has solved this task yet: there is no known working grasp.
 
 ## What changed in the scene
-- [param] The puppy is soft: fingers sink 2-4 cm into it, and its head, legs and tail flop on soft joints. Grasp tests
+- [sim-only] The puppy is soft: fingers sink 2-4 cm into it, and its head, legs and tail flop on soft joints. Grasp tests
   that failed on the old rigid model (tail pinch, leg wrap, paw, torso straddle) are open questions again.
 - [sim-only] The robot now starts 0.15-0.20 m from the table edge, between the puppy and the box, and the puppy and a drop
   point inside the box are reachable without leaning (checked on the robot model for each layout).
@@ -254,7 +273,7 @@ subtask in a new layout:
    release point: the body swings forward-left over the interior (lr.py swing with a depth check), open at once.
 For head LEFT with the box on the left (untested): grasp the head-side half (right of centre) and work out the swing
 direction from where the body hangs relative to the palm in the carry frame.
-- [strategy] Run 2 (after a reset, same layout): SUCCESS again (2/2). Yaw cmd 1.1 gave a standing tilt of 6.5 deg this time; 0.9 + roll
+- [param] Run 2 (after a reset, same layout): SUCCESS again (2/2). Yaw cmd 1.1 gave a standing tilt of 6.5 deg this time; 0.9 + roll
   0.15 (tilt 4.3) reached everything, so the skill's run.py now defaults to 0.9. The swing depth gate under-counts when
   the arm hides the body: look at the swing frame and release at once if the body hangs over the interior.
   Controller: `python -c` with skill-library/skills/plush-pick-place-box-cross-right-hand/code/run.py main(ctx, box=...)
@@ -335,7 +354,7 @@ How to plan each subtask in a new layout:
 6. Home: home_cr.py (FK-checked path to the high prep pose with waist 0, then tuck the right arm like the left).
 Best next idea for this layout: ask the operator to place the robot ~10 cm further right (mid-body then reachable without the
 tilt limit), keep yaw -36..-45, grasp at the measured mid-body.
-- [strategy] Run 3 (reset 2): yaw -40 at the run-1 success point and on the torso: 2 more empty fists. Final tally 1 success / 3 runs,
+- [param] Run 3 (reset 2): yaw -40 at the run-1 success point and on the torso: 2 more empty fists. Final tally 1 success / 3 runs,
   1 / 6 grasp closes. For this layout the GRASP is the blocker: the neck is too thin for the Dex3 and the mid-body (y ~-0.42) cannot
   be pressed from a 0.21 m stance with the pelvis ~0.4 m left of it. Get a stance further right first (operator), then use run_cr.
 - [strategy] Recovery from a low pressed command: sync the arm command to the measured joints, straight up in 6 cm moves, then home_cr.py.
@@ -402,3 +421,218 @@ Library skill `plush-pick-place-box-same-side` v5 (`code/run_v5.py`, copy code/p
 4. `carry,release,home`: arm-only carry at z .30 to ~(near wall + .09, box centre y); grip threshold 1.45 (middle finger alone holds it).
 5. For box LEFT or BEHIND use the cross-right-hand / box-behind skills; the grasp2/lift2 changes should transfer to them (untested).
 End state: robot standing at the table, arms down, hands open, tilt ~6.5 (steady); puppy on the table after reset 3 (run 4 stopped before contact).
+
+## Session 20261102T133348Z_puppy_box_f0a010 (sim): SOLVED 2/2 runs after 1 failure - box directly BEHIND the puppy, gap ~3 cm, right hand only
+Layout: puppy head right, legs to the robot, body x .155-.257 / y -.22..-.025 (head hidden behind the tucked right hand), top +.047;
+clear box behind it, near wall x ~.288 (slanted .262@y-.40 -> .300@y-.025), centre (.43, -.23). Library skill `plush-pick-place-box-behind`
+v6 `code/run_f0.py` (workspace copy code/f0a010/ctl.py). How to plan each subtask in a new layout:
+1. [strategy] Stance: the same-side `stance` step OVERSHOT: its edge reading was the bottom of the camera view (.193) while two walks
+   (odometry .126 + .112 from .296) put the robot ~0.10 m from the edge. Check walks against odometry and a far landmark (box label
+   bottom via percep.plane_hit) and stop at (start edge - summed odometry) ~ 0.20. Close was still workable here (box near), but the
+   reset puppy then lay right under the tucked hands and fell to the floor after reset 1 (an arm motion swept it).
+2. [strategy] Perceive with no motion (run_f0 `perceive WALL [GY]`): wall from colour (rim corners / label), never from depth. If the head is
+   hidden, pass GY = centre of the high body slices ~2 cm toward the head.
+3. [strategy] Approach: run_f0 `hover` (FK-path-checked waypoints) worked from the side-raised pose; from the low tuck it produced an
+   untrackable arm (0.6-0.9 rad error): sync the arm command to the measured joints, then `hover_cu` (cuRobo, self-collision-free).
+4. [param] Grasp in a small gap: fingers forward, palm-down; the pre-curled finger links reach 0.115 m ahead of the palm and the press
+   pushes the palm ~2 cm forward. Measured palm = far - 0.105, press command 1 cm further back, stop if link FK x > wall - 0.007.
+   Run 1 without this put the links 2 cm past the wall and DRAGGED the box ~9 cm toward the robot.
+5. [param] Lift: close at the stall (palm ~top + .015), closed raise, 3 cm / 4 s steps; with the palm 0.14 m ahead of the pelvis straight
+   up stops at z ~.21 (IK), so rise diagonally (3 cm forward per step, <= wall - .07) to z .33. Paws hang lowest (z .20-.24 vs rim .10).
+6. [param] Carry 4 cm / 5 s at z .33 to palm x = wall + .13; check the paws by depth (x .36-.39) and open flat; it falls inside.
+7. [strategy] End pose: home_safe, then shoulders 0.6: the tucked right finger links sit only ~1 cm in front of the box wall at sp .45.
+
+## Session 20261102T140446Z_puppy_box_e578ed (sim): SOLVED once (attempt 6 of 6 closes) - box BEHIND, puppy head right, near wall far (.39)
+Layout: start edge .285 (arms tucked); puppy far side .33-.35, top +.02-.035, mid-body y ~-.13 (head hidden behind the tucked right hand); box
+near wall x .38-.39 (colour floor/rim lines), y -.33..+.07. Library: plush-pick-place-box-behind v7, code/e578/ctl.py. How to plan each subtask:
+1. [strategy] Stance: tuck both arms (code/e578/tuck_measure.py), walk carry=true by edge - .20, crouch(0, forward .08) after each walk, re-measure.
+   [param] .09 -> 3.2 cm (first walk, warm-up), .05 -> 3.4 cm; 2 walks .285 -> ~.19.
+2. [strategy] Reach before touching: code/e578/reachgrid.py on the commanded row for the grasp and a release ~wall + .11. A near wall at .39 needs
+   waist yaw CMD 0.7 (measured only .17-.30) - set it in its own ramps (waist.py 0.35, 0.7) with the hand raised at the side (prep_side.py).
+3. [strategy] Approach: check the measured palm against its command at every hover waypoint (ctl hover refuses at > 3 cm). If off: sync.py, then short
+   goto2.py hops. cuRobo is refused at a turned waist [sim-only observed].
+4. [strategy] Grasp/lift: fingers forward (yaw 0) palm far - .105, press gate top + 0, close 4 s, closed raise from the MEASURED palm, straight-up
+   2 cm / 4 s lift (LIFT_DX 0) to the IK limit (~palm .22). Diagonal lifts and yaw +30 fingers lost the grip at lift-off 5/5.
+5. [strategy] Carry at z .24 cmd, last cm with nudge.py (max jump .8); before opening measure the near paws by depth (pixel -> pelvis x): open only when
+   they are past the wall line. [param] opened at palm wall + .075 measured -> INSIDE.
+6. [strategy] End: skill-library .../plush-pick-place-box-behind/code/home_safe.py (both arms tucked, waist 0, hands open).
+Run command (from the workspace root, after run_f0 perceive WALL): `PYTHONPATH=.:code/puppy_box python code/e578/ctl.py hover` -> LOOK ->
+`... ctl.py grasp` -> `LIFT_DX=0 ... ctl.py lift` -> LOOK -> `... ctl.py carry` -> depth check of paws vs wall -> `... ctl.py release` -> home_safe.py.
+- [strategy] Repeat test (attempt 7, reset 4, same recipe) slipped at lift-off (palm z .12); the press stalled at palm .047 (top .033) instead of
+  reaching the top. Tally 1 placement in 7 closes: the GRIP at lift-off is this layout's bottleneck, not reach or release. Untested next ideas:
+  stand closer (~.15 m: f0a010's grasps 0.15 ahead of the pelvis pressed in and held 2/2) by asking the operator, grasp at waist 0 where
+  the arm tracks its command, and re-close when the press has not reached the top. Also: perceive with BOTH arms tucked at waist 0 before
+  prep_side (the side-raised arm hides the far side at waist cmd 0.7: far read .27 instead of .33).
+
+## Session 20261102T144058Z_puppy_box_4ddb74 (sim): SOLVED 1/1 (operator: INSIDE) - box directly BEHIND, puppy head LEFT, gap ~2.4 cm
+Layout: start edge .29 (arms tucked); puppy at the front edge (paws overhang), body x .17-.35, mid-body y -.11, top +.041; box near wall
+x .36-.38 (colour rim/floor lines via code/e578/rimhit.py, slanted 3 deg), centre ~(.52,-.05). Library: plush-pick-place-box-behind v8 code/pb4/.
+How to plan each subtask in a new layout:
+1. [strategy] Stance: the tucked fingertips (x .28, z .10-.17) would walk into a puppy lying at the edge. Walk pose = right arm DOWN
+   (sp .7 then el .6, hand behind the pelvis), left kept tucked further back (sp .9 el -.5): code/pb4/walkpose.py. [param] walks .09 (warm-up)
+   -> edge .29->.226; .04 -> ~0; crouch(0, fwd .1) -> .234 (slid back); .07 -> .178 (odometry .03). Reach check (code/pb4/reach.py) at .23
+   said the release x .51 needs waist yaw .7 + lean .1: get to ~.18 instead.
+2. [strategy] Prep: code/pb4/prep.py raises the right hand at the side (sp 1.4, roll -1.1, el -.9, wrist roll -1.3) with an FK check of every
+   stage; prep_side's order (sp .9, roll -.45, el -.9) swept the fingers 2 cm in front of the overhanging paws. Then a high side waypoint
+   (.02,-.32,.30) and code/pb4/hover2.py hops (run_f0's own hover IK was refused from there).
+3. [strategy] Perceive: run_f0 perceive WALL GY - override GY to mid-body (its gy landed on the neck for a head-left puppy).
+4. [param] Grasp: press command x .225 (palm far-.105 cmd gave a finger path to the wall); levels 0/-.015/-.03 stopped on tips_x .369 vs wall
+   .371 with the palm at top+.017; closed there anyway (forward fingers flex down/back, away from the wall): base .79/.91 -> after a closed
+   3 cm raise .76/.86 = held. Lift to z .33 held on the middle finger (base 1.10, index 1.54).
+5. [param] Carry stopped at cmd .441 (IK); palm .375 = at the wall. release_up.py 0.2 0.42 0.48 -0.11 0.30 reached palm .465 (wall+.095), opened,
+   puppy stood upright in the box leaning on the forearm; operator: INSIDE; home_safe -> it stayed inside (sitting). Tilt <= 3.3 all run.
+
+## Session 20261102T145458Z_puppy_box_258bd8 (sim): NOT solved (0/5 closes) - box ahead-LEFT (rotated 12 deg), puppy far RIGHT head LEFT
+Layout: robot ~12 deg left of square to the table, edge .27 at y 0 / .22 at y -.2 (arms tucked); box rim corners (.31,-.114) (.396,.293)
+(.682,.218) (.604,-.177); puppy snout at the box's right wall (y -.17), front legs y -.32..-.36, mid-body y -.40 (x .26-.37), body to y -.52.
+Library: cross-right-hand v5 (code/x2a/run_x2a.py with WAIST/GC/LIFT_STEP/LIFT_SECS env + step `lean`; code/x258 tools). How to plan next time:
+1. [strategy] Stance decides this layout. Walks did not advance (4 walks, odometry ~0) [sim-only]. Before ANY press, compare the grasp's
+   lateral offset with what held before: mid-body at |y| <= .30 held 2/5 (2a8660); at y -.40 here 0/5. If the mid-body is beyond ~.33 m
+   to the side, ask the operator at once to put the robot 10-15 cm further right (or the puppy left); do not spend resets on press variants.
+2. [strategy] Perceive: tucked look (run_x2a look) + `code/x258/edge.py` (table z, edge per y bin); pass TABLE_Z (the histogram locked onto the
+   tucked left arm here) and BOX from colour corners (`code/x258/corners.py <obs> rim u,v ... floor u,v ...`). The PCA centre fell on the
+   front legs when the tail was out of view: set GC to the mid-body between front and hind legs.
+3. [param] Reach: offline IK (commanded row) says waist yaw .5 + roll .25 reaches a pressed grasp at y -.40 (roll is what helps; .15 misses by
+   2.5 cm), standing tilt 1.4. Measured palm still rode 4-5 cm above its press command (palm .064-.079): treat IK-reachable as NOT pressable
+   when the hover already sits >= 2 cm above its command.
+4. [strategy] After a failed close: `code/x258/open_up.py 0.34`, run_x2a `home` (its FK check refused from z .25), `look` again - each failed
+   press moved the puppy 6-8 cm (toward the edge twice, away once); re-pressing in place closed on nothing.
+5. [param] The release side was never reached; plan said (.43,.02,.30) is IK-reachable at waist .5/.25 (palm 9 cm inside the near wall).
+End state: robot standing, both arms tucked, hands open, tilt .6; puppy on the table (pushed back); box upright, untouched; 3 of 5 resets used.
+
+## Session 20261102T152531Z_puppy_box_da90c5 (sim): SOLVED 2/3 runs (operator INSIDE x2) - box RIGHT, puppy centre-left head LEFT, FAR stance
+Layout: start edge .30 (arms tucked); table LOW (pelvis z -.07), puppy top ~.00, far side .43-.45, body y -.10..+.23; box near wall .28-.30,
+y -.16..-.55 (colour corners put the inner wall ~4 cm too far left; release y -.35 still well inside). Library: plush-pick-place-box-same-side v6
+(merged 0f6d388), code/da90/ctl.py. How to plan each subtask in a new layout:
+1. [sim-only] Stance: walks did not advance here (0.1/0.1/0.15/0.15/0.2 m -> odometry ~0); crouch(0, forward .2, arms_home False) gained 2-3 cm
+   twice. Plan for a 0.24-0.25 m stance and check reach offline (code/da90/reachscan.py x y z) before touching anything.
+2. [strategy] Do not lean to gain reach at the far stance: v5's lean fallback slid the pelvis 1.7 cm back (worse). Turn + roll the waist instead.
+3. [param] Waist yaw cmd .7 + roll .15 (measured yaw .47, tilt 5.4) reached grasp (far-.10, mid-body, press to the first stall) and release
+   (near wall + .145, box centre y). Yaw .9 tilted 7.2-7.6 once the robot had drifted 2 cm back: the press then stops early -> empty fist.
+4. [strategy] Hover: LOOK; DY -.03 (toward the tail) put the hand between front and hind legs both times. Close at the stall (palm ~top+.03-.04),
+   closed 3 cm raise, lift only if a base joint < 1.3. Two empty closes rotated the puppy: reset instead of pressing a third time.
+5. [param] Lift cmd .28 -> palm .29-.35; carry arm-only to palm ~(wall+.09-.10, -.37, .34); open at once; v5 home (arms beside the hips).
+6. [strategy] Walks/crouches with arms tucked let the wrist yaws creep to +-.7 (hands turning in over the puppy): code/da90/retuck.py.
+Run: `PYTHONPATH=. python code/da90/ctl.py restore,prep` -> `WAIST_YAW=0.7 ... ctl.py waist` -> `DY=-0.03 ... ctl.py hover` -> LOOK ->
+`... ctl.py grasp,raise,lift` -> LOOK -> `PYTHONPATH=. python skill-library/skills/plush-pick-place-box-same-side/code/run_v5.py carry,release,home`.
+
+## Session 20261102T155840Z_puppy_box_3a46e1 (sim): ONE program for every layout - code/puppy_box/run.py (library plush-pick-place-box-any-layout v2)
+New setup this session: the robot starts ~0.27 m from the edge; tuck both arms and ask the operator "bring the table closer" (the first
+generic reply did not move it; the 2nd, exact request did) -> edge 0.18-0.20 (drifts back to ~0.23 over 2 h). No walking needed.
+Results: development 6 placed / 9 runs; EVALUATION (memory/EVAL.md, code 90f2404) 2/8 placed (1 clean, 1 needed a manual 8 cm raise),
+0 falls, box never knocked over during the evaluation (once in development, run 4). Fixes after the eval are in v9/v10 (partly untested).
+Run (workspace root): `PYTHONPATH=. python code/puppy_box/run.py scene` -> LOOK overlay -> `... approach` -> LOOK hover (optional
+`... shift DX DY`) -> `... pick` -> LOOK lift -> `... carry` -> LOOK -> `... place`. `... abort` from anywhere after approach.
+How to plan each subtask in a new layout:
+1. [strategy] Perceive with both arms DOWN behind the table edge (LOOK pose sp .9 / el 0: hands out of the image); tucked hands hide the
+   plush. If the plush blob touches an image border, add a view with the waist turned toward it (cmd .7, measured ~.26) and merge the
+   pelvis-frame points. [sim-only] the box rim is in depth (table + .145); real depth will not see it: use the colour fallback.
+2. [strategy] Mid-body = midpoint of the two dark paw groups along the body axis; the eye (near-black blob >= 5.5 cm above the table)
+   gives the head end and checks the mid (eye -> mid .20 m). The 2 cm tail shift is NOT reliable: 4 of 9 hovers were over the rear and
+   needed shift +-.02-.03 toward the head at the LOOK. Next: drop TAIL_SHIFT to 0.
+3. [strategy] Waist: plan() tries yaw/roll (0..0.9, 0/.15) on the COMMANDED row and keeps the one whose release is most preferred (box
+   centre first). Set it once before the hand goes over the plush; LEFT arm to the guard pose (sp .9 el -.9) first (with the waist turned
+   left the plain tuck put the left fingertips where a head-left plush's head hangs after the lift).
+4. [param] Grasp: palm far-.10, fingers across the body, press levels top+.02..-.045 (+1 past the first stall), close 4 s, closed 3 cm
+   raise and the lift from the MEASURED palm xy (the press pushes the palm ~3 cm past its command), 3 cm / 4 s steps, no sideways drift
+   (2 of 3 slips came at a drift onset). Hold = middle base < 1.45.
+5. [strategy] Plush orientation decides the lift: legs TOWARD the robot held 10/12; legs AWAY 0/4 (slips at z .085-.21, or the press slid
+   past the body). Untested ideas: grasp nearer the leg side / fingers yawed to hook under the belly; otherwise stop and report.
+6. [param] Carry arm-only <= 6 cm / 5 s at rim + .21. mv() syncs the arm command to the measured joints when they differ > .5 rad (IK
+   branches like shoulder roll -2.2 are not tracked; the next step then jumps 1.6-3.4 rad and is refused - sync and resume works).
+7. [param] Release: box beside the plush with the head toward a wall: the MEASURED palm must be >= .18 from that wall (placed at
+   .185-.205, tipped out at .11/.12/.145). v10 nudges toward the centre before releasing (untested).
+8. [strategy] Release check: open (flat shape), 10 cm up, count cream pixels near the palm (> 1500 = the plush is draped over the back of
+   the palm-down hand; happened in 3 of 5 box-LEFT cross-body releases). Then lower to rim + .19, roll the wrist (+.8, FK-chosen toward
+   the box) -> it slid in (1/1), up, re-check. Never go home with the plush on the hand (run 4 tipped the box that way).
+9. [strategy] End pose: home = hand high at waist 0, both arms tucked (sp .45 / el -.5), hands open; operator confirms INSIDE.
+10. [strategy] Box BEHIND: plan() takes the smallest waist that reaches any release (the centre-first search asked for waist .9). Untested
+    end to end this session (run 10 slipped in the lift). Past sessions' leaned release (lean .2, gated on the measured palm) is not in run.py.
+Open problems, in order: lift reliability (legs away 0/4, legs toward 10/12), v10 head-wall nudge untested, box-behind release reach,
+real-depth box detection (rim invisible on the real robot: colour fallback only), robot drift back ~5 cm over 2 h (re-ask the operator).
+
+## Session 20261102T175700Z_puppy_box_d65273 (sim): run.py v17.1 - EVAL 3/8 (v14.1), 5 dev placements; one program for every layout
+Run (workspace root, robot standing, arms down): ask the operator to slide the table to ~0.20 m, then per layout
+`PYTHONPATH=. python code/puppy_box/run.py scene` -> LOOK overlay -> `... approach` -> LOOK hover (`... shift 0 -0.015` when the hand is
+over the chest, it was 9/9 times) -> `... grasp,lift` -> LOOK lift -> `... carry` -> LOOK carry -> `... place` -> ask the operator.
+After a failed grasp/lift: `... abort`, then `scene` again (one retry). Library: plush-pick-place-box-any-layout v4.
+How to plan each subtask in a new layout:
+1. [strategy] Stance and safe poses: keep both arms in the LOOK pose (shoulder pitch .9, elbow .6: hands behind/below the table edge)
+   whenever nothing is held - before resets, for perception and at the end. Tucked hands sit over the table edge: a reset put the plush
+   between them and the next arm move dragged it to the floor. The scene step refuses to move arms with the plush < 6 cm from a hand.
+2. [strategy] Perception: arms down, one frame; side look (waist +-.7) when the plush runs off the image or is not found. Box from the
+   sim depth rim (table + .145) [sim-only]; the real robot needs the colour fallback (boxdet) - verify it first on real frames.
+3. [strategy] Waist: the smallest of (0, .3, .45/0-.15, .6/.15, .7/.15) whose commanded-row IK reaches the pressed grasp AND the release
+   (box centre first). Never > .7 (oscillation). Set once before the hand goes over the plush; keep it until home.
+4. [param] Grasp: palm .075 behind the body's far side at the paw-pair mid-body, 1.5 cm toward the tail, fingers across the body
+   (box left + grasp beyond y -.25: palm yaw -45). Hover and every press level re-aim on the MEASURED palm; press on while the palm is
+   above the plush top; close 4 s; closed 3 cm raise; hold = middle base < 1.45.
+5. [param] Lift 3 cm / 4 s from the measured palm to rim + .19; carry arm-only <= 6 cm / 5 s at rim + .21; release at the box centre
+   (side layouts: measured palm >= 13 cm past the near wall; behind: >= 6.5-8 cm past the near wall, look at the paws first).
+6. [strategy] Home: Cartesian retreat (up to z .40, back to x .24) at the current waist, THEN waist 0, then arms to the LOOK pose.
+   The old single joint-space home dragged the box (with the plush) off the table at waist .6/.15.
+Open problems, in order: (a) lift slips at z .14-.22 (3 of 10 attempts in the eval) - near the front edge every slip is a floor; try
+lifting over the table interior / a deeper hook; (b) lateral cross-body grasp: yaw -45 is 1/2 (held at waist .45/0, empty at .7/.15 - try forcing waist .45/0 when it reaches); (c) v15/v17.2 recovery paths
+(lift inward fallback, set-down of a plush stuck on the hand, near-wall x-nudge, abort hand-empty check) are untested on the robot; (d) real-depth box detection.
+
+## Session 20261102T202144Z_puppy_box_4f16bd (sim): EVALUATION ONLY of run.py 41edb62 (v14.1) on the elliptic friction cone - 5/8 placed
+No code or PARAMS changes. Same protocol as d65273 (memory/EVAL.md block 3, one row per trial). Result 5/8 (last eval 3/8 on the
+pyramidal cone): box RIGHT 3/3, BEHIND 2/3, LEFT 0/2. Funnel: grasp closed 9/11 attempts -> lift held 6/9 -> carry 5/6 -> release 5/5.
+What it means for planning each subtask in a new layout:
+1. [strategy] Before any reset: arms in the LOOK pose (`run.py look`), not tucked. With tucked arms two resets laid the puppy's legs
+   against the right hand and `scene` refused to move (correct); the scripted operator cannot move the puppy alone.
+2. [sim-only] Grasp + lift + carry on the SAME side (box right of a centre puppy, legs toward the robot) is now reliable in sim
+   (3/3, grip steady at .45-.80 rad): with the new contact model, earlier slips on this layout were partly a friction-cone artefact.
+   On the real Dex3 expect the same or better (operator note), but measure the grip trace on the first real lifts.
+3. [strategy] Box LEFT with the right hand (puppy at y ~-.28, waist .6-.7/.15): 0 of 4 closes survived a lift (2 empty, 2 lost on the
+   first 3 cm). This is the layout to work on next; v17's palm yaw -45 (1/2 in d65273) was NOT part of this eval. Alternatives worth a
+   test: ask the operator for a layout with the puppy nearer the centre, waist .45/0 forced, or grasp nearer the robot-side body edge.
+4. [strategy] Box BEHIND: the far carry (palm to x .48-.49) drives the middle finger to the fist while the index holds; 2/3 placed, one
+   dropped at the first carry step (to the floor over the front edge). Lift and carry over the table interior, and consider a carry
+   height or speed change only after measuring which finger lets go.
+5. [param] Home/abort: the left arm's TUCK (sp .45, el -.5) puts its fingertips at x .267 / 16 cm above the table; a box whose near wall
+   is closer than ~.27 m gets hooked by the next move to LOOK and tipped off (trial 2). Go LEFT_GUARD -> LOOK directly
+   (tmp/safe_home.py = abort + home without the left TUCK; used once, box stayed). Still in v17.2 (step_home line 832): fix before reuse.
+6. [strategy] After an empty close, check the open hand is empty and retreat over the table before home (trial 7 dragged the plush along
+   the front edge to the floor with the 41edb62 abort path; v17.2 has the hand-empty check).
+
+## Session 20261102T212757Z_puppy_box_f20de8 (sim): run.py v18 - box LEFT solved; EVAL 4/8 clean, 5/8 placed (low table)
+Run (workspace root, robot standing, arms in LOOK, table slid to ~0.20 m by the operator): `PYTHONPATH=. python code/puppy_box/run.py scene`
+-> LOOK overlay -> `... approach` -> LOOK hover (`... shift 0 -0.015` when the hand is over the chest) -> `... grasp,lift` -> LOOK lift ->
+`... carry` -> LOOK carry -> `... place` -> ask the operator. After a failed close/lift: `... abort`, `... scene`, once more. Library:
+plush-pick-place-box-any-layout v6 (main f76e034). Code 6ab33de/e5e5be0 = v18.3/18.4 (eval ran 1fa815b = v18.2).
+How to plan each subtask in a new layout:
+1. [strategy] Reach margin first. For every candidate waist (yaw, roll) solve the pressed grasp on the COMMANDED row 3 cm deeper than the
+   press target; a grasp reachable with no margin is not pressable (arm held off its command, weak close). Waist roll .25-.35 lowers the
+   right shoulder for a puppy on the robot's right; nothing helps a puppy left of centre on a low table from 0.20 m - stop and ask.
+2. [strategy] Grasp waist and release waist are separate (box LEFT): grasp at the first waist with margin, lift straight up, rise to
+   carry height, then turn the waist in 3 slow ramps with arm IK holding the palm fixed (`swing()`), then the arm-only carry. Keep the
+   palm yaw constant from grasp to release (choose the release yaw nearest the grasp yaw).
+3. [param] Grasp: palm .075 behind the far side at the paw-pair mid-body, fingers across the body (axis + 10 deg), press until the palm
+   is at/below the plush top, close 4 s, closed 3 cm raise; hold = middle base < 1.45 (held grips read .5-1.0).
+4. [param] Carry the palm at rim + .27 (dangling plush clears the wall), <= 6 cm / 5 s steps; re-sync the arm only on a palm error > 4 cm.
+5. [strategy] Release only with the measured palm over the box interior and near the planned height (z <= release + .04); box RIGHT
+   releases at a turned-left waist are blind (box out of the camera) - trust the measured palm, and step down before opening.
+6. [strategy] Home: retreat up/back at the current waist, waist 0, right arm high -> sp .8, then LOOK for both arms. Never through TUCK
+   (fingertips x .275 hook a near box).
+7. [strategy] Box BEHIND far wall (near wall >= .40): the last carry step is out of reach at carry height and the middle finger lets go
+   when it is lowered + re-synced; next: descend before the last step or release at the reachable x if the paws are past the wall.
+Open problems: far puppies (far side > ~.43) close empty and get pushed further; box-right centre-left puppies on a low table need
+waist .6-.7/.15 with no margin (1 unreachable, 1 grasped fine); real-depth box detection (rim invisible) still only has the colour fallback.
+Post-eval additions (v18.5-18.8, dev runs 9-11 all placed): carry height reachable at the release chosen before the carry (behind far
+release), box rim extents from the dense run of 2 cm bins (a thin strip at rim height made a 0.72 m box), `to_look` returns an arm that
+cannot reach LOOK (drawer unit beside the robot) to its guard pose, hand-clearance gate ignores the raised hand's own pixels. Controller
+HEAD 80b8524 (v18.8), library main 4035a67.
+8. [strategy] End pose / reset pose: LOOK (arms down behind the edge) when it is free; if `to_look` reports an arm blocked, that arm stays
+   in guard (up/back near the chest). Ask for resets with the arms in LOOK; a guard-pose hand over the front edge attracts the reset puppy.
+
+## Session 20261102T235110Z_puppy_box_3b3f99 (sim): EVALUATION ONLY of run.py v18.8 (80b8524) - 7/8 clean
+Run exactly as the f20de8 section above (arms in LOOK, table slid to ~0.20 m, `run.py scene` -> approach -> grasp,lift -> carry -> place,
+LOOK at each overlay). Library main 604b743 (plush-pick-place-box-any-layout with this eval's 8 evidence rows). memory/EVAL.md block 5.
+1. [strategy] Trust the program on box RIGHT and standard box LEFT/BEHIND layouts: this eval needed no shift and no retry; the hover
+   overlay showed the hand centred between the leg pairs every time it was visible (box-LEFT hover and box-RIGHT carries are blind).
+2. [strategy] Watch for a puppy lying DIAGONALLY with its head toward the robot (scene reports head=None): plan a release with margin, and
+   after the release do not go home until the hand is confirmed empty - the near-hand pixel gate misses a plush riding on top of the hand.
+3. [param] Release margins that worked: box RIGHT palm at the box centre (near wall + .12), BEHIND near wall + .080, LEFT palm .14 inside the
+   near wall at frac .58; carry heights rim + .21-.27 as v18.8 chooses them.
+4. [strategy] Still untested by v18.8 evals: LOW table (top ~.022) with a centre-left box-RIGHT puppy, far puppies (far side > .43), legs-away puppies.

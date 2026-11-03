@@ -42,6 +42,9 @@ def plane_hit(P, u, v, z_level):
     return o + t * d
 
 def table_z(P):
+    import os
+    if os.environ.get('TABLE_Z'):   # override when the histogram locks onto an arm (258bd8: tucked left arm in a turned view)
+        return float(os.environ['TABLE_Z'])
     _, lev = cloud(P)
     z = lev[..., 2][P['depth'] > 0]
     hist, edges = np.histogram(z, bins=np.arange(-0.3, 0.3, 0.005))

@@ -1,4 +1,4 @@
-# Tips (operator-curated 2026-11-01; kind tags curated for the sim -> real export 2026-11-02, see the sim-to-real skill)
+# Tips (operator-curated, 2026-11-01)
 - [strategy] Lean <= 0.2 rad, own ramp, never hold a leaned reach (one fall, 20261101T011122Z).
 - [strategy] Re-observe after any motion: the pelvis drifts back with arm work; the first frame after start is off by 5-7 cm.
 - [strategy] Tuck the idle arm (shoulder pitch +0.45, elbow -0.5) before any waist turn or sideways arm move.
@@ -13,21 +13,21 @@
 - [sim-only] (20261102) One operator reply said "dog INSIDE the box" while it lay in front: that was a bug in the sim operator, fixed after that session. Still confirm placement with your own camera before reporting done.
 - [strategy] (20261102b) Check reach BEFORE trying grasp variants: plush-pinch-grasp `reach_check` at palm z = top - 0.015,
   6-8 cm in front of the far edge. Resting on the top (not pressed in) = fist every time (4/4).
-- [strategy] (20261102b) The controller's start easing can move the robot back ~8 cm (edge 0.27-0.28 instead of 0.15-0.20) and
+- [param] (20261102b) The controller's start easing can move the robot back ~8 cm (edge 0.27-0.28 instead of 0.15-0.20) and
   drag anything the start-pose hands touch: if the first frame shows a hand on the puppy, ask the operator first.
   [operator 2026-11-02: the sim operator now places the objects only after the robot has settled, and the robot
   may still settle 0.22-0.30 m from the edge: re-measure the edge after start.]
 - [param] (20261102b) Waist yaw: command -0.4..-0.6 -> measured -0.14..-0.27; it creeps for seconds. Set the waist, then
   settle (command := measured), THEN put the arm over the object. Never change the waist with the arm over it.
 - [param] (20261102b) Short g1_walk commands (<= 0.12 m) barely advance (5 cm total for 0.28 m commanded).
-- [strategy] (20261102b) A puppy whose legs overhang the front edge falls off at every slip/press (5/5): ask for it further in.
+- [sim-only] (20261102b) A puppy whose legs overhang the front edge falls off at every slip/press (5/5): ask for it further in.
   [operator 2026-11-02: part of this was a sim bug: the puppy crept toward the edge on its own (floppy legs +
   soft contact), fixed after that session. Still true that a press near the edge can push it off.]
-- [strategy] (20261102c) Cross-body carry works: box-side arm far back (sp .8 el -.3), waist yaw cmd .5 -> .8 (meas .41-.60, creeps
+- [param] (20261102c) Cross-body carry works: box-side arm far back (sp .8 el -.3), waist yaw cmd .5 -> .8 (meas .41-.60, creeps
   for seconds), pitch .15, wait 3 s, IK on measured, ramp, re-solve on measured, ramp again. 3/3 in the box.
 - [sim-only] (20261102c) Sim depth DOES see the clear box's rim top (+0.146 above the table); the pale low-saturation colour
   mask finds it either way (code/puppy_box/boxdet.py).
-- [param] (20261102c) The hanging puppy (pinched mid-body, palm down) hangs legs-toward-the-robot, its body ~5 cm behind the
+- [strategy] (20261102c) The hanging puppy (pinched mid-body, palm down) hangs legs-toward-the-robot, its body ~5 cm behind the
   palm: aim the palm 7-10 cm inside the near wall.
 - [sim-only] (20261102c) Operator resets put the puppy out of reach (x 0.46-0.74, legs away) 2 of 5 times: perceive must check x.
 - [strategy] [operator 2026-11-02, from the sim ground truth] Run 4 (unattended run.py) did NOT find the puppy out of reach
@@ -67,17 +67,17 @@
 - [param] (20261102f) Right hand into a box on the LEFT: the palm stalls at y ~+0.04 pelvis even with waist cmd 1.0 (meas 0.49); commanded
   targets beyond that are IK-feasible but not tracked. Hover the empty hand at the release point first and measure.
 - [param] (20261102f) pb3 grasp/lift with only ONE finger stalled (middle 0.97, index fist) held through lift + carry (middle 0.8-1.05).
-- [strategy] (20261102g) Before ANY motion, measure edge/puppy/box and run reach2.best for grasp AND release: here (edge 0.26, box
+- [sim-only] (20261102g) Before ANY motion, measure edge/puppy/box and run reach2.best for grasp AND release: here (edge 0.26, box
   behind the puppy at x 0.56-0.84) both were out of reach by 5-29 cm. The operator then found the robot had slid
   ("stance slide") and disarmed. Edge > 0.22 at start = suspect a slide: ask before moving.  [outdated 2026-11-02: setup changed, see the operator note on stance and walking]
 - [param] (20261102g) g1_walk 0.12 m carry=true advanced only ~3 cm each (3 walks); the legs straighten after a walk (pelvis
   +2.5 cm, table 3 cm lower in the pelvis frame). g1_crouch(0, forward_rad .05, arms_home=False) restores the stand but
   slides ~1.7 cm back.
-- [strategy] (20261102g) Box BEHIND the puppy: release at the far reach limit. cmd (0.495, z .21) -> palm 0.453; raising the hand
+- [param] (20261102g) Box BEHIND the puppy: release at the far reach limit. cmd (0.495, z .21) -> palm 0.453; raising the hand
   (z .30) barely helps (0.461); lean 0.1->0.2 in its own ramp gave palm 0.488 (tilt 3.6). Gate the release on the
   MEASURED palm >= near wall + 0.03 and unlean right after: puppy fell fully inside (1/1).
 - [strategy] (20261102g) reach2.best: add random seeds near the reach limit (fixed seeds gave 2-5 cm false misses).
-- [param] (20261102h) Two operator-approved walks (0.12, 0.15 m, carry=true) from edge 0.32 gave +4 cm and +0 cm: near a table,  [outdated 2026-11-02: setup changed, see the operator note on stance and walking]
+- [sim-only] (20261102h) Two operator-approved walks (0.12, 0.15 m, carry=true) from edge 0.32 gave +4 cm and +0 cm: near a table,  [outdated 2026-11-02: setup changed, see the operator note on stance and walking]
   g1_walk does not fix the stance. Compute the release reach (box near wall + 0.075) right after start; if > ~0.50 m
   pelvis-frame, the box-behind layout is infeasible: say so early and do not touch the puppy.
 - [strategy] (20261102h) pb3 prep with the puppy straight ahead (x .34-.42, y -.14..+.13) bumped it (rotated ~40 deg toward the edge):
@@ -93,17 +93,17 @@
   0.20 m, the edge was 0.33 m; with the arms tucked it said 0.23 for a true 0.25. Tuck the arms before measuring, or
   ignore points within ~10 cm of your hands (forward kinematics) and take the median over y-bins of each bin's nearest
   table point (the table spans the view; the hands cover a few bins). On the real robot the same will happen.
-- [strategy] (20261102i, 89afad) Cross-body (box LEFT, plush RIGHT, right hand): waist yaw cmd 1.1 + roll +0.15 fixed; then a palm-yaw
+- [param] (20261102i, 89afad) Cross-body (box LEFT, plush RIGHT, right hand): waist yaw cmd 1.1 + roll +0.15 fixed; then a palm-yaw
   swing 15 -> 75 at the release point moved the hanging body from the box's right wall to the interior. 1/1 in the box.
 - [strategy] (20261102i) reach2.best random seeds can return an overhead branch (shoulder pitch -2.97). FK-check the joint path
   (lr.path_min_z) and the jump before any ramp of an IK result; use a raised via-config for jumps > 1.6 rad.
-- [sim-only] (20261102i) The first frame after start was tilted (4-5 deg) and read the edge 0.20 while the operator said 0.33.
+- [param] (20261102i) The first frame after start was tilted (4-5 deg) and read the edge 0.20 while the operator said 0.33.
 - [param] (20261102j, 170401) g1_walk straightens the legs (pelvis .78 -> .80): the pressed grasp went out of reach on a low table.
   g1_crouch(0, forward_rad .05, arms_home=False) restores .78 (slid 2.7 cm back); re-perceive, then hover reached at waist .7.
 - [strategy] (20261102j) Same-side layout (box right, head left): pb3 chain 2/2, one fully unattended (code/puppy_box/run_pb3.py left).
 
 ## Session 8cef10 (sim, 2026-11-02)
-- [param] g1_walk in this session did not stop on odometry: carry=true walks of 0.09/0.09/0.12/0.15 m advanced 5.6/0/0/1 cm (the first
+- [sim-only] g1_walk in this session did not stop on odometry: carry=true walks of 0.09/0.09/0.12/0.15 m advanced 5.6/0/0/1 cm (the first
   includes the warm-up). Do not count on stepping up; ask the operator to place the robot early if the edge is > 0.22 m.
 - [strategy] pb3 step_grasp breaks out of the press at the first step whose palm is > 4 cm above the command, i.e. it can stop at command
   top+0 with the palm resting ON the plush (fingers then close flat, base joints < 0.7) -> slip on the lift. Require palm z <= top before closing.
@@ -118,14 +118,14 @@
 - [strategy] Box behind at the reach limit (8cef10 run 5 success): carry straight forward at the grasp y to cmd 0.465 (measured 0.438 = wall+0.03),
   then the gated lean release (lean 0.2, measured palm 0.483) - open, hand back/up, unlean. Same sequence failed in run 6 when the lift weakened the
   grip (base joints 0.65/0.60): require base joints >= 0.8 at the END of the lift before carrying, else lower and re-grasp.
-- [param] A g1_walk turn of -10 deg (forward 0) turned -7.9 deg with no forward step in this session.
+- [sim-only] A g1_walk turn of -10 deg (forward 0) turned -7.9 deg with no forward step in this session.
 
 ## cab719 (2026-11-02, sim)
 - [strategy] Never chain grasp after hover without looking at the hover frame: the one chained run closed over the neck and dropped it.
 - [strategy] End pose at a close stance (edge <= 0.22): arms DOWN beside the hips (sp 0.4, el 0.3), not sp 0.5/el 0.6 (hands at
   table height 0.2 m ahead -> hit the edge -> robot stepped 0.17 m by itself and was disarmed).
 - [strategy] Read g1_status events after every step: a disarm + auto re-arm can happen mid-script without any tool error.
-- [param] g1_walk(forward 0, turn T) turns in place (odometry 0), measured 30-60 % of T; crouch restore adds +2-4 deg left.
+- [param] [sim-only?] g1_walk(forward 0, turn T) turns in place (odometry 0), measured 30-60 % of T; crouch restore adds +2-4 deg left.
 - [param] crouch(0, forward 0.05) slides the pelvis ~2.5 cm back; forward 0.08 kept the walk's advance (edge .236 -> .221).
 - [strategy] Edge line fit: a +angle (left side farther) means the robot faces LEFT of the table normal; turn right (negative).
 - [strategy] Waist yaw to the right (cmd -0.5) barely moved (meas ~0) and the arms compensated: the tucked left arm swung forward.
@@ -134,7 +134,7 @@
 - [strategy] Box on the left, puppy on the right: look with BOTH arms tucked and the waist turned right (cmd -0.7); a raised right
   arm hides the scene. Measure the box from a waist-0 view (the turned view clips it).
 - [param] Waist roll 0.25 + yaw 0.45: tilt 5.4 standing, 7.5 when pressing far right-low; roll 0.15: 1.5 standing, <= 6.8 pressing.
-- [param] Depth under-reads the plush top by ~3.5 cm (palm stalls at depth top + 0.035).
+- [sim-only] Depth under-reads the plush top by ~3.5 cm (palm stalls at depth top + 0.035).
 - [strategy] A stall rule "palm > cmd + 2.5 cm" fires falsely on a step that also turns the wrist yaw: also require the palm to stop descending.
 - [param] Held soft plush can let the fingers creep to 1.30-1.40 rad (empty fist 1.52-1.57): grip threshold 1.45 on the carry.
 - [strategy] When the hand is left at a low pressed command (pressing into the plush), FK path checks fail at their start point:
@@ -155,10 +155,10 @@
   base .87/.86, lift to .27 held (index crept to 1.35, middle .85).
 - [param] (eed312, sim) Gated lean release opened at palm .467 vs wall .426 (+4 cm): body fell back out. Need palm >= wall + 0.07;
   release where the slanted near wall is closest to the robot (run_eed.py picks that y).
-- [param] (eed312) g1_walk carry=true at edge .25-.30 advanced 0 cm for 0.07/0.10 m commands (odometry -0.02); stance.py's 3 walks .304->.254.
+- [sim-only] (eed312) g1_walk carry=true at edge .25-.30 advanced 0 cm for 0.07/0.10 m commands (odometry -0.02); stance.py's 3 walks .304->.254.
 
 ## ad5d0f (sim, 2026-11-02)
-- [param] g1_walk carry=true at edge 0.27 advanced ~0 (four walks, odometry -0.004 on the last). [param] g1_crouch(0, forward_rad 0.1
+- [sim-only] g1_walk carry=true at edge 0.27 advanced ~0 (four walks, odometry -0.004 on the last). [param] g1_crouch(0, forward_rad 0.1
   then 0.2, arms_home False) brought the edge 0.265 -> 0.245 -> 0.228 with tilt <= 2.9: ~2 cm per 0.1 rad, not 6.
 - [strategy] Pinch shape: index_0 0.5-0.9 while middle_0 is at the fist (1.52) = index blocked by the thumb, NOT a hold (2/2 empty).
   Count a hold only if both base joints stop short (< ~1.4), and confirm with a 3 cm raise + look before carrying.
@@ -173,7 +173,7 @@
   the pinch 'open' shape stays curled, and moving the hand back 1 s after opening put the puppy on the floor (1/1). Flat + up: inside (1/1).
 - [param] (ad5d0f, sim) At waist cmd 0.7 / lean 0.1 the measured palm sits ~+0.01..+0.05 x, +0.02 y from the commanded-row target;
   with a box wall 4-5 cm behind the plush, palm = far - 0.096 keeps the open finger links 2-3 cm short of the wall.
-- [param] (ad5d0f) The robot crept ~7 cm closer to the table and ~11 deg left over 35 min of arm work (edge .278 -> .198).
+- [sim-only] (ad5d0f) The robot crept ~7 cm closer to the table and ~11 deg left over 35 min of arm work (edge .278 -> .198).
 - [strategy] (996d97) Same-side layout (puppy centre-left head left, box right): library same-side v5 `run_v5.py` placed 3/3. Look at the
   hover frame; shift the grasp 3 cm toward the tail (all 3 hovers sat over the front third).
 - [param] (996d97, sim) The palm-down pinch press stalls at palm z .038-.045 (depth top +.021-.028), tilt 5.7-6.9; a deeper command
@@ -181,7 +181,138 @@
   a 4 cm / 3 s lift slipped at z .115 (1/1).
 - [param] (996d97, sim) A lifted plush often hangs from the MIDDLE finger alone (base 0.7-1.15, index at the fist 1.5+); fingers
   1.31-1.37 still held it. Empty fist reads ~1.53: use 1.45 as the grip-lost threshold during the carry.
-- [param] (996d97) Over ~25 min of arm work the robot drifted back (far edge .36 -> .41) and the heading crept ~9 deg left;
+- [sim-only] (996d97) Over ~25 min of arm work the robot drifted back (far edge .36 -> .41) and the heading crept ~9 deg left;
   g1_walk 0.05 carry=true moved -0.6 cm. At ~10 deg the box left view B and perceive returned garbage (hover refused safely).
 - [strategy] (996d97) pb3/controller3 perceive raises the right arm into the view: when the puppy lies close (far edge < ~0.35)
   the arm hides most of it (blob 4 cm wide). Sanity-check puppy width >= 0.25 m and box near wall 0.18-0.40 before hover.
+
+## Session f0a010 (2026-11-02, sim) - box directly behind the puppy, gap ~3 cm
+- [strategy] Check finger-link FK (index_1/middle_1 with the pre-curled shape) against a box wall before and during every press; the
+  palm drifts ~2 cm forward under a press and the links reach 0.115 m ahead of the palm. Links 2 cm past the wall dragged the box 9 cm.
+- [strategy] A stance edge measured from depth is invalid when the edge is below the camera view: cross-check walks with odometry and a
+  far landmark; the robot ended ~0.10 m from the edge, not 0.19.
+- [strategy] When an IK-waypoint arm move leaves 0.5+ rad tracking errors (arm against the body), sync the command to the measured joints
+  and use g1_free_space_move (cuRobo) for the approach.
+- [param] Puppy gripped by the back (fingers-forward pinch): lift to palm z .33 (pelvis) for a 14 cm rim; paws hang lowest at .20-.24.
+- [param] Close to the body (palm x .14) straight-up lift is IK-limited at z ~.21: rise diagonally 3 cm forward per 3 cm up.
+- [sim-only] Scripted operator answers "INSIDE"/"on the floor" reliably but does not re-place the robot or answer distances.
+
+## Session e578ed (sim, box behind, near wall .39)
+- [strategy] While the plush is held, never let an IK fallback jump the arm (limit 0.5 rad lift / 0.8 carry): a branch flip swung the palm 10 cm and the grip let go.
+- [strategy] After closing, raise from the MEASURED palm xy, not the press command: the press pushes the palm forward and raising at the command pulls the hook back 3-4.6 cm.
+- [strategy] Lift straight up in 2 cm / 4 s steps; diagonal 3 cm + 1.5 cm forward lifts lost the grip at lift-off 2/2.
+- [strategy] Before opening, check the near-side paws by depth against the wall line: at palm wall+.06 they hung outside (x .33-.36), at wall+.075 they were over the interior.
+- [param] Release with the near wall at .39 needs waist yaw cmd 0.7 (measured .17-.30); commanded-row IK reaches cmd x .505 at z .25 -> palm measured .465.
+- [sim-only] cuRobo g1_free_space_move cannot execute at waist cmd 0.7: it plans from measured joints and the held command differs by 0.6-1.0 rad (refused).
+- [param] (258bd8, sim) Box LEFT / puppy RIGHT (mid-body ~0.40 m right of the pelvis): the right palm cannot press into the plush there.
+  Waist yaw .5 + roll .25 makes the commanded-row IK reach (roll, not yaw, is what helps), but the measured palm rides 4-5 cm above
+  its press command and closes on the top skin: 1 of 5 closes gripped both fingers (lifted to z .12, slipped). Lean .1 halves the hover error only.
+- [strategy] (258bd8) In a turned look view the table-height histogram can lock onto the tucked left arm (0.11 instead of -0.04):
+  check table_z against the edge measurement and pass TABLE_Z=... (percep.table_z honours it).
+- [strategy] (258bd8) Every failed press at the reach limit shoves the soft puppy 6-8 cm (toward the edge or away): after a failed close
+  re-perceive before re-pressing; a re-press in place closed on nothing.
+- [sim-only] (258bd8) Stepping-up walks near the table did not advance the robot at all (odometry -0.006); the operator could not move it.
+
+## da90c5 (sim, 2026-11-02) - same-side layout from a far stance
+- [sim-only] Walks of 0.1-0.2 m (carry=true) moved ~0 by odometry 5/5; crouch(0, forward .2, arms_home False) gained 2-3 cm (2 of 3 times).
+- [strategy] At a .24-.25 m stance with a low table, do not lean (slides the pelvis back); waist yaw .7 + roll .15 and palm far-.10 placed 2/2 when tilt <= 6.
+- [param] Waist .9/.15 stood at tilt 5.9 once and 7.2-7.6 after a 2 cm drift: tilt > 7 at the press = shallow close = empty fist (2/2).
+- [strategy] Tucked arms through walks/crouches: wrist yaws creep to +-.7; re-tuck with all wrist joints 0 before perceiving.
+
+## Session 3a46e1 (sim, 2026-11-02) - unified run.py, table brought to ~0.20 m by the operator
+- [strategy] Ask the operator to "bring the table closer" with both arms tucked: edge .27 -> .19; it drifts back ~4 cm over 2 h.
+- [strategy] Perceive with the arms DOWN (sp .9, el 0): tucked hands sit in the image and hide the plush/box; add a waist-turned view
+  (cmd .7 -> measured .26) when the plush runs off the image, merge pelvis-frame points.
+- [strategy] Paw-pair midpoint + eye blob (near-black, >= 5.5 cm above the table) = mid-body and head end; works with merged paws too.
+- [strategy] LEFT arm guard (sp .9, el -.9) during the right-hand work: with the waist turned left the plain tuck put the left fingertips
+  1-2 cm from a hanging head (run 2).
+- [param] Lift from the MEASURED palm xy after the close; no sideways drift while lifting (slips at drift onset 2/3).
+- [strategy] Legs-away plush: 0/4 lifts with the fingers-forward pinch (slip at z .085-.21). Legs toward the robot: 10/12 held.
+- [param] Head-toward-wall release: measured palm >= .18 from that wall (placed .185-.205, tipped out .11-.145).
+- [strategy] Cross-body (box left) release: the plush often stays draped over the back of the open palm-down hand (3/5). Check cream
+  pixels near the raised palm; lower to rim+.19 and roll the wrist (+.8) to slide it off (1/1). Never go home with it on the hand.
+- [strategy] When a carry step is refused for an IK jump, the arm command is on an untracked branch (cmd vs measured > .5 rad): sync the
+  ARM joints only (syncing all right_* joints also moved the right leg references) and resume.
+- [sim-only] The scripted operator answers generic replies to most help questions; it reports INSIDE / on the table / in your hand reliably.
+
+## Session d65273 (sim, 2026-11-02) - run.py v11..v17
+- [strategy] Arms DOWN in the look pose (sp .9, el .6), not el 0: with el 0 a waist turn of .28 rad put the right fingertips 2 cm past the
+  table edge, under it, and swept an edge puppy to the floor. End every run in this pose so a reset never lays the plush into tucked hands.
+- [strategy] Before moving the arms after a reset, measure plush-to-hand distance (FK links vs plush points, saturation 60-125: the white
+  hands' warm edges read ~42 and fake a contact); < 6 cm = do not move, ask.
+- [strategy] Never return home with one joint-space ramp from a turned-waist release pose: it dipped the hand 30 cm into the box wall and
+  dragged the box off the table. Retreat in Cartesian steps (up to z .40, back to x .24) at the current waist, then turn the waist to 0.
+- [strategy] Measured-palm aim: correct the hover command by the measured error, and again at each press level while the palm is free;
+  a hover-height correction alone left the palm 5 cm off at press height (lateral reach).
+- [strategy] Press on while the measured palm is still above the plush top (tilt < 5.5): stopping at the first stall left the thumb only
+  3.5 cm into the plush with the fingertips 6 cm above it -> empty fist.
+- [param] Palm .075 behind the far side (not .10); look at the hover: the paw-midpoint target sat 1-2 cm toward the head 9/9 -> shift .015.
+- [param] Box left + grasp beyond y -.25 (right hand): palm yaw -45 (fingers forward-right) held 1/1; yaw ~10 there: 5 empty fists / 7.
+- [param] Waist yaw cmd <= .7: cmd .9 oscillated (.27 <-> .46 measured) with the palm swinging 15 cm.
+- [param] Box beside the plush: open only with the measured palm >= 13 cm past the near wall (at 12 cm the body fell back over it).
+- [strategy] Plush hooked on the open hand over the box: lower until it sits on the box floor (palm rim + .13), then raise slowly: it slid off (1/1).
+- [sim-only] Scripted operator: "bring the table closer" works; resets often place the box LEFT of a puppy lying 0.27-0.33 m right.
+
+## Session 20261102T202144Z_4f16bd (sim, evaluation of run.py 41edb62 on the elliptic friction cone)
+- [sim-only] With the elliptic cone the pinched plush no longer creeps: box-right grips stayed at index/middle .45-.80 through lift and
+  carry (3/3 placed), where the pyramidal cone saw creep and slips at z .14-.22. Eval 5/8 vs 3/8 before (CIs overlap: 31-86 % vs 14-69 %).
+- [strategy] Still failing on the new contacts: (1) box-LEFT lateral grasps (mid y ~-.28, waist .6-.7/.15): 4 closes, 0 that survived a
+  lift (2 empty fists, 2 lost on the 1st lift step); (2) box-BEHIND far carries: the middle finger goes to fist during the lift/carry and
+  only the index holds (3/3 trials), one fell over the front edge at the 1st carry step. Work on these, not on the box-right path.
+- [strategy] Request every operator reset with the arms in run.py's LOOK pose (arms down behind the edge), never tucked: with tucked
+  arms the reset laid the puppy's legs against the right hand (1.4-1.7 cm) twice and run.py scene refused (correctly).
+- [param] home's left-arm TUCK (sp .45 / el -.5) puts the left middle fingertip at x .267, z .14 (pelvis) = 16 cm above a z -.022 table:
+  inside a box whose near wall is < .27 m ahead. The following move to LOOK (sp .9, el .6) swept it down/back and tipped such a box
+  off the table (trial 2, near wall .225). Fix: go LEFT_GUARD -> LOOK directly (tmp/safe_home.py did; box stayed, trial 7).
+- [strategy] An open hand that just failed a grasp can carry the plush along on the way home (trial 7, plush to the floor): check the
+  hand is empty before home (v17.2 does) and retreat over the table interior, not along the front edge.
+- [sim-only] The scripted operator does not move a single object on request ("push the puppy 10 cm in"): only reset re-lays the scene.
+
+## Session f20de8 (sim, 2026-11-02) - run.py v18: box LEFT solved by grasp-waist margin + waist swing; EVAL 4/8 clean, 5/8 placed
+- [strategy] A grasp that is IK-reachable with NO margin is not pressable: SONIC holds the arm off its command (wrist roll -.80 vs -1.20)
+  and the close is weak. Pick the waist whose commanded-row IK reaches 3 cm DEEPER than the press target (pb.lateral_grasp_ik_margin_m).
+- [param] Waist ROLL lowers the right shoulder: on a low table (top -.072 pelvis) roll .25-.35 reaches 2-6 cm deeper than roll .15 at mid y
+  -.29 (pb.lateral_grasp_waists); tilt stayed <= 5.9 deg. Roll to the right does NOT help a puppy left of centre (y +.13): unreachable.
+- [strategy] Grasp and release need not share a waist: lift at the grasp waist, rise to carry height, then turn the waist in 3 x 4 s ramps
+  with the arm IK keeping the palm fixed in the pelvis frame. The grip held through 5/5 swings (the old "never swing" rule came from the
+  pyramidal-cone era and a swing that also moved the hand).
+- [param] Box-left lateral grasp: fingers ACROSS the body (axis + 10 deg) held 4/5 closes once the waist had margin; -45 diagonal 0/4.
+  Choose the release palm yaw nearest the grasp yaw (no rotation on the carry; a 75 deg rotation dropped it).
+- [strategy] At a turned waist (cmd .7, measured ~.25) the measured arm joints differ .5-.9 rad from the command BY DESIGN (SONIC
+  compensates the waist with the arm) while the palm is within 1-3 cm. Re-sync the arm only on a PALM error > 4 cm (pb.sync_palm_err_m).
+- [param] Carry the plush at rim + .27 (palm): at rim + .21-.22 its dangling body caught the box's side wall and pushed the box 13 cm.
+  The depth-measured hang below the palm is unreliable when only the raised head is in view: use it only to raise the carry.
+- [strategy] Home without the TUCK pose (sp .45 / el -.5 puts fingertips at x .275 = inside a near box): guard/sp .8 -> LOOK, every
+  link x <= .203 (FK). Box near walls at .206-.221 (2 cm inside the table edge) were never touched in 7 homes.
+- [strategy] A plush that rolls onto the back of the fist after a grip loss can ride on the hand: keep carrying slowly over the box and
+  let the release tip it off (run 8, landed inside).
+- [strategy] Check the MEASURED palm height before opening: eval 2 opened at z .378 for a .268 command (blind, box out of view) and the
+  plush fell over the far wall. v18.3 steps the command down (untested).
+- [sim-only] This session's table was LOW (plush top ~.022 pelvis vs ~.06-.075 in 4f16bd): box-right centre-left puppies needed waist
+  .6-.7/.15 with no margin; one at y +.126 was unreachable from the 0.20 m stance. Re-measure the table height every session.
+- [sim-only] Layouts this session: 14 (box LEFT 8, BEHIND 3, RIGHT 3); the scripted operator answers confirmation questions reliably (INSIDE /
+  on the table) but ignores requests to move a single object.
+- [strategy] Late in the session the LOOK pose (arms down beside the hips) was blocked: the left hand landed on the small drawer unit
+  beside the robot (wrist pitch -1.13 vs 0, elbow .25-.49 vs .6), once both arms (dev .8). Moving the shoulder forward did not free it;
+  going back up to the guard pose (sp .9 / el -.9) did. v18.8 to_look() does this automatically; then end with the arms in guard.
+- [strategy] Do not request a reset with an arm in the guard pose: the hand sits above the table's front edge and the reset laid the
+  puppy next to it. And the hand-clearance gate must ignore the hand's own pixels (cap plush points at table + .16).
+- [param] Box BEHIND far release (x ~.52): choose the carry height reachable at the release xy BEFORE the carry (v18.5: rim + .25);
+  lowering + re-syncing at the last step made the middle finger let go (eval 6).
+
+## Session 3b3f99 (sim, 2026-11-03) - EVALUATION ONLY of run.py v18.8 (80b8524): 7/8 clean
+- [strategy] v18.8 unchanged placed 7/8 (box RIGHT 5/5, LEFT 1/1, BEHIND 1/2) with every first close holding and no retry; vs 4/8 (v18.2)
+  and 5/8 (v14.1) - Fisher p ~ .28, so treat it as "no regression, likely better", not as proof. Next sessions: re-test on box LEFT/BEHIND
+  and on a LOW table, which this session's scripted layouts barely covered.
+- [strategy] The post-release hang check counts cream pixels NEAR the hand in the image; a plush riding on top of the open hand/forearm is
+  mostly ABOVE the image at the far behind reach (739 px < 1500 gate) -> false "hand empty", and home drops it in front of the box (trial 6).
+  Before going home over the near wall, confirm the hand is empty from a lowered-camera view or depth around the forearm.
+- [strategy] A diagonal puppy (axis ~40 deg) with its head toward the robot gives head=None: the grasp lands nearer the chest (middle finger
+  creeps 0.82 -> 1.4) and the behind carry falls 3 cm short of the planned x (near wall + .058 < .09) -> the program stops and asks.
+  Aborting there opens the hand at the same spot, so release is the better of the two options; the fix belongs in planning (re-pick the waist
+  / release x with margin), not at that checkpoint.
+- [param] On a normal-height table (plush top .051-.059 pelvis, table_z -.037/-.042) box-RIGHT puppies at y -.0..+.07 needed only waist .45/0-.15
+  and released blind at the box centre: measured palm within 2.5 cm (xy) and z within .025 of the plan in 5/5; the v18.3 step-down never fired.
+- [param] Box-BEHIND far carries: one finger still goes to fist at the last step (middle 1.56 trial 7, 1.40 trial 6); the index alone held both.
+- [sim-only] The scripted operator's resets were skewed this session: box RIGHT 5 of 8 (trials 1 and 2 within 1 cm), LEFT 1, BEHIND 2; a
+  request for "a different arrangement" was ignored. Its confirmation replies were reliable (INSIDE / on the table).

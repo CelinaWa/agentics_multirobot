@@ -32,6 +32,9 @@ the robot host and commit, so the next sim batch starts from the real experience
   "only a torso straddle can work") were artefacts and would mislead a session on the real robot. A new export
   follows from the sessions on the corrected simulation (soft, floppy puppy; reachable layouts). Until then, start
   the robot without `--experience`.
+- 2026-11-03: `experience/puppy_box` is session 3b3f99 (sim): one program, `code/puppy_box/run.py` v18.8, for every
+  layout (puppy left of, right of or in front of the box, right hand only). Its last no-code-change evaluation placed
+  7 of 8 on a new scene with no falls; every row is tagged; `handoff/README.md` starts with what to measure first.
 
 ## Sim to real (2026-11-02)
 

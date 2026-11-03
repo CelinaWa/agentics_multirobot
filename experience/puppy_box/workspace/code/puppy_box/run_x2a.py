@@ -18,10 +18,11 @@ sys.path.insert(0, CR)
 import cr, pup, layout2, run_cr  # noqa
 pb3, lr = cr.pb3, cr.lr
 
-WAIST = (0.7, 0.15)       # 0.9 gave tilt 6.24 with the arm over a body at y -0.30 (run 1); 0.7 reached grasp + release
+WAIST = tuple(float(v) for v in os.environ.get('WAIST', '0.7,0.15').split(','))  # 258bd8: 0.5,0.2 reaches mid-body y -0.40; 0.9 gave tilt 6.24 with the arm over a body at y -0.30 (run 1); 0.7 reached grasp + release
 BACK = 0.03               # palm offset against the finger direction so the fingertips pass the body's far side
 LAND_TOL = 0.025          # hover palm within this of its target before pressing
-LIFT_STEP, LIFT_Z = 0.03, 0.30
+LIFT_STEP, LIFT_Z = float(os.environ.get('LIFT_STEP', 0.03)), 0.30
+LIFT_SECS = float(os.environ.get('LIFT_SECS', 3.0))   # 258bd8: 2 cm / 4 s after a slip at palm z .15 with 3 cm / 3 s
 CARRY_Z, REL_Z, REL_IN_Y, REL_IN_X = 0.35, 0.30, 0.13, 0.10
 STALL = 1.45              # carry: a held plush reads 0.85-1.19 on the middle finger; empty fist 1.52-1.57
 report = pb3.report
@@ -70,7 +71,10 @@ def plan(ctx):
     pts, tz = pup.pts_of(path, exclude_y_above=by[0] - 0.01)
     if pts is None or len(pts) < 200:
         report(False, 'no puppy points right of the box', view=path)
-    xy = pts[:, :2]; m = xy.mean(0); _, _, vt = np.linalg.svd(xy - m, full_matrices=False); ax = vt[0]
+    xy = pts[:, :2]; m = xy.mean(0)
+    if os.environ.get('GC'):     # 258bd8: grasp centre override (true mid-body between the legs; PCA centre sat on the front legs)
+        m = np.array([float(v) for v in os.environ['GC'].split(',')])
+    _, _, vt = np.linalg.svd(xy - m, full_matrices=False); ax = vt[0]
     if ax[1] < 0:
         ax = -ax
     yaw = math.degrees(math.atan2(ax[1], ax[0])) - 90.0
@@ -130,7 +134,7 @@ def lift(ctx):
     st = st_load(); gx, gy = st['grasp']; z = st['press_z']; hist = []
     while z < LIFT_Z - 1e-3:
         z = min(LIFT_Z, z + LIFT_STEP)
-        r = pb3.move(ctx, (gx, gy, z), st['gyaw'], 3.0, max_jump=0.8); r.pop('ob', None)
+        r = pb3.move(ctx, (gx, gy, z), st['gyaw'], LIFT_SECS, max_jump=0.8); r.pop('ob', None)
         if not r['ok']:
             report(False, r['why'], history=hist)
         f = r['fingers']; hist.append([round(z, 3), r['palm'][2], f[3], f[5], r['tilt']])
@@ -183,7 +187,13 @@ def release(ctx):
     lr.step_release(ctx, st_load())
 
 
-STEPS = dict(stance=stance, look=look, plan=plan, prep=run_cr.prep, waist=waist, over=cr.over, hover=hover, grasp=grasp,
+def lean(ctx):
+    """258bd8: waist pitch LEAN (default 0.1) in its own ramp after the waist step; the press at y -0.40 rode 4-5 cm above its
+    command without it (palm 0.064-0.079 for cmd 0.01-0.04): reach, not the plush, stopped the hand."""
+    pb3.step_lean(ctx, st_load(), float(os.environ.get('LEAN', 0.1)))
+
+
+STEPS = dict(lean=lean, stance=stance, look=look, plan=plan, prep=run_cr.prep, waist=waist, over=cr.over, hover=hover, grasp=grasp,
              lift=lift, carry=carry, swing=swing, adjust=adjust, release=release, home=run_cr.home)
 
 if __name__ == '__main__':

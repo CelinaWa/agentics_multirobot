@@ -1,146 +1,461 @@
 {
-  "carry.palm_z_m": {
-    "note": "palm height above the pelvis while carrying (the body hangs ~15 cm)",
+  "grasp.cross_waist_roll": {
+    "note": "waist roll for a right-hand grasp ~0.4 m right of the pelvis",
     "sim": {
-      "how": "puppy_box sim sessions 2026-11-02 (memory/TIPS.md [param] rows)",
+      "how": "258bd8: offline IK on the commanded row: pressed grasp at y -0.40 err .025 at roll .15, .003 at roll .25 (yaw .5); standing tilt 1.4-1.5, press tilt <= 5",
       "measured": "2026-11-02",
-      "value": 0.35
+      "value": 0.25
+    },
+    "unit": "rad"
+  },
+  "grasp.far_stance_palm_back_from_far_m": {
+    "note": "palm x = puppy far side - this, far stance",
+    "sim": {
+      "how": "da90c5 run 1: palm far-.10, fingers past the far side, held",
+      "measured": "2026-11-02",
+      "value": 0.1
     },
     "unit": "m"
   },
-  "crouch.edge_change_per_0p1rad_m": {
-    "note": "g1_crouch forward_rad +0.1 brought the edge closer by this much",
+  "grasp.far_stance_press_below_top_m": {
+    "note": "deepest light-press level below the depth top",
     "sim": {
-      "how": "puppy_box sim sessions 2026-11-02 (memory/TIPS.md [param] rows)",
+      "how": "da90c5 run 1: press stalled at palm top+.033 (cmd top-.002), deepest level",
       "measured": "2026-11-02",
-      "value": 0.02
+      "value": 0.045
     },
     "unit": "m"
   },
-  "grasp.finger_links_ahead_of_palm_m": {
-    "note": "open Dex3 finger links ahead of the palm frame (wrist yaw 0): check against box walls",
+  "grasp.far_stance_waist_roll": {
+    "note": "waist roll with the far-stance yaw",
     "sim": {
-      "how": "puppy_box sim sessions 2026-11-02 (memory/TIPS.md [param] rows)",
+      "how": "da90c5 run 1 success",
       "measured": "2026-11-02",
-      "value": 0.11
+      "value": 0.15
+    },
+    "unit": "rad"
+  },
+  "grasp.far_stance_waist_yaw_cmd": {
+    "note": "waist yaw cmd for a right-hand grasp of a centre puppy from a .24-.25 m stance, box right",
+    "sim": {
+      "how": "da90c5: run 1 at 0.9 (tilt 5.9) placed; run 2 at 0.9 tilt 7.2-7.6 -> press stopped on tilt, 2 empty fists; run 3 at 0.7 (tilt 5.4, meas .47) placed; reach .7/.15 err .008 grasp / .001 release",
+      "measured": "2026-11-02",
+      "value": 0.7
+    },
+    "unit": "rad"
+  },
+  "grasp.finger_wall_margin_m": {
+    "note": "index_1/middle_1 FK x stays this far short of the box near wall",
+    "sim": {
+      "how": "session f0a010 run 2 (success), box behind, gap 3.1 cm: finger links .270-.274 vs wall .288; attempt 1 links .305 dragged the box",
+      "measured": "2026-11-02",
+      "value": 0.007
     },
     "unit": "m"
   },
-  "grasp.palm_stall_above_depth_top_m": {
-    "note": "pressed palm stops this far above the depth-measured plush top",
+  "grasp.grip_lost_rad": {
     "sim": {
-      "how": "puppy_box sim sessions 2026-11-02 (memory/TIPS.md [param] rows)",
-      "measured": "2026-11-02",
-      "value": 0.03
-    },
-    "unit": "m"
-  },
-  "grip.lift_step_m": {
-    "note": "lift step per 4 s that kept the grip (a 4 cm / 3 s step slipped)",
-    "sim": {
-      "how": "puppy_box sim sessions 2026-11-02 (memory/TIPS.md [param] rows)",
-      "measured": "2026-11-02",
-      "value": 0.03
-    },
-    "unit": "m"
-  },
-  "grip.lost_threshold_rad": {
-    "note": "index/middle base joint above this during the carry = grip lost (empty fist ~1.53)",
-    "sim": {
-      "how": "puppy_box sim sessions 2026-11-02 (memory/TIPS.md [param] rows)",
+      "how": "session f0a010 run 2 (success), box behind, gap 3.1 cm: held at middle base .81, index 1.35; fist ~1.57",
       "measured": "2026-11-02",
       "value": 1.45
     },
     "unit": "rad"
   },
-  "hand.dex3_opening_m": {
-    "note": "Dex3 opening between thumb and fingers",
+  "grasp.palm_back_from_far_m": {
+    "note": "fingers-forward pinch, measured palm short of the puppy far side",
     "sim": {
-      "how": "puppy_box sim sessions 2026-11-02 (memory/TIPS.md [param] rows)",
+      "how": "session f0a010 run 2 (success), box behind, gap 3.1 cm: measured palm .149-.153 vs far .257",
       "measured": "2026-11-02",
-      "value": 0.12
+      "value": 0.105
     },
     "unit": "m"
   },
-  "reach.loaded_palm_max_x_m": {
-    "note": "farthest measured palm ahead of the pelvis with the puppy in hand (waist yaw cmd 0.7, lean 0.1)",
+  "grasp.palm_ride_above_cmd_m": {
+    "note": "how far the measured palm stays above its press command at the lateral reach limit",
     "sim": {
-      "how": "puppy_box sim sessions 2026-11-02 (memory/TIPS.md [param] rows)",
+      "how": "258bd8: palm y -.39 at waist .5/.25: press cmd .01-.04 -> palm .064-.079 (4-5 cm high); hover 2 cm high, 1 cm with lean .1",
       "measured": "2026-11-02",
-      "value": 0.44
+      "value": 0.045
     },
     "unit": "m"
   },
-  "reach.right_lateral_limit_y_m": {
-    "note": "right hand cannot press into the plush beyond this y (pelvis frame)",
+  "grasp.press_cmd_back_m": {
+    "note": "press command behind the hover-corrected target (the press pushes the palm forward ~1-2 cm)",
     "sim": {
-      "how": "puppy_box sim sessions 2026-11-02 (memory/TIPS.md [param] rows)",
+      "how": "session f0a010 run 2 (success), box behind, gap 3.1 cm: cmd .135 for measured .149-.153",
       "measured": "2026-11-02",
-      "value": -0.3
+      "value": 0.01
     },
     "unit": "m"
   },
-  "release.lean_rad": {
-    "note": "gated lean at release for a box behind the puppy, unlean right after",
+  "grasp.press_gate_above_top_m": {
+    "note": "stop pressing when the measured palm is this far above the depth top",
     "sim": {
-      "how": "puppy_box sim sessions 2026-11-02 (memory/TIPS.md [param] rows)",
+      "how": "session e578ed (sim) box behind, gap 4-6 cm, waist yaw cmd 0.7: press levels to top-0.045 stopped at palm .031-.036 above depth top .033-.036 (stall); att.5 held",
       "measured": "2026-11-02",
-      "value": 0.2
+      "value": 0.0
+    },
+    "unit": "m"
+  },
+  "ik.max_joint_jump_carry_rad": {
+    "sim": {
+      "how": "session e578ed (sim) att.5: carry steps at x .47-.505 needed jumps .51-.64 (0.5 refused); held",
+      "measured": "2026-11-02",
+      "value": 0.8
     },
     "unit": "rad"
   },
-  "release.palm_past_near_wall_m": {
-    "note": "measured palm past the box near wall before opening (+0.04 fell back out)",
+  "ik.max_joint_jump_holding_rad": {
+    "note": "max joint change per IK move while holding / lifting",
     "sim": {
-      "how": "puppy_box sim sessions 2026-11-02 (memory/TIPS.md [param] rows)",
+      "how": "session e578ed (sim) box behind, gap 4-6 cm, waist yaw cmd 0.7: att.1 allowed 1.6 -> branch flip, palm 7-12 cm off, grip lost; 0.5 lift/carry held in att.5 (nudges needed 0.53-0.8)",
       "measured": "2026-11-02",
-      "value": 0.07
+      "value": 0.5
+    },
+    "unit": "rad"
+  },
+  "lift.palm_cmd_z_behind_m": {
+    "note": "carry height command",
+    "sim": {
+      "how": "session e578ed (sim) box behind, gap 4-6 cm, waist yaw cmd 0.7: att.5 straight-up 2 cm steps reached palm .217 (IK limit at x .23); carry at cmd .24 measured .24-.28",
+      "measured": "2026-11-02",
+      "value": 0.24
     },
     "unit": "m"
   },
-  "robot.hands_hanging_ahead_m": {
-    "note": "standing, hands hang this far ahead of the pelvis at table height (and read as the table edge)",
+  "lift.palm_z_pelvis_m": {
+    "note": "lift command palm z in pelvis frame",
     "sim": {
-      "how": "puppy_box sim sessions 2026-11-02 (memory/TIPS.md [param] rows)",
+      "how": "da90c5 run 1: cmd .28, measured palm .348; 14 cm rim at pelvis z .0625 cleared",
       "measured": "2026-11-02",
-      "value": 0.26
+      "value": 0.28
     },
     "unit": "m"
   },
-  "robot.stance_from_edge_m": {
-    "note": "pelvis to table edge the controllers work from; closer and the hanging hands hit the edge",
+  "lift.step_dz_m": {
     "sim": {
-      "how": "puppy_box sim sessions 2026-11-02 (memory/TIPS.md [param] rows)",
-      "measured": "2026-11-02",
-      "value": 0.2
-    },
-    "unit": "m"
-  },
-  "waist.yaw_tracking_ratio": {
-    "note": "measured / commanded waist yaw (cmd 0.7 -> 0.24-0.37), keeps creeping for seconds",
-    "sim": {
-      "how": "puppy_box sim sessions 2026-11-02 (memory/TIPS.md [param] rows)",
-      "measured": "2026-11-02",
-      "value": 0.45
-    },
-    "unit": ""
-  },
-  "walk.carry_advance_short_m": {
-    "note": "what a 0.07-0.15 m carry=true g1_walk near the table actually moved (often ~0); verify with a floor mark",
-    "sim": {
-      "how": "puppy_box sim sessions 2026-11-02 (memory/TIPS.md [param] rows)",
+      "how": "session e578ed (sim) box behind, gap 4-6 cm, waist yaw cmd 0.7: att.5 straight up 2 cm / 4 s held; 3 cm + 1.5 cm forward per step lost the grip at lift-off twice (att.2,3)",
       "measured": "2026-11-02",
       "value": 0.02
     },
     "unit": "m"
   },
-  "walk.odometry_error_m": {
-    "note": "leg odometry vs truth on forward walks of 0.1-0.3 m (first walk after start can read 0 and still move)",
+  "pb.box_rim_above_table_m": {
+    "note": "box rim height above the table (task)",
     "sim": {
-      "how": "puppy_box sim sessions 2026-11-02 (memory/TIPS.md [param] rows)",
+      "how": "task text; sim depth sees the rim at table+.145",
+      "measured": "2026-11-02",
+      "value": 0.14
+    },
+    "unit": "m"
+  },
+  "pb.carry_palm_above_rim_m": {
+    "note": "palm z during the arm-only carry, above the rim",
+    "sim": {
+      "how": "3a46e1 runs 1-5: carry z .30-.32 measured, no rim contact",
+      "measured": "2026-11-02",
+      "value": 0.21
+    },
+    "unit": "m"
+  },
+  "pb.grasp_shift_toward_tail_m": {
+    "note": "grasp moved toward the tail from the paw-pair midpoint",
+    "sim": {
+      "how": "d65273 runs 1,7,8: with the measured-palm aim correction (v12) every hover sat 1.5-2 cm toward the head of the paw-pair midpoint; shifted .015-.02 by hand, all 3 held mid-body and placed",
+      "measured": "2026-11-02",
+      "value": 0.015
+    },
+    "unit": "m"
+  },
+  "pb.hang_below_palm_default_m": {
+    "note": "lowest point of the held plush below the palm when not measurable; carry z = rim + max(carry, hang + .05)",
+    "sim": {
+      "how": "f20de8 run 3: palm rim+.22 -> the dangling plush pushed the box 13 cm; at rim+.27 0 contacts in 9 carries; measured hang .09-.20 when the body was in view",
+      "measured": "2026-11-02",
+      "value": 0.22
+    },
+    "unit": "m"
+  },
+  "pb.hang_px": {
+    "note": "cream pixels near the raised open hand = plush still on it",
+    "sim": {
+      "how": "3a46e1 replay: stuck 15165/11365/7331, dropped 0-245; false positive 2406 (sitting plush against the forearm at +5 cm -> check now at +10 cm)",
+      "measured": "2026-11-02",
+      "value": 1500
+    },
+    "unit": "px"
+  },
+  "pb.head_wall_clearance_measured_m": {
+    "note": "measured palm distance from the box wall the plush head hangs toward, at release",
+    "sim": {
+      "how": "3a46e1: head-toward-wall releases placed at .185-.205 (runs 1,2,8), tipped out at .11/.12/.145 (eval 3, 7, run 9)",
+      "measured": "2026-11-02",
+      "value": 0.18
+    },
+    "unit": "m"
+  },
+  "pb.home_retreat_z_m": {
+    "note": "palm z of the Cartesian retreat before the waist returns to 0",
+    "sim": {
+      "how": "d65273 run 10: joint-space home from a waist .6/.15 release dipped the hand 30 cm and dragged the box off; retreat up to .40 then back to x .24 keeps >= 13 cm above the rim (FK), run 11 ok",
+      "measured": "2026-11-02",
+      "value": 0.4
+    },
+    "unit": "m"
+  },
+  "pb.lateral_grasp_ik_margin_m": {
+    "note": "box LEFT: grasp waist must reach this far below the press target (commanded-row IK)",
+    "sim": {
+      "how": "f20de8: without margin (.45/.15) the arm was held off its command and the close was weak (run 1); with it (.3/.25, .45/.25) grasp+lift held 6/7 closes",
+      "measured": "2026-11-02",
+      "value": 0.03
+    },
+    "unit": "m"
+  },
+  "pb.lateral_grasp_waists": {
+    "note": "box LEFT grasp waist (yaw, roll) candidates in order, before the plain list",
+    "sim": {
+      "how": "f20de8 offline IK on a low table (z -.072): roll .25-.35 reaches 2-6 cm deeper at mid y -.29; roll .35 tilt <= 5.9 deg standing+press",
+      "measured": "2026-11-02",
+      "value": [
+        [
+          0.3,
+          0.25
+        ],
+        [
+          0.45,
+          0.25
+        ],
+        [
+          0.3,
+          0.35
+        ],
+        [
+          0.45,
+          0.35
+        ]
+      ]
+    },
+    "unit": "rad"
+  },
+  "pb.lateral_grasp_yaw_deg": {
+    "note": "FALLBACK only: box-left lateral grasp yaw when the across-body yaw has no IK margin",
+    "sim": {
+      "how": "f20de8: -45 closed but crept/slipped 4/4 with margin; across-body yaw (axis+10) held 4/5 closes",
+      "measured": "2026-11-02",
+      "value": -45.0
+    },
+    "unit": "deg"
+  },
+  "pb.lift_palm_above_rim_m": {
+    "note": "palm z at the end of the lift, above the rim",
+    "sim": {
+      "how": "3a46e1 runs 1-5: palm .27-.29 pelvis with rim .093; hanging paws cleared the rim",
+      "measured": "2026-11-02",
+      "value": 0.19
+    },
+    "unit": "m"
+  },
+  "pb.palm_back_from_far_m": {
+    "note": "palm x = body far side - this",
+    "sim": {
+      "how": "d65273 runs 5b-11 incl. the eval: 15 of 17 closes passed the close check (2 empty fists at the lateral reach, run 9); 5 of the 15 then slipped or hit an IK branch jump in the lift. .10 left the thumb 3.5 cm into the top at the lateral reach (run 4)",
+      "measured": "2026-11-02",
+      "value": 0.075
+    },
+    "unit": "m"
+  },
+  "pb.press_levels_rel_top_m": {
+    "note": "palm press command levels relative to the depth top; stop at the first stall (palm > cmd + .03) or tilt 7",
+    "sim": {
+      "how": "3a46e1 runs 1-5: stalls at levels -0.015..-0.045, palm .053-.072, holds 5/6",
+      "measured": "2026-11-02",
+      "value": [
+        0.02,
+        0.0,
+        -0.015,
+        -0.03,
+        -0.045
+      ]
+    },
+    "unit": "m"
+  },
+  "pb.reach_ahead_table_height_m": {
+    "note": "palm-down reach ahead of the pelvis at table height+5cm, waist .3-.45 (commanded-row IK)",
+    "sim": {
+      "how": "3a46e1: release at x .38-.40 reached (measured .34-.39) at z .29; grasp x .23-.30",
+      "measured": "2026-11-02",
+      "value": 0.4
+    },
+    "unit": "m"
+  },
+  "pb.release_dump_above_rim_m": {
+    "note": "palm z above the rim for the wrist-roll dump when the plush stays on the open hand",
+    "sim": {
+      "how": "3a46e1 trial 8 recovery: palm .29 pelvis, wrist roll +0.8 -> slid into the box, operator INSIDE",
+      "measured": "2026-11-02",
+      "value": 0.19
+    },
+    "unit": "m"
+  },
+  "pb.release_inside_wall_m": {
+    "note": "minimum palm distance inside the near/side walls at release (preferred .15)",
+    "sim": {
+      "how": "3a46e1: released at near wall +.11..+.15, 4/4 opens fell inside",
+      "measured": "2026-11-02",
+      "value": 0.09
+    },
+    "unit": "m"
+  },
+  "pb.release_near_wall_side_m": {
+    "note": "box beside the plush: measured palm past the near wall before opening",
+    "sim": {
+      "how": "d65273 eval trial 1: opened at near wall + .12 with the body hanging toward the robot -> fell over the near wall; .131-.145 placed (runs 5, 11)",
+      "measured": "2026-11-02",
+      "value": 0.13
+    },
+    "unit": "m"
+  },
+  "pb.release_z_tol_m": {
+    "note": "open only when the measured palm is within this of the planned release z (else step down)",
+    "sim": {
+      "how": "f20de8 eval 2: palm stayed at .378 for .268 commanded, plush fell over the far wall (untested fix)",
       "measured": "2026-11-02",
       "value": 0.04
     },
     "unit": "m"
+  },
+  "pb.stall_dz_m": {
+    "note": "palm above its press command by this = held up by the plush",
+    "sim": {
+      "how": "da90c5 + 3a46e1",
+      "measured": "2026-11-02",
+      "value": 0.03
+    },
+    "unit": "m"
+  },
+  "pb.sync_palm_err_m": {
+    "note": "re-sync the arm command to the measured joints only when the measured palm is this far from FK(command)",
+    "sim": {
+      "how": "f20de8 run 3: at waist cmd .7 / meas .25 the arm joints differed .5-.94 rad with the palm within 1-3 cm; syncing every step jerked the plush",
+      "measured": "2026-11-02",
+      "value": 0.04
+    },
+    "unit": "m"
+  },
+  "pb.waist_cmd_used": {
+    "note": "waist yaw cmd the planner picked (roll 0 or .15); measured yaw tracks ~40-60 %",
+    "sim": {
+      "how": "3a46e1: box right .45/.15 and .3/0; box left .3/0 and .45/.15",
+      "measured": "2026-11-02",
+      "value": [
+        0.3,
+        0.45
+      ]
+    },
+    "unit": "rad"
+  },
+  "release.palm_cmd_x_max_m": {
+    "sim": {
+      "how": "session e578ed (sim) box behind, gap 4-6 cm, waist yaw cmd 0.7: cmd .505 -> measured palm .465 (wall .39 + .075) at waist cmd 0.7; lower paws then over the interior, puppy fell INSIDE",
+      "measured": "2026-11-02",
+      "value": 0.505
+    },
+    "unit": "m"
+  },
+  "release.palm_past_near_wall_measured_m": {
+    "sim": {
+      "how": "session e578ed (sim) box behind, gap 4-6 cm, waist yaw cmd 0.7: att.5 opened at measured palm wall+.075; at wall+.06 the near paws hung at x .33-.36 (outside)",
+      "measured": "2026-11-02",
+      "value": 0.075
+    },
+    "unit": "m"
+  },
+  "release.past_near_wall_m": {
+    "note": "release palm x past the box near wall",
+    "sim": {
+      "how": "session f0a010 run 2 (success), box behind, gap 3.1 cm: palm .418 vs wall .288 -> paws .36, puppy fell fully inside",
+      "measured": "2026-11-02",
+      "value": 0.13
+    },
+    "unit": "m"
+  },
+  "stance.edge_from_pelvis_m": {
+    "note": "walk advance = odometry here; do not trust edge_of when the edge is below the view",
+    "sim": {
+      "how": "session f0a010: box label x .499 at start (edge ~.30) -> .293 after 2 walks (odometry .126+.112); the stance step read .193 = bottom of the camera view",
+      "measured": "2026-11-02",
+      "value": 0.095
+    },
+    "unit": "m"
+  },
+  "stance.edge_tucked_start_m": {
+    "sim": {
+      "how": "session e578ed (sim) box behind, gap 4-6 cm, waist yaw cmd 0.7: start edge with arms tucked (table edge visible); ended ~.19 after 2 walks + crouch(0,.08)",
+      "measured": "2026-11-02",
+      "value": 0.285
+    },
+    "unit": "m"
+  },
+  "stance.table_edge_after_walks_m": {
+    "note": "walks barely advance in this sim; plan for ~.25",
+    "sim": {
+      "how": "da90c5: .302 start, walks .1/.1/.15/.15/.2 -> odometry -.6/1.1/.9/-.1/-.4 cm; crouch fwd .1/.2 gained ~3 cm once",
+      "measured": "2026-11-02",
+      "value": 0.245
+    },
+    "unit": "m"
+  },
+  "stance.walk_advance_per_cmd": {
+    "note": "odometry / commanded forward",
+    "sim": {
+      "how": "session e578ed (sim) box behind, gap 4-6 cm, waist yaw cmd 0.7: walk .09 -> odo .032 (first walk incl. warm-up; edge .285->.23 = 5.5 cm), walk .05 -> odo .034",
+      "measured": "2026-11-02",
+      "value": 0.36
+    },
+    "unit": "ratio"
+  },
+  "table.edge_after_operator_slide_m": {
+    "note": "table edge from the pelvis after the operator slides the table",
+    "sim": {
+      "how": "f20de8: .197-.213 over 20 scenes, arms in LOOK; low table top z -.072 pelvis",
+      "measured": "2026-11-02",
+      "value": 0.2
+    },
+    "unit": "m"
+  },
+  "table.edge_tucked_m": {
+    "note": "table edge ahead of the pelvis at y 0 with the arms tucked",
+    "sim": {
+      "how": "258bd8: per-y-bin 1st pct of table points (code/p258/edge.py) after crouch(0,fwd .08), arms tucked; .22 at y -.2, .31 at y +.2 (table 12 deg to the robot)",
+      "measured": "2026-11-02",
+      "value": 0.27
+    },
+    "unit": "m"
+  },
+  "waist.yaw_cmd_release_behind": {
+    "sim": {
+      "how": "session e578ed (sim) box behind, gap 4-6 cm, waist yaw cmd 0.7: measured .17-.30; commanded-row IK reaches x .50 z .24-.28 only at cmd 0.7 (0 reaches .43)",
+      "measured": "2026-11-02",
+      "value": 0.7
+    },
+    "unit": "rad"
+  },
+  "walk.advance_per_cmd_m": {
+    "note": "forward advance of a g1_walk near the table",
+    "sim": {
+      "how": "258bd8 cross layout: 4 walks carry=true .13/.11/.11/.10 from edge .30 (arms tucked): edges .299->.283, last odometry -0.006; legs straighten after a walk",
+      "measured": "2026-11-02",
+      "value": -0.006
+    },
+    "unit": "m"
+  },
+  "walk.advance_per_odometry": {
+    "sim": {
+      "how": "session f0a010: 2 walks odometry .238 total, box moved .206 in the pelvis frame (warm-up turn included)",
+      "measured": "2026-11-02",
+      "value": 1.0
+    },
+    "unit": "ratio"
   }
 }
