@@ -204,21 +204,71 @@ agent 在 sim 里已经端到端跑过很多次（2026-10-29 起；puppy_box 最
 
 ---
 
-### 5.5 带着 sim 里学到的经验跑（经验从 DGX 带到真机）
+### 5.5 Sim → 真机迁移：带着 sim 经验跑 puppy_box（照顺序敲）
 
-agent 每个 session 留下三样东西：`memory/`（这个任务的 TIPS/RUNS，可复用的条件→动作→结果）、`handoff/README.md`
-（"换个布局怎么规划每个子任务"）、`skill-library/`（验证过的可执行技能，git 库）。真机 session 默认从零开始；要让它
-接着 sim 的经验探索，用 `experience/<task>/`（见 `experience/README.md`）：
+**带过去的是什么**（`experience/puppy_box/`，DGX sim session 3b3f99 导出，详见 `experience/README.md`）：
 
+| 内容 | 作用 |
+|---|---|
+| `skill-library-g1sonic.bundle` | 技能库（11 个技能，主技能 `plush-pick-place-box-any-layout`），由 `import_experience.sh` 装进本机 |
+| `workspace/code/puppy_box/run.py` v18.8 | 一个程序处理所有布局（小狗在箱子左/右/前），sim 里最后一次不改代码评测 7/8、0 次摔倒 |
+| `workspace/memory/` | `TIPS.md`（带 `[strategy]`/`[param]`/`[sim-only]` 标签）、`PARAMS.json`（49 个 sim 测得的数字）、RUNS/EVAL 记录 |
+| `workspace/handoff/README.md` | 开头 "Start here"：先跑什么、先量哪些参数 |
+
+`--experience` 开 session 时自动做 sim→真机转换：`[sim-only]` 行移到 `memory/history/<session>/SIM_ONLY.md`（agent 不再照它做），
+生成 `memory/TRANSFER.md`，列出 49 个要在真机上重新测的参数。agent 先测（观察、空手 hover、慢速局部动作），用 `record()` 记下真机值，
+再做抓取等不可逆动作；代码通过 `api.params.param()` 读数，还没测过的会打印"用的是 sim 值"。
+
+**第 0 步（只做一次）：** 第 1–3 节装好、标定过；第 5 节 Claude Code 已登录。
+
+**第 1 步：更新代码和经验（每次）**
 ```bash
-git pull                                                    # experience/<task>/ 是在 DGX 上 export 后提交的
-bash rax/scripts/import_experience.sh experience/puppy_box   # 技能库 bundle -> 本机的 skill-library/g1sonic
-bash rax/scripts/g1_up.sh agent --task-file tasks/puppy_box.md --experience experience/puppy_box/workspace
+cd ~/agentics_multirobot && git pull                          # 至少要到 c176d9d（修了全新主机导入后技能库为空的 bug）
+bash rax/scripts/import_experience.sh experience/puppy_box    # 第一次：建 rax/runtime/skill-library/g1sonic；以后：合并，不丢真机学到的技能
 ```
+应该打印 cloned / merged，`git -C rax/runtime/skill-library/g1sonic log --oneline | head -1` 至少是 `604b743`。
 
-agent 会在工作区里看到 `handoff/README.md`、`memory/TIPS.md`、`memory/history/<sim session>/PROGRESS.md` 和库里的技能；
-AGENTS.md 要求它把继承来的每个位置和参数先用自己的观测验证再用。真机跑完后反向 export
-（`bash rax/scripts/export_experience.sh <session root> experience/puppy_box` 然后 commit），下一批 sim 就从真机经验开始。
+**第 2 步：机器人站起来（每次）**
+```bash
+cd ~/agentics_multirobot/rax && bash scripts/g1_up.sh check --quick-check
+```
+SONIC 窗格 `Y`，等 `Init Done`；**脚先着地承重再按 `s`**，按完几秒内把带子放松（挂着按 `s` 会乱甩）；`work` 窗格 status/hold/arms 三步通过。
+
+**第 3 步：摆场景（目测即可，不用量）**
+- 桌子（0.68–0.78 m 高都行）放在机器人前面，骨盆离桌沿大约 0.3 m（手垂下碰不到桌子）。
+- 小狗侧躺、腿朝机器人；透明塑料箱在小狗旁边，间隔几厘米到 12 cm。**第一次先摆"箱子在小狗右边"**（sim 里最稳，5/5），
+  再试箱子在左边（右手跨身体）、箱子在小狗后面。
+- agent 会自己用深度测桌高和桌沿距离，然后通过 `request_operator` 让你把桌子推 "closer"/"further"，推到桌沿离骨盆约 0.2 m。
+  机器人不走路，靠人推桌子。
+
+**第 4 步：启动 agent**
+```bash
+cd ~/agentics_multirobot/rax
+bash scripts/g1_up.sh agent --task-file ../tasks/puppy_box.md --experience ../experience/puppy_box/workspace
+```
+tmux 已经在时只替换 `console` 和 `work` 两个窗格，**不要再按 `s`**。`console` 窗格：`SPACE` 给钥匙/暂停，`r` 回复 agent 的请求，
+`o` 软停（只在带子挂好时按，机器人会软掉）。`work` 窗格就是 Claude 对话，可以直接打字提示它。
+
+agent 一开始会：读 `TRANSFER.md` 和 handoff → 测桌高、桌沿、可达距离等参数 → 请你推桌子 → 按 `run.py` 的阶段跑
+（观察 → 接近 → 抓取+抬起 → 搬运 → 放下 → 收手），每个阶段前有 LOOK 检查点。
+
+**看什么、什么时候停：**
+- 每次请求先看清它要做什么再按 `r`；左手应一直收在身后上方，碰到小狗不算成功。
+- 机器人在 planner 下不停踏步、倾斜明显、手压着箱子往下推：按 `SPACE` 暂停，必要时 `o`。
+- 任务失败可以接受；**摔倒不行**，宁可早停。
+- 一次成功后它会请你重新摆（reset），换一种布局再试。
+
+**第 5 步：跑完后把真机经验带回来**
+```bash
+cd ~/agentics_multirobot
+ls -t rax/runtime/sessions | head -1                          # 刚跑完的 session，例如 20261104T..._puppy_box_xxxxxx
+bash rax/scripts/export_experience.sh rax/runtime/sessions/<那个 session> experience/puppy_box_real
+git add experience/puppy_box_real && git commit -m "experience: first real puppy_box session" && git push
+```
+导出的 `SOURCE.txt` 写着 `environment: real`，`PARAMS.json` 里多了真机值。DGX 这边用它重新调 sim 场景（例如用真机测的
+`scene.table_height_m`），再跑下一批 sim。请把 `work` 窗格的输出和 `memory/PARAMS.json` 也发给我。
+
+**第 6 步：关机** 按第 6 节。
 
 ## 6. 关机顺序
 
