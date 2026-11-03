@@ -171,7 +171,7 @@ cd ~/agentics_multirobot/rax && bash scripts/setup_claude_experiment_login.sh --
 
 每次跑任务：
 
-1. 任务文件。**真机第一个任务建议用 `tasks/puppy_box.md`**：把桌上的毛绒小狗抓起来放进旁边的纸箱（Hugging Face 数据集 `Celina717/g1_pnp_pour` 里遥操作示教过 29 次的那个任务：站着不走、一只手、目标是个大箱子），开 session 前把文件里 `<...>` 的距离填成今天量的；示教帧在 `tasks/demos/puppy_box/`，用 `--demo` 按顺序喂给 agent：
+1. 任务文件。**真机第一个任务建议用 `tasks/puppy_box.md`**：把桌上的毛绒小狗抓起来放进旁边的透明塑料箱（Hugging Face 数据集 `Celina717/g1_pnp_pour` 里遥操作示教过 29 次的那个任务：站着不走、只用右手），文件里**没有要人量的数字**：距离和桌高都由机器人自己测；带 sim 经验跑见 5.5；示教帧在 `tasks/demos/puppy_box/`，用 `--demo` 按顺序喂给 agent：
    ```bash
    bash scripts/g1_up.sh agent --task-file ../tasks/puppy_box.md \
        --demo ../tasks/demos/puppy_box/1_start.jpg --demo ../tasks/demos/puppy_box/2_grasp.jpg \
@@ -199,8 +199,7 @@ agent 的工作目录里除了机器人技能还有一层"方法"技能（从 RA
 按阶段统计每次尝试的漏斗、k/n 证据、预算、事故地图、不可逆动作先验证、控制器工程规范、结束前写 `handoff/README.md`。
 它们是人写的 harness 技能，不是 agent 自己探索出来的；完整列表见 `rax/agent_skills/README.md`。
 
-agent 在 sim 里**没有**端到端跑过（sim 的 900 多个 session 是脚本直接调工具），所以第一次 agent 真机前建议先让 Junjie 在 DGX 的 sim 上
-做一次 dry run。时间或 token 用完 session 自然结束时：Claude 先停，robot service 后停，**机器人保持最后一帧姿势站着**（SONIC 继续平衡），
+agent 在 sim 里已经端到端跑过很多次（2026-10-29 起；puppy_box 最后一次不改代码的评测 7/8，见 `experience/README.md`）。时间或 token 用完 session 自然结束时：Claude 先停，robot service 后停，**机器人保持最后一帧姿势站着**（SONIC 继续平衡），
 不会软掉；之后要停只能靠 SONIC 窗格的 `O` 或遥控器。
 
 ---
