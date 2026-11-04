@@ -17,7 +17,26 @@ for b in "${bundles[@]}"; do
     git bundle verify "$b" >/dev/null
     if [[ -d "$lib/.git" ]]; then
         git -C "$lib" fetch -q "$b" main:imported
-        git -C "$lib" merge -q --no-edit imported
+        if git -C "$lib" merge-base main imported >/dev/null; then
+            git -C "$lib" merge -q --no-edit imported
+        elif [[ -z "$(git -C "$lib" ls-tree -r --name-only main -- skills | grep '/SKILL.md$')" ]]; then
+            # this host's library was started by a session before any import and holds no skill yet: take the bundle
+            git -C "$lib" checkout -q -B main imported
+        else
+            # skills learned here and skills from the bundle, each with its own first commit: keep both
+            if ! git -C "$lib" merge -q --no-edit --allow-unrelated-histories imported >/dev/null; then
+                if [[ "$(git -C "$lib" diff --name-only --diff-filter=U)" == INDEX.md ]]; then
+                    # both index tables: the bundle's, then this host's rows it does not have
+                    git -C "$lib" show imported:INDEX.md > "$lib/INDEX.md"
+                    git -C "$lib" show main:INDEX.md | grep '^| \[' | grep -vxF -f <(grep '^| \[' "$lib/INDEX.md") >> "$lib/INDEX.md" || true
+                    git -C "$lib" add INDEX.md && git -C "$lib" commit -q --no-edit
+                else
+                    git -C "$lib" merge --abort
+                    echo "the bundle and $lib edit the same skill files; nothing changed" >&2
+                    git -C "$lib" branch -q -D imported; exit 1
+                fi
+            fi
+        fi
         git -C "$lib" branch -q -D imported
         echo "merged $b into $lib ($(git -C "$lib" rev-parse --short main))"
     else

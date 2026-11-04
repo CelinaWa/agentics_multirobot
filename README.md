@@ -223,7 +223,7 @@ agent 在 sim 里已经端到端跑过很多次（2026-10-29 起；puppy_box 最
 
 **第 1 步：更新代码和经验（每次）**
 ```bash
-cd ~/agentics_multirobot && git pull                          # 至少要到 c176d9d（修了全新主机导入后技能库为空的 bug）
+cd ~/agentics_multirobot && git pull                          # 要拉到最新：导入脚本修过两次（全新主机技能库为空；之前跑过 session 的主机导入报 unrelated histories）
 bash rax/scripts/import_experience.sh experience/puppy_box    # 第一次：建 rax/runtime/skill-library/g1sonic；以后：合并，不丢真机学到的技能
 ```
 应该打印 cloned / merged，`git -C rax/runtime/skill-library/g1sonic log --oneline | head -1` 至少是 `604b743`。
