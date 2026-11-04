@@ -221,33 +221,52 @@ agent 在 sim 里已经端到端跑过很多次（2026-10-29 起；puppy_box 最
 
 **第 0 步（只做一次）：** 第 1–3 节装好、标定过；第 5 节 Claude Code 已登录。
 
-**第 1 步：更新代码和经验（每次）**
+**最少要敲的（必做）：**
+```bash
+cd ~/agentics_multirobot && git pull
+bash rax/scripts/import_experience.sh experience/puppy_box
+cd rax && bash scripts/g1_up.sh agent --task-file ../tasks/puppy_box.md --experience ../experience/puppy_box/workspace
+```
+下面逐步说明；标【可选】的可以不做。
+
+**第 1 步：更新代码和经验【必做，每次】**
 ```bash
 cd ~/agentics_multirobot && git pull                          # 要拉到最新：导入脚本修过两次（全新主机技能库为空；之前跑过 session 的主机导入报 unrelated histories）
 bash rax/scripts/import_experience.sh experience/puppy_box    # 第一次：建 rax/runtime/skill-library/g1sonic；以后：合并，不丢真机学到的技能
 ```
 应该打印 cloned / merged，`git -C rax/runtime/skill-library/g1sonic log --oneline | head -1` 至少是 `604b743`。
 
-**第 2 步：机器人站起来（每次）**
+**第 2 步：单独做一次检查【可选】**
 ```bash
 cd ~/agentics_multirobot/rax && bash scripts/g1_up.sh check --quick-check
 ```
-SONIC 窗格 `Y`，等 `Init Done`；**脚先着地承重再按 `s`**，按完几秒内把带子放松（挂着按 `s` 会乱甩）；`work` 窗格 status/hold/arms 三步通过。
+不做也行：第 4 步的 `g1_up.sh agent` 在没有 `g1` tmux 时会自己起 camera / SONIC / console / dashboard，站起来在那里做。
+做的话：SONIC 窗格 `Y`，等 `Init Done`；**脚先着地承重再按 `s`**，按完几秒内把带子放松（挂着按 `s` 会乱甩）；`work` 窗格
+status/hold/arms 三步通过（约 1 分钟）。隔了很久第一次开机、或刚升级过，建议做；也可以改成第 4 步命令末尾加 `--quick-check`，
+效果一样（先检查再自动起 agent）。
 
-**第 3 步：摆场景（目测即可，不用量）**
+**第 3 步：摆场景【必做；目测即可，不用量】**
 - 桌子（0.68–0.78 m 高都行）放在机器人前面，骨盆离桌沿大约 0.3 m（手垂下碰不到桌子）。
 - 小狗侧躺、腿朝机器人；透明塑料箱在小狗旁边，间隔几厘米到 12 cm。**第一次先摆"箱子在小狗右边"**（sim 里最稳，5/5），
   再试箱子在左边（右手跨身体）、箱子在小狗后面。
 - agent 会自己用深度测桌高和桌沿距离，然后通过 `request_operator` 让你把桌子推 "closer"/"further"，推到桌沿离骨盆约 0.2 m。
   机器人不走路，靠人推桌子。
 
-**第 4 步：启动 agent**
+**第 4 步：启动 agent【必做】**
 ```bash
 cd ~/agentics_multirobot/rax
 bash scripts/g1_up.sh agent --task-file ../tasks/puppy_box.md --experience ../experience/puppy_box/workspace
 ```
-tmux 已经在时只替换 `console` 和 `work` 两个窗格，**不要再按 `s`**。`console` 窗格：`SPACE` 给钥匙/暂停，`r` 回复 agent 的请求，
-`o` 软停（只在带子挂好时按，机器人会软掉）。`work` 窗格就是 Claude 对话，可以直接打字提示它。
+- **跳过了第 2 步：** 先 `tmux kill-session -t g1` 关掉上次留下的 tmux（没有就不用）。然后在这个 tmux 里站起来：SONIC 窗格 `Y`，
+  等 `Init Done`；console 窗格**脚先着地承重再按 `s`**，几秒内放松带子。
+- **做了第 2 步（tmux 还在）：** 只替换 `console` 和 `work` 两个窗格，**不要再按 `s`**（机器人已经站着）。
+- `console` 窗格：`SPACE` 给钥匙/暂停，`r` 回复 agent 的请求，`o` 软停（只在带子挂好时按，机器人会软掉）。`work` 窗格就是
+  Claude 对话，可以直接打字提示它。
+- 可加的参数【都可选】：
+  - `--quick-check`：先跑 1 分钟检查（同第 2 步）再起 agent。
+  - `--demo ../tasks/demos/puppy_box/1_start.jpg ... --demo-kind completion_sequence`：给它看示教照片（见第 5 节）。
+    带了 sim 经验后不需要：`run.py` 和 tips 已经比照片具体。
+  - `--experience`：**本节的关键，必带**；去掉就是从零开始。
 
 agent 一开始会：读 `TRANSFER.md` 和 handoff → 测桌高、桌沿、可达距离等参数 → 请你推桌子 → 按 `run.py` 的阶段跑
 （观察 → 接近 → 抓取+抬起 → 搬运 → 放下 → 收手），每个阶段前有 LOOK 检查点。
@@ -258,7 +277,7 @@ agent 一开始会：读 `TRANSFER.md` 和 handoff → 测桌高、桌沿、可�
 - 任务失败可以接受；**摔倒不行**，宁可早停。
 - 一次成功后它会请你重新摆（reset），换一种布局再试。
 
-**第 5 步：跑完后把真机经验带回来**
+**第 5 步：跑完后把真机经验带回来【建议做；不做的话下一次真机和 sim 都学不到这次的东西】**
 ```bash
 cd ~/agentics_multirobot
 ls -t rax/runtime/sessions | head -1                          # 刚跑完的 session，例如 20261104T..._puppy_box_xxxxxx
