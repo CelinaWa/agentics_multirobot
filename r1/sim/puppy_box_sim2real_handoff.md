@@ -53,3 +53,26 @@ boundary sim found, and the first-real-run checklist. (Full diagnosis: memory `r
   need building/tuning. The **real agent does this via `r1_observe`** with real depth; treat perceive_leg.py as a stub.
 - Implication: the sim grasp numbers used **ground-truth** leg positions; real perception adds cm-scale error on top
   of the policy's ~4 cm, which is why the real loop must close the last cm with feedback + operator assist (above).
+
+## Quantified boundary (measured this session — the error budget)
+Measured on the live stack (full_pipe_oh_ft, lean, seeds 16/21/22/25/27):
+- **Policy reach residual ~6 cm.** After the closed-loop servo (the grasp ALREADY servos the wrist toward the leg
+  using GT position + FK), the gripper saturates ~5.6-6.3 cm short of the leg, almost all in +x (forward).
+- **Not fixable by operator distance.** Sweeping `reach_ahead` 0.20-0.28 m left the residual ~6 cm or worse
+  (seed25 got worse: 5.8->8.2 cm); seed27 succeeded at 0.28 and failed at 0.24. Success is a per-seed parameter
+  coincidence (the blind forward-advance happening to close the gap), not a robust grasp.
+- **Perception error 9-31 cm** (first-pass depth localizer, head pitched to 0.55 rad). Crucially, even a PERFECT
+  localizer = GT = 0 cm, which the grasp already uses and still saturates. So:
+      perception err (9-31 cm)  >>  policy residual (~6 cm)  >  grasp window (~3.7 cm).
+  **Perception cannot fix the grasp** — it only adds error on top of the GT the servo already has.
+- **Conclusion:** the bottleneck is the frozen SONIC_R1 policy's ~6 cm wrist under-reach vs the 2-jaw window.
+  No sim-side lever (perception, operator distance, closed-loop servo, lean) crosses it reliably. The real-world
+  route (operator physically aligns the leg to the gripper + real contact feedback + retry) is the only path,
+  and sim has now proven *why* (quantified), not just asserted it.
+
+## New sim capability added this session (infra the real perception pipeline needs)
+- **`head` ZMQ op** on the sim server: command head pitch (rad, + = down), held like the real `r1_head`. The sim
+  was missing head control; without it the camera stares at the far wall.
+- **Headless depth render** confirmed via `MUJOCO_GL=osmesa`. At head pitch ~0.55 rad the grasp workspace
+  (leg at x~0.27 m) comes into view (at pitch 0 the nearest view is x~0.56 m, past the leg).
+- `tools/diag/perceive_leg.py` now runs end-to-end (pitch -> depth -> point cloud -> leg localize -> error vs GT).

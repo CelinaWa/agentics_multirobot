@@ -695,6 +695,8 @@ def serve(sim, port, stop):
                     sim.reset_scene(); out = {}
                 elif op == "slide_table":
                     sim.slide_table(float(req["dx"]), float(req.get("dy", 0.0))); out = {}
+                elif op == "head":          # command head pitch (rad, + = look down); held like the real r1_head
+                    sim.row[23] = float(np.clip(req["pitch"], -0.62, 0.62)); out = {"head_pitch": float(sim.row[23])}
                 elif op == "shutdown":
                     stop.set(); out = {}
                 else:
