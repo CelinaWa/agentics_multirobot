@@ -1,13 +1,154 @@
 {
  "env": "sim r1sonic (session 20261105T194732Z)",
- "walk_forward_cmd_0.25_m_far": {"sim": [0.35, 0.127, 0.109, 0.108, 0.197, 0.155]},
- "walk_forward_cmd_0.2_m_near_table": {"sim": [0.063, 0.098, 0.021, 0.099, 0.084, 0.078, 0.052]},
- "walk_forward_cmd_0.15_m_near_table": {"sim": [0.04, 0.037, 0.041, 0.037]},
- "walk_backward": {"sim": "does not work (0, -0.11, +0.09 fwd, +0.05 fwd for -0.25..-0.6)"},
- "turn_cmd_to_actual_deg": {"sim": {"10": 1.5, "15": 14, "17": 11.5, "25": 17, "90": "90 with 0.25-0.3 m arc drift"}},
- "right_hand_reach_x_max_m_use_waist": {"sim": {"y-0.2": 0.60, "y-0.3": 0.55, "y-0.4": 0.50, "no_waist": 0.50}},
- "table_top_z_pelvis_m": {"sim": [-0.023, -0.039, -0.047, -0.051, -0.053]},
- "box_rim_above_table_m": {"sim": 0.14},
- "box_near_wall_behind_edge_m": {"sim": 0.22},
- "safe_stance_edge_ahead_m": {"sim": "0.25-0.28 (operator); fall at paw 0.38-0.39 ahead with r1_grasp_paw"}
+ "walk_forward_cmd_0.25_m_far": {
+  "sim": [
+   0.35,
+   0.127,
+   0.109,
+   0.108,
+   0.197,
+   0.155
+  ]
+ },
+ "walk_forward_cmd_0.2_m_near_table": {
+  "sim": [
+   0.063,
+   0.098,
+   0.021,
+   0.099,
+   0.084,
+   0.078,
+   0.052
+  ]
+ },
+ "walk_forward_cmd_0.15_m_near_table": {
+  "sim": [
+   0.04,
+   0.037,
+   0.041,
+   0.037
+  ]
+ },
+ "walk_backward": {
+  "sim": "does not work (0, -0.11, +0.09 fwd, +0.05 fwd for -0.25..-0.6)"
+ },
+ "turn_cmd_to_actual_deg": {
+  "sim": {
+   "10": 1.5,
+   "15": 14,
+   "17": 11.5,
+   "25": 17,
+   "90": "90 with 0.25-0.3 m arc drift"
+  }
+ },
+ "right_hand_reach_x_max_m_use_waist": {
+  "sim": {
+   "y-0.2": 0.6,
+   "y-0.3": 0.55,
+   "y-0.4": 0.5,
+   "no_waist": 0.5
+  }
+ },
+ "table_top_z_pelvis_m": {
+  "sim": [
+   -0.023,
+   -0.039,
+   -0.047,
+   -0.051,
+   -0.053
+  ]
+ },
+ "box_rim_above_table_m": {
+  "sim": 0.14
+ },
+ "box_near_wall_behind_edge_m": {
+  "sim": 0.22
+ },
+ "safe_stance_edge_ahead_m": {
+  "sim": "0.25-0.28 (operator); fall at paw 0.38-0.39 ahead with r1_grasp_paw"
+ },
+ "env_08803f": "sim r1sonic (session 20261105T213131Z_puppy_box_r1_08803f)",
+ "walk_forward_cmd_0.2_m_08803f": {
+  "sim": [
+   0.045,
+   0.073,
+   0.142,
+   0.093,
+   0.119,
+   0.071,
+   0.107,
+   0.066,
+   0.142,
+   0.075,
+   0.116,
+   0.075,
+   0.107
+  ]
+ },
+ "walk_forward_cmd_0.12_0.15_m_08803f": {
+  "sim": [
+   0.12,
+   0.203,
+   0.065,
+   0.063,
+   0.122,
+   0.08
+  ]
+ },
+ "walk_backward_08803f": {
+  "sim": {
+   "-0.2": [
+    0.228,
+    0.263
+   ],
+   "-0.12": [
+    0.218
+   ]
+  }
+ },
+ "turn_cmd_to_actual_deg_08803f": {
+  "sim": {
+   "12": 6.6,
+   "15": 3.8,
+   "28": 20,
+   "30": 21
+  }
+ },
+ "pinch_paw_width_held_m": {
+  "sim": [
+   0.0346,
+   0.0326,
+   0.0316,
+   0.0322
+  ]
+ },
+ "pinch_slip_hand_z_m": {
+  "sim": [
+   0.29,
+   0.29,
+   0.19,
+   0.12
+  ],
+  "held_max": 0.2
+ },
+ "backend_grasp_point_offset_along_approach_m": {
+  "sim": 0.107,
+  "note": "local r1_piper_kin right_grasp site minus 0.107*approach = backend grasp point"
+ },
+ "box_front_wall_behind_edge_m": {
+  "sim": [
+   0.21,
+   0.22,
+   0.235,
+   0.25
+  ]
+ },
+ "box_rim_z_pelvis_m": {
+  "sim": [
+   0.1,
+   0.105,
+   0.115,
+   0.12
+  ]
+ }
 }

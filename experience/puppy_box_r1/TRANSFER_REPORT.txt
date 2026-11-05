@@ -1,7 +1,6 @@
-memory/TIPS.md: strategy 8, param 3, sim-only 1, untagged 0
+memory/TIPS.md: strategy 17, param 5, sim-only 1, untagged 0
 handoff/README.md: strategy 0, param 0, sim-only 0, untagged 3
-PARAMS.json: 10 measured in sim, 0 on the real robot
-3 untagged rows state numbers (tag them [param] or [sim-only]):
-  handoff/README.md: - Attempt 1: L90/walk/R90 lateral shift drifted 0.38 m forward; backward walk then crept forward -> edge 0.09 m. Reset.
-  handoff/README.md: - Attempt 2: help requests (overhang) never answered; scene shifted 0.12 m (robot drift); paws ended on the left. Reset.
-  handoff/README.md: - Attempt 3: r1_grasp_paw held (right, 0.034 m) but the leg slipped while I previewed the next move; puppy rolled on
+PARAMS.json: 19 measured in sim, 0 on the real robot
+2 untagged rows state numbers (tag them [param] or [sim-only]):
+  handoff/README.md: - The paw-ball pinch is friction-limited: it slips once the puppy's weight hangs from it (z 0.12-0.29), so the puppy
+  handoff/README.md: - Geometry: box front wall is edge+0.21..0.25 behind the paws; right-hand reach x <= ~0.50 at z 0.2 -> the carry

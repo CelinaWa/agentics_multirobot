@@ -96,3 +96,14 @@ delayed; reaching shifts the body 6-12 cm (whole-body coupling); walk/turn calib
 Harness fixes queued: auto-arm sim sessions (lost 22 min), a scripted operator for reset/overhang (help requests
 time out), writable agent workspace (memory landed in /tmp and had to be synced by hand), wire `edge_grasp` into
 the backend / drop the misleading `grasp_paw` tool, and `--environment sim` must be passed at configure time.
+
+## RAX session 2 (2026-11-05, 20261105T213131Z_puppy_box_r1_08803f, seeded from session 1)
+Still 0 placements, but the funnel moved: approach 7/7; **from-the-front paw pinch held 4/4** (widths .032-.035 =
+on the leg core; `grasp_paw` 1/3 + 1 fall, now abandoned by the agent); lift to rim height 1/5; **carried the puppy
+0.15 m and 0.08 m while walking** (new - needs the walk fix). Bottleneck now: the pinch is friction-limited and
+slips once the puppy's weight hangs from it (z 0.12-0.29), and the carry over the box rim. The agent built a
+continuous-IK lift planner (code/tools/contik.py) after an IK configuration flip dropped the puppy, and drafted
+the skill `r1-paw-pinch-grasp` (merged into the r1sonic library). Bugs it found, fixed here: the backend kept the
+stored gripper command at "open" after `grasp_paw`, so the next motion re-opened the hand and dropped a carried
+puppy in front of the box (attempt 4 would likely have placed it). Harness: sim sessions now auto-arm and get
+answers in seconds (rax/scripts/r1_sim_operator.py); the agent workspace is still mounted read-only (synced by hand).

@@ -157,11 +157,15 @@ class R1SonicBackend:
     def _grasp_paw(self):
         """Grasp the nearest hind paw with the side-appropriate arm and partially lift it (stack primitive, blocks)."""
         reply = self.stack.grasp_paw()
+        side = reply.get('side')
+        if side in self.grip:   # the primitive commands the gripper itself: keep the stored command in step, or the next
+            self.grip[side] = 0.0 if reply.get('held') else 0.07   # motion row re-opens the hand (RAX session 2 dropped a carried puppy)
         return {k: reply.get(k) for k in ('paw', 'side', 'held', 'clamped_width_m', 'lifted_m', 'tilt_deg', 'fallen') if k in reply}
 
     def _place_in_box(self, side='auto'):
         """With a paw held, lower over the box interior and release so the puppy drops in (stack primitive, blocks)."""
         reply = self.stack.place_in_box(side)
+        self.grip = {a: 0.07 for a in self.grip}   # the primitive releases: stored command back to open
         return {k: reply.get(k) for k in ('in_box', 'dog', 'box', 'tilt_deg', 'fallen') if k in reply}
 
     # ----- state ----------------------------------------------------------------------------------------------------
