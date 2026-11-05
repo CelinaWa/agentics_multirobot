@@ -107,3 +107,16 @@ the skill `r1-paw-pinch-grasp` (merged into the r1sonic library). Bugs it found,
 stored gripper command at "open" after `grasp_paw`, so the next motion re-opened the hand and dropped a carried
 puppy in front of the box (attempt 4 would likely have placed it). Harness: sim sessions now auto-arm and get
 answers in seconds (rax/scripts/r1_sim_operator.py); the agent workspace is still mounted read-only (synced by hand).
+
+## RAX session 3 (2026-11-05, 20261105T222431Z_puppy_box_r1_e0ac0c, seeded from session 2; 10-reset sim budget)
+0 placements, **0 falls** (4 of 10 resets used; the agent ended early on its own). Funnel: approach 5/5; vertical pinch
+2/2 held but slips under load (z ~0.04); **horizontal "pivot pinch" on the lower front paw 3/3 held and lifted the
+puppy to z 0.27 with the width steady** (pads left/right of the paw ball, so the hanging weight pulls straight down
+on the pads) - the lift problem is solved in principle. Carry-walk 0/1 (a 0.19 m walk shook the leg out).
+**The blocker it found: the paw pair.** Lying on its side, the two legs of a pair sit ~5 cm apart and touching, so a
+finger cannot get between them; the pivot pinch only works once the other paw is >= 3 cm further back (happened
+once by accident; deliberate pushes spring back to ~2.3 cm). Skill `r1-paw-pivot-pinch` merged (b8569a9).
+Other measured facts: forward walks drift 2-6 cm right; reaching right of y > -0.08 hits the shoulder limit (1.5-3.5
+cm off); the pelvis moves ~2 cm back when the arm extends; an IK wrist flip can drop a held paw (its safe_move
+guard now refuses flips). Handoff plan: separate the paws >= 3 cm, pivot-pinch, lift along the recorded
+waypoints, carry in <= 0.1 m walks checking the grip, lower over the box, release.

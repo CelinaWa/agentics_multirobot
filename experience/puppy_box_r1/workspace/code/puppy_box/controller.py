@@ -1,4 +1,4 @@
-"""puppy_box_r1 step-wise controller (r1sonic sim, session 20261105T213131Z_puppy_box_r1_08803f).
+"""puppy_box_r1 step-wise controller (r1sonic sim, session 20261105T222431Z_puppy_box_r1_e0ac0c).
 
 Run ONE step at a time and look at the printed report / frames between steps (the agent is the checkpoint):
 
@@ -28,7 +28,7 @@ from pathlib import Path
 import numpy as np
 
 WSR = Path('/home/junjieye/workspace/multirobot/real_g1_release/rax/runtime/sessions/'
-           '20261105T213131Z_puppy_box_r1_08803f/agent-workspace')
+           '20261105T222431Z_puppy_box_r1_e0ac0c/agent-workspace')
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(WSR))
 sys.path.insert(0, str(HERE))

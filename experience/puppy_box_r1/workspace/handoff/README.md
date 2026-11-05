@@ -1,48 +1,45 @@
-# Handoff — puppy_box_r1 on r1sonic (sim), session 20261105T213131Z_puppy_box_r1_08803f
+# Handoff — puppy_box_r1 on r1sonic (sim), session 20261105T222431Z_puppy_box_r1_e0ac0c
 
-Outcome: NOT solved (0 placements, 7 attempts, 5 resets + 1 operator restore after a fall). Final state safe: robot
-standing 0.26 m back from the table, arms home, grippers open; puppy on the table in front of the box; box upright.
-The agent workspace was READ-ONLY this session: everything is in /tmp/claude-1001/ws_08803f (code/, memory/, handoff/,
-skill_draft/, pylib/ with mujoco). Copy it into the workspace first. Frames: agent-workspace/runtime/frames/<id>/.
+Outcome: NOT solved (0 placements; 4 resets used of 10; no falls). Best: pivot pinch lifted the puppy's front to z .27. The agent workspace was READ-ONLY again: all
+deliverables are in /tmp/claude-1001/ws_e0ac0c (code/, memory/, handoff/, skill-library/ commit). Previous handoff
+kept as handoff/README_08803f.md (still valid: perception, approach, retreat, r1_grasp_paw = fall hazard).
 
-## What works (use it)
-1. Perception: code/puppy_box/scene.py <frame> -> table edge/height, paw blobs (dark spheres, k-means split by expected
-   area), box rim. Front paws: controller.front_paws() (area filter + merge), verified on 5 frames (<=1.5 cm).
-2. Approach: straight walks, 0.2 then <=0.12 commands, re-measure each time (walks are 30-100 % of the command and
-   drift right up to 0.12 m). Backward walks work (overshoot ~0.25). Turn only >= 0.5 m from the edge.
-3. Pinch grasp of a paw ball, 4/4: pre-grasp 8 cm short (approach (1,0,0.1), fingers (0,0,1), open), re-measure the
-   paw (each arm move shifts the pelvis 1-6 cm and yaws the waist), final approach (1,0,-0.1) with the ball 0.5-2 cm
-   past the grasp point, r1_gripper 0 -> width 0.032-0.035 = held. Keep the target paw at y -0.15..-0.20.
-4. Joint-continuous motion while holding: code/tools/contik.py plan_b (backend point = local site - 0.107*approach),
-   executed with r1_move_joints 2-3 s per 4-5 cm. Never r1_move_hand without an approach while holding (IK restart).
-5. Carrying by walking works: 0.2 m forward walks with a held puppy kept the grip (2/2).
-6. Retreat: hand straight back at height to x 0.2, then HOME joints, then walk back 0.2.
+## The blocking problem and what this session learned about it
+Lifting the puppy needs a grasp that survives the full hanging weight. Evidence so far (3 sessions, sim):
+- Vertical-finger pinch of the paw ball (pads above/below): grasps 6/6, but the leg is a stiff ~8 cm lever that
+  twists the ball out -> slipped at hand z .035-.29 (this session at the first 3-4 cm, twice). Do not plan on it.
+- Horizontal-finger PIVOT pinch (fingers (0,1,0), approach (1,0,0), pads left/right of the ball): the ball can rotate
+  about the pinch axis so the hanging load is shear only. Grasp 3/3 (w .031-.032); lift to z .27 with the width
+  STABLE at .031 in 1/3 (reset 2; waypoints in memory/PARAMS.json pivot_pinch_lift_waypoints_pelvis_m); the other two
+  slipped at .06-.09 (neighbour paw too close behind / my IK flip). THIS IS THE LEAD. Carry-walk with it: 0/1 (dropped
+  during a 0.19 m walk at z .27).
+- The obstacle for the pivot pinch: the neighbouring paw of the pair (centres ~5 cm apart, balls ~5 cm wide).
+  One finger must go between them. It worked only after earlier contacts had splayed the pair. Options to test:
+  (a) wedge the open finger tip between the two balls from the front (push the neighbour aside 1-2 cm);
+  (b) pick the paw of a pair whose neighbour is >= 3 cm further back or forward;
+  (c) ask the operator for the overhang with "only one leg hanging" (untested wording).
 
-## What blocks success (start here)
-- The paw-ball pinch is friction-limited: it slips once the puppy's weight hangs from it (z 0.12-0.29), so the puppy
-  never cleared the 14 cm rim. Lifting from the overhang layout needs a STOPPER grasp: pads across the LEG with the
-  ball outside the pads (then the ball, not friction, carries the load). In the overhang layout the legs point at the
-  robot, so that needs a sideways approach - not reachable from a square stance (ik .04-.08). Untested options:
-  (a) stance turned ~45-60deg left of the table normal + approach (0.8,0.6,0) in the robot frame (= ~90deg to the
-  leg in the world) with the grasp point ~edge-1 cm; check the 14.5 cm housing against the table edge first;
-  (b) after a slip the puppy twice ended with legs pointing up/left - a vertical leg is a natural stopper for a
-  front approach with fingers along y, but the two legs were 4.5 cm apart (fingers 2.65 cm thick do not fit between);
-  (c) the snout points sideways with the nose ball as stopper, but its underside is only ~3 cm above the table.
-- r1_grasp_paw is a FALL HAZARD (2 falls, 3 knock-offs in 7 calls over two sessions). Do not call it. If someone
-  must: call r1_gripper(0) right after it (the stored gripper command stays 0.07 and the next motion opens it).
-- Geometry: box front wall is edge+0.21..0.25 behind the paws; right-hand reach x <= ~0.50 at z 0.2 -> the carry
-  needs ~0.2 m of walking with the puppy held, ending with the edge ~0.15-0.2 ahead (no body contact seen at 0.13).
+## Plan for the next session
+1. Reset, head 0.5, `code/puppy_box/pivot_pinch.py look`. Approach straight with 0.2 then <= 0.12 walks; expect
+   2-6 cm RIGHT drift per walk; stop with the target front paw at x 0.38-0.42 (visible at head 0.6) and y -0.12..-0.20.
+   If the paws end at y > -0.10, back off >= 0.2 and fix the heading far from the table (turn 20 cmd ~ 10-13 deg).
+2. `seed` (wrist roll for horizontal fingers) -> `pregrasp X-0.08 Y Z` -> `look` (re-measure with the arm out; the
+   pelvis moves ~2 cm back) -> `grasp X Y Z` (ball centre, z from an arm-home frame) -> width .025-.05 = held.
+3. `lift 0.04 0.01` repeatedly (safe_move refuses IK flips) to z ~.25, moving x back over the hip as you rise so
+   the leg hangs vertically. Watch the width; if it creeps below ~.02, lower and re-grasp deeper.
+4. If it holds: walk holding in SHORT steps (<= 0.1, check the width after each; the 0.19 m walk dropped it) so the
+   box front wall (edge+.21) comes within x ~.45,
+   move the hand over the interior at z >= .22, lower 5 cm, open, retreat (straight back, then HOME).
+5. If the pivot pinch also fails under load: the remaining options are a stopper grasp across a leg (needs a side
+   approach the 5-DOF arm cannot do at table height from a square stance) or r1_grasp_paw (2 falls in 7 calls).
 
-## Plan for the next session (same or different layout)
-1. Observe from the start (head 0.5); find edge, puppy (head side, paw blobs) and box rim. Ask the operator for the
-   overhang only if the reset did not already do it (it did, every time this session).
-2. Pick the paw in front of the right shoulder after a straight approach (head-right layout: a front paw; head-left:
-   a hind paw). If the box is not behind that paw, choose the heading at >= 0.5 m from the edge (turns drift).
-3. Grasp with the pinch (above), then try a stopper re-grasp or a different hold before lifting above z ~0.12.
-4. Lift/carry with contik joint steps, walk 0.15-0.2 holding, measure the rim, move over the interior at z >= 0.22
-   (housing clears the rim), lower 5 cm, open, retreat. Verify "in box" from a view looking into the box.
+## Skill library
+skill-library commit b8569a9 on session/20261105T222431Z_puppy_box_r1_e0ac0c in /tmp/claude-1001/ws_e0ac0c/skill-library:
+new draft r1-paw-pivot-pinch (code/run.py primitives seed/pregrasp/grasp/lift/release with the IK-flip guard) and new
+evidence for r1-paw-pinch-grasp. NOT merged (skill_library_merge reads the read-only workspace clone) - copy it over.
 
 ## Files
-code/puppy_box/controller.py (steps: look approach pregrasp grasp lift carry box place retreat; offline-tested
-perception and planning, not run end-to-end), code/puppy_box/scene.py, percep.py, code/tools/{contik,reach,pathcheck}.py,
-memory/{PROGRESS,RUNS,TIPS,INCIDENTS}.md, memory/PARAMS.json, skill_draft/ (library skill, not merged: read-only).
+code/puppy_box/pivot_pinch.py (new: look/seed/pregrasp/grasp/lift/release, every move previewed + branch/jump
+check), obs.py (observe+scene), px.py (pixels of a saved frame -> pelvis points), scene.py, percep.py;
+code/tools/sweep.py (local IK reach sweep per approach); kin/ (backend r1_kin.py + xml copy).
+memory/{PROGRESS,RUNS,TIPS,INCIDENTS}.md, memory/PARAMS.json.

@@ -150,5 +150,128 @@
    0.115,
    0.12
   ]
+ },
+ "env_e0ac0c": "sim r1sonic (session 20261105T222431Z_puppy_box_r1_e0ac0c)",
+ "walk_forward_cmd_0.2_m_e0ac0c": {
+  "sim": [
+   0.061,
+   0.091,
+   0.115,
+   0.103,
+   0.045,
+   0.127,
+   0.11
+  ]
+ },
+ "walk_forward_cmd_0.1_0.15_m_e0ac0c": {
+  "sim": [
+   0.098,
+   0.053,
+   0.051,
+   0.084,
+   0.035,
+   0.025,
+   0.088
+  ]
+ },
+ "walk_backward_e0ac0c": {
+  "sim": {
+   "-0.1": [
+    0.183
+   ],
+   "-0.08": [
+    0.226
+   ]
+  }
+ },
+ "walk_lateral_drift_per_forward_walk_m_e0ac0c": {
+  "sim": "0.02-0.06 to the RIGHT each call (scene shifts +y)"
+ },
+ "right_hand_y_min_without_servo_saturation_m": {
+  "sim": -0.12,
+  "note": "y > -0.08: shoulder roll at limit, hand 1.5-3.5 cm right of goal"
+ },
+ "pelvis_shift_back_reaching_x040_m": {
+  "sim": 0.02
+ },
+ "vertical_pinch_slip_hand_z_m_e0ac0c": {
+  "sim": [
+   0.06,
+   0.035
+  ]
+ },
+ "horizontal_pivot_pinch_width_m": {
+  "sim": {
+   "reset2_held_to_z0.27": [
+    0.0315,
+    0.0313,
+    0.0314
+   ],
+   "reset3_slip_z0.08": [
+    0.0309,
+    0.0279
+   ],
+   "reset1": [
+    0.0317,
+    0.0255
+   ]
+  }
+ },
+ "camera_z_bias_waist_yawed_m": {
+  "sim": 0.02
+ },
+ "pivot_pinch_lift_waypoints_pelvis_m": {
+  "sim": {
+   "approach_1_0_0": [
+    [
+     0.382,
+     -0.1,
+     0.039
+    ],
+    [
+     0.396,
+     -0.104,
+     0.077
+    ],
+    [
+     0.395,
+     -0.1,
+     0.107
+    ]
+   ],
+   "approach_1_0_0.3": [
+    [
+     0.39,
+     -0.12,
+     0.14
+    ],
+    [
+     0.385,
+     -0.13,
+     0.17
+    ],
+    [
+     0.38,
+     -0.14,
+     0.2
+    ]
+   ],
+   "approach_1_0_0.4": [
+    [
+     0.38,
+     -0.145,
+     0.24
+    ],
+    [
+     0.375,
+     -0.15,
+     0.28
+    ]
+   ]
+  },
+  "note": "one successful lift; (0.409,-0.098,0.146) with approach (1,0,0) flips the IK branch"
+ },
+ "carry_walk_with_pivot_pinch": {
+  "sim": "0/1 (dropped during a 0.186 m walk with the hand at z .27)"
  }
 }

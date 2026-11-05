@@ -59,3 +59,53 @@
   from a hand over/near the table hit the edge twice (oblique stance; edge 0.13 ahead) and once swept the puppy off.
 - [param] where: sim. Box: 39 cm along y x 28 cm deep, rim z = table + 0.145 (pelvis ~+0.10..0.12); front wall at
   edge + 0.21..0.25. Depth sees the rim/top plane; puppy top (table+0.12) contaminates rim-height masks near the wall.
+
+# Session 20261105T222431Z_puppy_box_r1_e0ac0c (r1sonic sim, where: sim) — new rows
+- [strategy] where: sim. The agent workspace was READ-ONLY again (bwrap ro mount; Write/Read tools denied, single-file
+  `cat` works). Work in /tmp/claude-1001/ws_<id>; repoint hard-coded paths (sed) first; skill-library/.git is ro too.
+- [strategy] where: sim. VERTICAL-finger pinch of a paw ball is TORQUE-limited, not just friction-limited: the leg
+  (~8 cm, stiff hip) is a lever that twists the ball out between horizontal pads. This session it slipped at the
+  first 3-4 cm of lift twice (deep pinch w .030 incl. leg; shallow pinch w .028). Do not plan a full lift on it.
+- [strategy] where: sim. HORIZONTAL-finger "pivot" pinch (fingers (0,1,0), approach (1,0,0), pads left/right of the
+  ball) lets the ball rotate about the pinch axis -> hanging load is shear only. 1 try: w .0317 at grasp, held to hand
+  z .086 (w .031 -> .0255 -> .0218 creeping), then lost by my IK flip (not a slip). UNTESTED above z .09: test first.
+  It needs one finger between the paws of a pair (centres ~5 cm apart, balls ~5 cm wide -> ~0 gap): works only when
+  the pair is splayed (>= 6 cm) or for a paw whose neighbour sits >= 3 cm further back/forward.
+- [strategy] where: sim. Backend IK picks the wrist branch from its seed: from a vertical-finger pose, a goal with
+  fingers (0,1,0) ends at wrist roll -1.87 (limit) = fingers still vertical. First r1_move_joints the wrist roll to
+  ~+0.1..+0.25 (code/puppy_box/pivot_pinch.py SEED), then move_hand. Even then a far goal (x>=.40 at y-.10, or
+  x .35 y -.08 z .01) can flip back to the vertical branch -> PREVIEW EVERY MOVE and refuse finger-axis changes or
+  joint jumps > 0.35 rad (pivot_pinch.safe_move does this). A flip while holding = drop (happened once).
+- [param] where: sim. Right-hand reach with fingers horizontal/vertical, approach (1,0,0): good at y -0.15..-0.20,
+  x .30-.39 (servo ~0); at y > -0.08 the shoulder roll sits at its limit (0.177), the y servo saturates (~0.047)
+  and the hand ends 1.5-3.5 cm RIGHT of the goal; the waist yaws +0.12..+0.36 rad (command 0) and the scene shifts
+  +1.5..3 cm in y per reach. Keep the target paw at y <= -0.12 BEFORE reaching.
+- [param] where: sim. Reaching to x ~0.40 moves the pelvis back ~2 cm: a paw measured with the arm home is ~2 cm
+  further after the reach -> re-measure with the arm extended (pre-grasp), then the final move.
+- [param] where: sim. Head pitch 0.6 sees table-height points only at x >= ~0.34-0.35 (arm home); with the arm out
+  the waist yaw turns the camera LEFT and paws at y -0.15..-0.20 drop to the image's bottom-right corner or out.
+  Stand so the target paw is at x 0.38-0.42 if you want to watch the grasp.
+- [param] where: sim. Camera pose with a yawed waist gives z biased +1.5..+2 cm (table z -0.013 vs -0.033): use z
+  from an arm-home (waist ~0) frame.
+- [strategy] where: sim. r1_move_joints waist_yaw 0.3 (to face a target left of the right shoulder) made the backend
+  IK WORSE (straight approach 10 cm error at y +0.015) -> do not use the waist to extend the right arm leftwards.
+- [param] where: sim. Walks this session: fwd 0.2 -> .061 .091 .115 .103 .045 .127 .11; 0.12 -> .098 .053 .051;
+  0.15 -> .084; 0.1 -> .035 .025 .088; back -0.1 -> .183, -0.08 -> .226. Every forward walk drifted the robot RIGHT
+  2-6 cm (scene +y); turn 20 cmd -> edge yaw change ~10-13 deg plus 0.03-0.13 m forward and up to 0.17 m sideways.
+- [strategy] where: sim. The pair of front (or hind) legs is the obstacle for every side grasp; the operator's
+  overhang reset keeps them parallel ~5 cm apart. My failed grasps splayed / pushed the legs (and the paws ended on
+  the table) - re-measure after every contact.
+- [strategy] where: sim. PIVOT PINCH VERIFIED ONCE TO z .27: fingers (0,1,0), approach (1,0,0), grasp at the paw-ball
+  centre (lower front paw after the pair was splayed ~3.5 cm), width .0315; lift with approach (1,0,0) to z ~.11
+  then (1,0,0.3)..(1,0,0.4), x drifting back .38-.40, y moving right -.10 -> -.15: width stayed .031 the whole way.
+  1/3 lifts reached >= .20 (others: slipped at .06-.08 when the neighbour paw sat only 2.5 cm behind; lost to my IK
+  flip at .09). The puppy rolls onto its back while its body stays on the table.
+- [strategy] where: sim. Carrying by walking with the pivot pinch FAILED 1/1 (dropped during a 0.19 m walk with the
+  hand at z .27; the body was dragged on the table). Next: shorter walks (<= 0.1) with re-checks, or lower the hand
+  to ~.15 before walking, or grasp from a stance already close enough for the box (box front wall = edge + .21).
+- [strategy] where: sim. Splaying the pair: an OPEN gripper advanced onto the right paw of the pair (wedge) pushed it
+  ~3.5 cm back and it stayed; closed-gripper pushes gave only ~2.5 cm (sprang back). Need >= 3 cm of x offset
+  between the pair before the pivot pinch on the nearer paw.
+- [strategy] where: sim. After a drop the puppy lies on its back at the edge with legs up, right where the arm swings
+  down on HOME (hit it twice, tilt 5-7 deg, hand stuck at (0.22,-0.30,-0.02)). Free the arm by moving the hand UP
+  (z .12), then OUT to y -0.40 (x .14, z .06), then HOME.

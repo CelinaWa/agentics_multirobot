@@ -1,6 +1,7 @@
-memory/TIPS.md: strategy 17, param 5, sim-only 1, untagged 0
+memory/TIPS.md: strategy 27, param 10, sim-only 1, untagged 0
 handoff/README.md: strategy 0, param 0, sim-only 0, untagged 3
-PARAMS.json: 19 measured in sim, 0 on the real robot
-2 untagged rows state numbers (tag them [param] or [sim-only]):
-  handoff/README.md: - The paw-ball pinch is friction-limited: it slips once the puppy's weight hangs from it (z 0.12-0.29), so the puppy
-  handoff/README.md: - Geometry: box front wall is edge+0.21..0.25 behind the paws; right-hand reach x <= ~0.50 at z 0.2 -> the carry
+PARAMS.json: 30 measured in sim, 0 on the real robot
+3 untagged rows state numbers (tag them [param] or [sim-only]):
+  handoff/README.md: - Vertical-finger pinch of the paw ball (pads above/below): grasps 6/6, but the leg is a stiff ~8 cm lever that
+  handoff/README.md: - Horizontal-finger PIVOT pinch (fingers (0,1,0), approach (1,0,0), pads left/right of the ball): the ball can rotate
+  handoff/README.md: - The obstacle for the pivot pinch: the neighbouring paw of the pair (centres ~5 cm apart, balls ~5 cm wide).
