@@ -52,6 +52,44 @@ ROBOT_FACTS = {
             'far. Close only on something that lies between the thumb and the fingers; fingers that stop short of the '
             'commanded pose are touching something.',
         )},
+    'r1sonic': {
+        'name': 'Unitree R1 under SONIC_R1', 'status': 'r1_status', 'observe': 'r1_observe',
+        'move': 'r1_move_hand', 'gripper': 'r1_gripper', 'pixel': 'r1_pixel_to_position',
+        'tools': ('r1_status', 'r1_observe', 'r1_pixel_to_position', 'r1_move_hand', 'r1_move_joints', 'r1_gripper',
+                  'r1_head', 'r1_hold'),
+        'overview_camera': 'cam_head', 'overview': 'head camera (RGB-D in the head, tilted by `r1_head`)',
+        'cameras': ('cam_head',),
+        'body': 'humanoid** (Unitree R1: 26 body joints, 5-joint arms without wrist pitch, two PiPER parallel '
+                'grippers) balanced by the frozen SONIC_R1 whole-body controller in teleop mode, which tracks hand '
+                'and torso targets; it does not walk on command',
+        'move_joints': 'r1_move_joints',
+        'tracking_skill': 'robot-interface',
+        'neutral': 'both arms at the default standing pose (`r1_move_joints` with the defaults in `r1_status` -> '
+                   '`command`), grippers open',
+        'motion_example': 'ctx.value("r1_move_hand", arm="right", position=[x, y, z], approach=[1, 0, -0.3])',
+        'grasp_example': 'ctx.value("r1_gripper", arm="right", width_m=0.0)',
+        'stream': None,
+        'look_around': 'tilt the head (`r1_head`, positive looks down) or turn the waist (`r1_move_joints` '
+                       '`waist_yaw_joint`; the head and its camera turn with it, so re-observe after the turn)',
+        'read_tools': ('r1_status', 'r1_observe', 'r1_pixel_to_position'),
+        'model_dir': None, 'model_note': None,
+        'first_reads': (
+            ('robot-interface', 'every tool, the frames, what the controller tracks, the 5-joint arm\'s reach and '
+                                'orientations, the gripper, arming and hold, the limits and guards this backend enforces'),
+        ),
+        'safety': (
+            '**Arming and hold.** Motion needs the operator to arm. `r1_hold` keeps the last command at any time. After '
+            'a disarm for a fault (a fall, or the robot stepping by itself) make no motion and plan no recovery of your '
+            'own: call `request_operator` (kind `help`) with what you saw, and wait. After the operator arms again, '
+            'call `r1_status` and `r1_observe` first.',
+            '**Reach first, then ask.** `r1_move_hand` refuses goals the arm cannot reach and previews any goal '
+            '(`preview_only`). A reach that makes the robot step, lean or press on something moves its pelvis: '
+            're-observe before trusting earlier positions.',
+            '**No pushing on the table.** Pressing a gripper or the arm on the table or the objects makes the controller '
+            'lean and step back (the hand then misses by the step). Come from above with clearance and descend.',
+            '**The gripper is strong.** Close only on what lies between the fingers; a measured width wider than '
+            'commanded means something is held.',
+        )},
     'rby1': {'name': 'Rainbow RB-Y1', 'status': 'rby1_status', 'observe': 'rby1_observe',
              'move': 'rby1_move_eef', 'gripper': 'rby1_gripper',
              'pixel': 'rby1_pixel_to_position',

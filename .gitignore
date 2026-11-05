@@ -13,3 +13,11 @@ operator-input.json
 *.onnx
 *.trt
 *.engine
+
+# R1 sim: code only — big models/checkouts/run outputs stay out
+r1/SONIC_R1_100k/
+r1/gr00t-wbc-r1/
+r1/runs/
+r1/MA-Teleop-junjie/
+r1/**/__pycache__/
+r1/**/dog_tex/

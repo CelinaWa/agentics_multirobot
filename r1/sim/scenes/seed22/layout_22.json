@@ -1,0 +1,1 @@
+{"seed": 22, "table_h": 0.767, "edge": 0.75, "dog": [0.866, 0.149], "head": "left", "box": [0.935, -0.265], "box_side": "right", "relation": "left", "stance": 0.2, "gap": 0.039, "spawn": "0.456,0.099,7.800", "place": "place=dog,0.866,0.149,0.817,1,0,0,0", "place_box": "place=box,0.935,-0.265,0.767,1,0,0,0"}

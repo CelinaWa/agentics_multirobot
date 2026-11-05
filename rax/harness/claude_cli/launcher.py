@@ -80,7 +80,7 @@ HIDDEN_SOCKETS = (Path('/run/docker.sock'), Path('/var/run/docker.sock'), Path('
 # plus the hosts of the session's backend options in HOST_OPTIONS (denied_hosts): the RB-Y1's
 # `address`, and the g1sonic backend's SONIC deploy stack and camera computer.
 DENIED_HOSTS = ('192.168.30.1', '192.168.123.161', '192.168.123.164')
-HOST_OPTIONS = ('address', 'zmq_host', 'state_host', 'camera_host')
+HOST_OPTIONS = ('address', 'zmq_host', 'state_host', 'camera_host', 'stack_host')
 MAX_USAGE_WAITS = 10
 # OpenRouter key for gemini_generate, read only by the host robot service (never the agent).
 DEFAULT_GEMINI_KEY = Path.home()/'.config/rax/openrouter.key'
@@ -248,6 +248,12 @@ def populate_workspace(config, workspace, *, gemini=True):
         experience['transfer'] = sim_to_real.prepare(
             workspace, experience['session'], sim_to_real.source_environment(config.experience_from),
             config.environment)
+        # cross-robot: experience from another robot keeps the task layer and sets the body layer aside
+        from services import embodiment
+        src_robot = embodiment.source_robot(config.experience_from)
+        if src_robot and src_robot != config.robot:
+            experience['cross'] = embodiment.prepare_cross(
+                workspace, experience['session'], config.experience_from, src_robot, config.robot)
     model = robot_model_dir(config)
     if model is not None:  # the vendor's URDF and meshes, shared read-only by every session
         (workspace/'robot-model').symlink_to(model, target_is_directory=True)

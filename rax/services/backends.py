@@ -23,6 +23,7 @@ from importlib import import_module
 BACKENDS = {
     'rby1': 'services.rby1.backend:Rby1Backend',
     'g1sonic': 'services.g1sonic.backend:G1SonicBackend',
+    'r1sonic': 'services.r1sonic.backend:R1SonicBackend',
     'mock': 'services.mock_backend:MockBackend',
 }
 
