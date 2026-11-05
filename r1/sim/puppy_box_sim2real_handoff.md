@@ -44,3 +44,12 @@ boundary sim found, and the first-real-run checklist. (Full diagnosis: memory `r
 - Live-stack adaptive loop (reference): `tools/scratch/diag/verify_retry.sh` + `attempt.py`.
 - Benchmark `sim/scenes/*` are root-owned; the friction-3.0 fix lives only on the private copies (apply to the
   benchmark needs permission).
+
+## Perception note (sim camera/depth — for the real agent)
+- **Headless rendering works with `MUJOCO_GL=osmesa`** (the sim `camera` op fails without a GL backend — that was a
+  `KeyError: 'height'` from the op erroring server-side; set `MUJOCO_GL=osmesa` to render depth headless).
+- **Depth leg-localization is a dev task, not done here.** A first pass (`tools/diag/perceive_leg.py`) returned 0 leg
+  points — the depth→point-cloud→pelvis back-projection (camera axes), table-plane fit, and hanging-leg segmentation
+  need building/tuning. The **real agent does this via `r1_observe`** with real depth; treat perceive_leg.py as a stub.
+- Implication: the sim grasp numbers used **ground-truth** leg positions; real perception adds cm-scale error on top
+  of the policy's ~4 cm, which is why the real loop must close the last cm with feedback + operator assist (above).
