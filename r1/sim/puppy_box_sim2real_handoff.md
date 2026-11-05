@@ -76,3 +76,11 @@ Measured on the live stack (full_pipe_oh_ft, lean, seeds 16/21/22/25/27):
 - **Headless depth render** confirmed via `MUJOCO_GL=osmesa`. At head pitch ~0.55 rad the grasp workspace
   (leg at x~0.27 m) comes into view (at pitch 0 the nearest view is x~0.56 m, past the leg).
 - `tools/diag/perceive_leg.py` now runs end-to-end (pitch -> depth -> point cloud -> leg localize -> error vs GT).
+
+## Backward walking (found by the first RAX agent run, 2026-11-05)
+The agent discovered `r1_walk` with negative `forward_m` did not move the robot back (drifted forward/right) and
+ended up 0.08 m from the table. Cause: the sim's scripted gait was forward-only; "backward" only reversed the
+reference root. Fix: flip the hip-swing sign for backward (`walk_sign`), which sets the gait's propulsion
+direction — backward now walks ~1.0-1.25x the commanded distance (forward ~0.7x). Time-reversing the gait phase
+did NOT work (the policy does not step back from it). Sim-only detail: the real stack commands locomotion via the
+deploy's planner `movement` vector; on the real R1 verify backward walking separately.

@@ -103,7 +103,7 @@ class Sim:
         """One gait pose (26-dim joint target): legs oscillate forward-walk, both legs half a cycle apart."""
         q = self.default.copy()
         for ph, hp, kn, an in ((phase, self.LHP, self.LKN, self.LAN), (phase + np.pi, self.RHP, self.RKN, self.RAN)):
-            q[hp] = self.default[hp] - self.A_HIP * self.g_hipscale * np.cos(ph)   # (sign set to walk +walk_dir; scaled down during pure turns)
+            q[hp] = self.default[hp] - self.A_HIP * self.g_hipscale * np.cos(ph) * self.walk_sign   # hip-swing sign sets propulsion direction (+1 fwd, -1 back); scaled down during pure turns
             q[kn] = self.default[kn] + self.A_KNEE * max(0.0, -np.sin(ph))  # knee flexes through the swing
             q[an] = self.default[an] - self.A_ANK * np.sin(ph)
         return q
@@ -141,7 +141,7 @@ class Sim:
         self.ticks = 0
         self.fallen = False
         self.warm = 100        # ticks with the policy only, robot pinned upright by nothing: just let it settle
-        self.walking = 0; self.walk_dir = np.zeros(3); self.walk_turn = 0.0; self.walk_advance = 0.0; self.gait_i = 0
+        self.walking = 0; self.walk_dir = np.zeros(3); self.walk_turn = 0.0; self.walk_advance = 0.0; self.gait_i = 0; self.walk_sign = 1.0
 
     def points_world(self):
         m, d = self.m, self.d
@@ -231,6 +231,7 @@ class Sim:
             head_yaw = Rotation.from_quat(np.asarray(self.root_quat)[[1, 2, 3, 0]]).as_euler("ZYX")[0]  # walk along the reference heading (arms stay valid in this frame)
             sgn = 1.0 if forward_m >= 0 else -1.0
             self.walk_dir = np.array([np.cos(head_yaw), np.sin(head_yaw), 0.0]) * sgn
+            self.walk_sign = sgn                                      # backward: run the gait cycle in reverse (time-reversed forward walk)
             self.walk_fwd = self.walk_dir[:2].copy()
             self.walk_advance = 1.0 if abs(float(forward_m)) > 0.02 else 0.0   # 0 => turn in place
             self.g_hipscale = 1.0 if self.walk_advance else 0.30              # smaller stride when only turning (step in place)
