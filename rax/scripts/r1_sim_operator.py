@@ -22,10 +22,29 @@ def main():
         r = json.loads(s.recv_multipart()[0]); s.close(); return r
     def log(*p): print(time.strftime('%H:%M:%S'), *p, flush=True)
     def arm(): arming.write(root, True, minutes=a.arm_minutes, by='scripted operator (sim)')
-    def overhang():
+    MATE = {0: 1, 1: 0, 2: 3, 3: 2}   # the two legs of one end of the puppy (lying on its side they stack ~5 cm apart)
+    def place_overhang():
         g = req('gt'); edge_x = g['table']['pos'][0] - 0.300; front = min(p[0] for p in g['dog_paws'])
         dx = max(-0.25, min(0.0, (edge_x - a.overhang_cm / 100) - front)); d = g['dog']
-        req('place', body='dog', pos=[d['pos'][0] + dx, d['pos'][1], d['pos'][2]], quat=d['quat']); time.sleep(1.5)
+        req('place', body='dog', pos=[d['pos'][0] + dx, d['pos'][1], d['pos'][2]], quat=d['quat']); time.sleep(1.5); return edge_x
+    def separate_pair(min_gap=0.035):
+        """Present a clean leg (task: 'legs clustered -> operator reposition to present a clean leg'): arrange the
+        overhanging paw's pair-mate limb (swing+splay, held by the spring rest like a plush leg stays where it is
+        put), then re-place the puppy for the overhang; judge after settling. Target: mate paw >= min_gap behind."""
+        p = req('gt')['dog_paws']; front = min(range(4), key=lambda n: p[n][0]); mate = MATE[front]
+        def arrange(sw, sp):
+            req('dog_joint', name=f'dog_limb_{mate}_swing', value=sw); req('dog_joint', name=f'dog_limb_{mate}_splay', value=sp)
+            time.sleep(1.5); place_overhang(); time.sleep(2.0)
+            q = req('gt')['dog_paws']; return (q[mate][0] - q[front][0]), (min(range(4), key=lambda n: q[n][0]) == front)
+        best = (0.0, 0.0, 0.0)
+        for sw, sp in ((1.1, 1.1), (1.1, -1.1), (-1.1, 1.1), (-1.1, -1.1)):
+            gap, ok = arrange(sw, sp)
+            if ok and gap > best[0]: best = (gap, sw, sp)
+        if best[0] >= min_gap: arrange(best[1], best[2])
+        else: arrange(0.0, 0.0)
+        log('pair separation: paw %d / mate %d gap %.1f cm (swing %+.1f splay %+.1f)' % (front, mate, best[0] * 100, best[1], best[2]))
+    def overhang():
+        edge_x = place_overhang(); separate_pair()
         g = req('gt'); return (edge_x - min(p[0] for p in g['dog_paws'])) * 100, g
     def scene(g):
         st = req('state')

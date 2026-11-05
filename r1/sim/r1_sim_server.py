@@ -704,6 +704,10 @@ def serve(sim, port, stop):
                     sim.reset_scene(); out = {}
                 elif op == "slide_table":
                     sim.slide_table(float(req["dx"]), float(req.get("dy", 0.0))); out = {}
+                elif op == "dog_joint":     # operator arranges a plush limb: set a dog joint AND its spring rest so it holds there
+                    j = sim.m.joint(req["name"]).id; a = sim.m.jnt_qposadr[j]
+                    sim.d.qpos[a] = float(req["value"]); sim.m.qpos_spring[a] = float(req["value"]); sim.d.qvel[sim.m.jnt_dofadr[j]] = 0.0
+                    mujoco.mj_forward(sim.m, sim.d); out = {"name": req["name"], "value": float(req["value"])}
                 elif op == "head":          # command head pitch (rad, + = look down); held like the real r1_head
                     sim.row[23] = float(np.clip(req["pitch"], -0.62, 0.62)); out = {"head_pitch": float(sim.row[23])}
                 elif op == "shutdown":
