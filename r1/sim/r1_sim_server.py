@@ -251,7 +251,7 @@ class Sim:
             self.root_pos = self.d.qpos[:3].copy()               # snap the reference frame onto the settled robot
             self.root_quat = wxyz(Rotation.from_euler("z", Rotation.from_quat(np.asarray(self.d.qpos[3:7])[[1, 2, 3, 0]]).as_euler("ZYX")[0]))
             self.queue = []
-            self.row = self.measured_row(); self.row[21] = self.row[22] = 0.07; self.row[23] = 0.0
+            self.row = self.measured_row()   # keeps the gripper + head commands (a walk must not drop a held puppy or reset the camera)
             return {"requested_m": round(float(forward_m), 3), "walked_m": round(disp, 3), "turn_deg": float(turn_deg),
                     "pelvis": self.d.qpos[:3].round(3).tolist(), "tilt_deg": round(self.tilt_deg(), 1), "fallen": bool(self.fallen)}
 
@@ -375,6 +375,14 @@ class Sim:
             ga = paw_ids[a]; gb = paw_ids[b] if b is not None else None
             p0 = pos[a].copy(); dog0z = self.d.xpos[self.m.body("dog").id][2]
         side = "right" if p0[1] < pely else "left"
+        paw_ahead = float(self._to_pel(p0)[0])
+        if paw_ahead > 0.36:   # reach guard: leaning further to reach a far paw tipped the robot over (RAX session 1, tilt 81 deg)
+            with self.lock:
+                self.manual = False; self.queue = []
+            return {"paw": int(nearest), "side": side, "wedged": False, "held": False,
+                    "clamped_width_m": round(float(self.gripper_width(side)), 4), "lifted_m": 0.0,
+                    "tilt_deg": round(self.tilt_deg(), 1), "fallen": bool(self.fallen),
+                    "refused": f"nearest hind paw is {paw_ahead:.2f} m ahead of the pelvis, beyond the safe reach (0.35 m): walk closer before grasping"}
         if gb is not None:   # target between the two legs, at the x of the farther paw so both legs are present there
             def paww():
                 with self.lock:

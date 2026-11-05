@@ -110,7 +110,10 @@ def tool_definitions(geometry=True):
             "then lifts in small steps. Stand within reach of the puppy first (walk up so a near hind leg is ~0.25-0.35 m "
             "ahead of your pelvis). Reports which paw/arm (side), whether it is held, the clamped width, and the lift. "
             "If held is false, re-observe and reposition (a small walk/turn to present a hind leg cleanly) and try again. "
-            "Needs operator arming."),
+            "This is a FLAT table-top grasp of a paw resting on the table. It is NOT for a leg hanging past the front edge: "
+            "for that, r1_move_hand in front of the hanging paw with the fingers vertical (0,0,1), approach ~(1,0,0.15), "
+            "then r1_gripper width 0. It refuses (held=false, 'refused') if the nearest paw is more than 0.35 m ahead: "
+            "leaning further has tipped the robot over. Needs operator arming."),
          "inputSchema": {"type": "object", "additionalProperties": False, "properties": {}}},
         {"name": PLACE_IN_BOX, "description": (
             "With a paw held (after r1_grasp_paw), lower the puppy over the box opening and release so it drops in. One "
