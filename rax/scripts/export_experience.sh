@@ -7,6 +7,7 @@
 #   bash scripts/g1_up.sh agent --task-file task.md --experience <that dir>/workspace
 set -euo pipefail
 ROOT=${1:?session root}; DEST=${2:?destination dir}
+DEST=$(mkdir -p "$DEST" && cd "$DEST" && pwd)   # absolute: `git -C $LIB bundle create` resolves a relative path inside $LIB
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WS=$ROOT/agent-workspace
 [[ -d "$WS" ]] || { echo "$ROOT has no agent-workspace" >&2; exit 2; }
@@ -26,7 +27,7 @@ ROBOT=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['robot']
 # Sessions configured before the environment field: RAX_EXPORT_ENVIRONMENT=sim|real says where they ran.
 ENVIRONMENT=${RAX_EXPORT_ENVIRONMENT:-$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('environment', 'unknown'))" "$ROOT/configuration.json")}
 LIB=${RAX_SKILL_LIBRARY:-$(dirname "$(dirname "$(realpath "$ROOT")")")/skill-library}/$ROBOT
-if [[ -d "$LIB/.git" ]]; then
+if [[ -d "$LIB/.git" ]] && git -C "$LIB" rev-parse --verify --quiet main >/dev/null; then   # an initialized but empty library has no main yet
     git -C "$LIB" bundle create "$DEST/skill-library-$ROBOT.bundle" main 2>/dev/null
     echo "skill library $LIB ($(git -C "$LIB" rev-parse --short main)) -> $DEST/skill-library-$ROBOT.bundle"
 else

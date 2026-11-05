@@ -84,3 +84,15 @@ reference root. Fix: flip the hip-swing sign for backward (`walk_sign`), which s
 direction — backward now walks ~1.0-1.25x the commanded distance (forward ~0.7x). Time-reversing the gait phase
 did NOT work (the policy does not step back from it). Sim-only detail: the real stack commands locomotion via the
 deploy's planner `movement` vector; on the real R1 verify backward walking separately.
+
+## First RAX agent-loop exploration (2026-11-05, session 20261105T194732Z_puppy_box_r1_1d45ef)
+R1 was explored through the real RAX workflow (r1sonic backend + agent loop, seeded from G1's puppy_box via
+cross-embodiment). Result: **0/6 placements**; funnel approach 4/6 -> grasp held 1/3 -> carry 0 -> place 0; 1 fall,
+puppy off the table 2x; robot ended safe. The RAX-native experience is in `experience/puppy_box_r1/`
+(RUNS/TIPS/PARAMS/handoff, TRANSFER_REPORT: 8 strategy / 3 param / 1 sim-only, 10 params measured in sim).
+Key findings the agent loop surfaced that scripted runs never did: `r1_grasp_paw` (flat grasp) is the wrong tool for
+the hanging leg and its reach-lean tipped the robot over at paw 0.38 m; the hold slips within ~1 min if the carry is
+delayed; reaching shifts the body 6-12 cm (whole-body coupling); walk/turn calibration is wide (0.25 cmd -> 0.11-0.35).
+Harness fixes queued: auto-arm sim sessions (lost 22 min), a scripted operator for reset/overhang (help requests
+time out), writable agent workspace (memory landed in /tmp and had to be synced by hand), wire `edge_grasp` into
+the backend / drop the misleading `grasp_paw` tool, and `--environment sim` must be passed at configure time.
