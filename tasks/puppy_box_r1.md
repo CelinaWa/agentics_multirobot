@@ -53,3 +53,8 @@ Keep the gripper commanded fully closed (width 0) from the grip until the releas
 - It cannot reach the floor: if the puppy falls off the table, hold and ask the operator to reset.
 - Use only the right gripper for the puppy; keep the left arm away from it.
 - This is simulation, so exploration is cheap: a `reset` request is allowed five times. If the same grasp has failed twice, change the approach rather than repeating it.
+
+## SIMULATION RESET BUDGET (this session)
+This is a simulation exploration session: the operator will grant up to 10 scene resets (the real robot allows 5).
+Use the extra resets to test different approaches, and record in memory/ which strategies succeed within the
+first 5 resets - those are the ones that transfer to the real robot.
