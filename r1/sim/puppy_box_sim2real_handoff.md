@@ -141,3 +141,9 @@ waypoints, carry in <= 0.1 m walks checking the grip, lower over the box, releas
   could prop the re-placed puppy up like a kickstand (fixed: `reset`/`reset_scene` clear the puppy's joints);
   sessions now live outside the protected `rax/` checkout (`rax/runtime` is a link to `~/rax-runtime-r1`), so the
   agent's workspace is writable and its skill-library merges work without the manual patch dance.
+- Walk primitive (sim, 2026-11-05 evening): `walk` now waits until the pelvis is still (drift after return was 2-3 cm
+  and 1-5 deg, now < 1 cm / 1.5 deg) and closes the loop on distance and heading with up to two correction passes
+  (residual < 3 cm / 6 deg; passes shorter than 12 cm are lengthened because the balance recovery cancels them).
+  Measured: mean |error| 2.5 cm over 10 walks (one backward overshoot of 12 cm), turns -70 -> -69, +45 -> +42.
+  The rightward lateral drift of 2-7 cm per call and the ~0.3 m arc of an in-place turn remain (policy behaviour the
+  agent already models in `r1-walk-approach`). The reply now also carries `turned_deg` and `passes`.
