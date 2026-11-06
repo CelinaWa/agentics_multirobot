@@ -3,6 +3,8 @@ a few minutes), the way a human operator at the robot would. It only does what t
 arm motion; reset the scene (puppy + box back, robot back at its start pose) and present the hind-paw overhang;
 position the overhang on request; restore + re-arm after a fall (counts as a reset); other help -> a factual reply,
 no scene change. Run beside a session:  r1_sim_operator.py --session <root> --port 5691 [--max-resets 5]"""
+import numpy as np
+from scipy.spatial.transform import Rotation
 import argparse, glob, json, os, sys, time
 import zmq
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
@@ -16,6 +18,7 @@ def main():
     ap.add_argument('--arm-minutes', type=int, default=150); ap.add_argument('--poll', type=float, default=3.0)
     ap.add_argument('--notice', default='', help='engineering notice appended to every reply (e.g. a simulator update)')
     ap.add_argument('--resets-used', type=int, default=0, help='resets already granted before this daemon started (restart)')
+    ap.add_argument('--max-stances', type=int, default=20, help='sim-only "grasp stance" placements granted (0 disables)')
     a = ap.parse_args(); root = a.session; ctx = zmq.Context()
 
     def req(op, **f):
@@ -55,9 +58,22 @@ def main():
                    'armed' if arming.read(root)['armed'] else 'NOT armed'))
     def reset():
         req('reset_scene'); req('reset'); time.sleep(3.5); return overhang()
+    STANCE = (0.31, -0.21)   # the proven pivot/shaft-grasp stance: hanging hind paw here in the pelvis frame, heading square
+    def stance():
+        """Sim-only accelerator: a fresh scene with the robot already square at the grasp stance (the scene is slid under
+        the robot, which is what a teleport of the robot amounts to), so grasp/lift/carry/place can be practised."""
+        hang, g = reset()
+        front = min(range(4), key=lambda n: g['dog_paws'][n][0])
+        o = np.asarray(g['pelvis']['pos']); q = np.asarray(g['pelvis']['quat'])[[1, 2, 3, 0]]
+        yaw = Rotation.from_quat(q).as_euler('zyx')[0]; R = Rotation.from_euler('z', yaw).as_matrix()
+        paw = R.T @ (np.asarray(g['dog_paws'][front]) - o)
+        d = R @ np.array([STANCE[0] - paw[0], STANCE[1] - paw[1], 0.0])
+        req('slide_table', dx=float(d[0]), dy=float(d[1])); time.sleep(3.0)
+        g = req('gt'); paw = R.T @ (np.asarray(g['dog_paws'][front]) - np.asarray(g['pelvis']['pos']))
+        return hang, g, paw
 
     arm(); log('armed for', a.arm_minutes, 'min; max resets', a.max_resets)
-    resets = a.resets_used; seen = set()
+    resets = a.resets_used; stances = 0; seen = set()
     while True:
         folder = os.path.join(root, 'operator', 'requests')
         for p in sorted(glob.glob(os.path.join(folder, '*.json')), key=os.path.getmtime):
@@ -73,6 +89,16 @@ def main():
                     resets += 1; hang, g = reset(); arm()
                     reply = (f'Operator: the robot is restored and RE-ARMED (used reset {resets}/{a.max_resets}). {scene(g)}; '
                              f'the frontmost hind paw hangs {hang:.1f} cm past the edge. Re-check status and observe before moving.')
+                elif 'stance' in text and a.max_stances > 0:
+                    if stances >= a.max_stances:
+                        reply = f'Operator: the stance budget ({a.max_stances}) is used up; ask for a reset or walk in yourself.'
+                    else:
+                        stances += 1; hang, g, paw = stance(); arm()
+                        reply = (f'Operator (sim-only accelerator, stance {stances}/{a.max_stances}, not counted as a reset): fresh scene, '
+                                 f'robot standing square to the table at the proven grasp stance - the hanging hind paw is at '
+                                 f'({paw[0]:.2f}, {paw[1]:.2f}, {paw[2]:.2f}) in your pelvis frame, {hang:.1f} cm past the edge, '
+                                 f'front edge {g["table_edge_ahead_m"]:.2f} m ahead; arms home, grippers open, armed. '
+                                 'Practise grasp / lift / carry / place from here; your transferable attempts must still walk in.')
                 elif kind == 'reset' or 'reset' in text:
                     if resets >= a.max_resets:
                         reply = (f'Operator: the reset budget ({a.max_resets}) is used up - no further resets; the scene stays as it is. '

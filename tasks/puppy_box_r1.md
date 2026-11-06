@@ -54,6 +54,15 @@ Keep the gripper commanded fully closed (width 0) from the grip until the releas
 - Use only the right gripper for the puppy; keep the left arm away from it.
 - This is simulation, so exploration is cheap: a `reset` request is allowed five times. If the same grasp has failed twice, change the approach rather than repeating it.
 
+## SIMULATION ACCELERATOR: the "grasp stance" request (sim only)
+Walking to a good stance costs you 20-40 minutes per attempt in this simulator and does not transfer. To practise the
+part that does transfer (grasp, lift, carry, place), ask the operator with kind `help`: "place me at the grasp stance".
+The operator then gives you a FRESH scene (puppy and box reset, hind leg overhanging) with the robot already standing
+square to the table at the proven stance: the hanging hind paw ~(0.31, -0.21) in your pelvis frame, front edge ~0.39 m
+ahead, arms home, grippers open. Up to 20 stance placements per session; they are not counted as resets. Use them
+freely to iterate on grasp placement, lift, the carry walk and the release into the box. Your FIRST FIVE resets (the
+transferable ones) should still show the whole chain including walking in; record which strategies worked there.
+
 ## SIMULATION RESET BUDGET (this session)
 This is a simulation exploration session: the operator will grant up to 10 scene resets (the real robot allows 5).
 Use the extra resets to test different approaches, and record in memory/ which strategies succeed within the
