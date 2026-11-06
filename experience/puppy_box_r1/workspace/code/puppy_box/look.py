@@ -1,7 +1,7 @@
 """Observe (optional head pitch), save nothing new; print edges + paws + box for the frame. python look.py [pitch]"""
 import sys, json
-sys.path.insert(0, '/tmp/claude-1001/ws_c4f6c3')
-sys.path.insert(0, '/tmp/claude-1001/ws_c4f6c3/code/puppy_box')
+sys.path.insert(0, '/home/junjieye/rax-runtime-r1/sessions/20261106T010905Z_puppy_box_r1_f6b331/agent-workspace')
+sys.path.insert(0, '/home/junjieye/rax-runtime-r1/sessions/20261106T010905Z_puppy_box_r1_f6b331/agent-workspace/code/puppy_box')
 from api.runtime import Context
 import edges, scene
 ctx = Context()

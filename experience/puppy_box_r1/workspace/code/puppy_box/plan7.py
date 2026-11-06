@@ -1,0 +1,18 @@
+"""Depth-4 pose planner. python plan7.py x y psi tx ty tpsi edge [minclear]"""
+import walkplan as w, math, itertools, sys
+a=[float(v) for v in sys.argv[1:]]
+start=(a[0],a[1],math.radians(a[2])); tgt=(a[3],a[4],math.radians(a[5])); edge=a[6]; mc=a[7] if len(a)>7 else 0.32
+acts=[('turn',c) for c in (-90,-70,-60,-50,-40,-30,-20,20,30,40,50,60,70,90)]+[('walk',c) for c in (-0.1,0.15,0.2,0.3)]
+best=[]
+for n in (1,2,3,4):
+  for seq in itertools.product(acts,repeat=n):
+    if any(seq[i][0]=='turn' and seq[i+1][0]=='turn' and seq[i][1]*seq[i+1][1]>0 for i in range(n-1)): continue
+    q,ok=start,True
+    for i,s in enumerate(seq):
+      q=w.step(q,s)
+      if edge-q[0]<mc: ok=False;break
+    if not ok: continue
+    e=math.hypot(q[0]-tgt[0],q[1]-tgt[1])+0.25*abs(q[2]-tgt[2])+0.01*n
+    best.append((e,seq,q))
+best.sort(key=lambda t:t[0])
+for e,s,q in best[:10]: print(round(e,3),s,[round(q[0],3),round(q[1],3),round(math.degrees(q[2]),1)],'edge',round(edge-q[0],3))

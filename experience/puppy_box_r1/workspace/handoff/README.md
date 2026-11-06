@@ -1,44 +1,48 @@
-# Handoff — puppy_box_r1 on r1sonic (sim), session 20261105T232821Z_puppy_box_r1_c4f6c3
+# Handoff — puppy_box_r1 on r1sonic (sim), session 20261106T010905Z_puppy_box_r1_f6b331
 
-Outcome: NOT solved (0 placements; 6 attempts; resets 5/10; falls 0; one 8.3 deg tilt from a HOME move).
-Workspace was READ-ONLY again: everything is in /tmp/claude-1001/ws_c4f6c3 (code/, memory/, handoff/, skill-library
-commit 6e5f23d + patch output/0001-*.patch). skill_library_merge -> merged:false (reads the read-only clone).
-Older handoffs: handoff/README_e0ac0c.md, README_08803f.md (perception, retreat routes, r1_grasp_paw = fall hazard).
+Outcome: NOT solved (0 placements). 7 attempts, resets 6/10, falls 0. NEW: the TASK.md leg-SHAFT grasp held twice
+(width .0315/.0351) and the arc lift + waist-assisted raise lifted the hanging puppy to hand z .365 (2/2), but the
+grip CREEPS and let go (a) after ~2 min held still, (b) at the first waist-moving extension. Carry never started.
+Older handoffs: README_c4f6c3.md (turn-arc walk model, box-behind geometry), README_e0ac0c.md, README_08803f.md.
+Workspace was writable this time; code in code/puppy_box/, library skill r1-leg-shaft-grasp-lift (merged, draft).
 
-## Layout (identical on every reset this session)
-Start square, edge .62-.63 ahead; puppy head RIGHT; box BEHIND the puppy (front wall = edge + .20, rim = table + .145,
-box spans y paw+.09 .. paw-.31); operator overhang: hind paw ~8 cm past the edge at (.548,-.017,+.004) from the start,
-other hind paw 11 cm right / 5 cm back (clean for the pivot pinch).
+## SIM UPDATE at 18:13 (operator notice) - read first
+The slips on pauses / waist moves were a simulator contact artifact (fixed). r1_walk now self-corrects distance and
+heading (< 3 cm / 6 deg) but turns still displace the robot (100 deg turn moved .58 m; a +90/.15/-90 side-step went
+RIGHT). After the update the overhang layout changed: hind paw (.551,-.068) with its neighbour only 6.5 cm left; the
+lower FRONT paw (.548,-.25) also overhangs and is clean (neighbour 12.5 cm away); both legs point +11..13 deg.
+First job next session: re-measure the new walk (turns 15-90, fwd .1-.4) far from the table, then plan the stance.
 
-## Per subtask: how to plan it in any layout
-1. Stance (skill r1-walk-approach): goal = the target paw at pelvis (0.31,-0.21) [range x .30-.38, y -.17..-.25],
-   heading 0..+10 deg (leg along +x). Walks are ARCS: left turns pivot ~0.31 m to the left, right turns ~0.52 m to the
-   right; a 90 deg turn moves 0.33-0.53 m; every call drifts 0-6 cm right; fwd 0.1 is a deadband. Use odometry
-   ('pelvis' in r1_walk replies) + edge heading and re-plan after each call (code/puppy_box/walkplan.py, plan4.py).
-   Proven sequence from this start: back -.1, back -.1, turn +60, turn -50, fwd .1-.15 x1-3 (7 calls).
-2. Look: the paw at x < .34 is out of view at head .6 -> waist_yaw -0.35 (r1_move_joints), sphere-fit the paw
-   (code/puppy_box/pawfit.py, rms .3 mm). Measure and grasp in THE SAME waist configuration (pelvis counter-rotates).
-3. Grasp (skill r1-paw-pivot-pinch): pregrasp x-.08, approach (1,0,0), fingers (0,1,0), open .07; re-measure with
-   the arm out; advance to the ball centre (0.5 cm short if ik > .03); close -> width .031-.035 = held (2/2 in the
-   proven configuration; a +10 deg rotated approach missed 1/1).
-4. Lift (code/puppy_box/lift.py = guarded steps): approach (1,0,0) to z .10, then forward+up over the table edge
-   ((.39,.125)->(.43,.18)->(.43,.265), approach tilt .2-.5). Holds the full hanging weight statically (z .285).
-   Do NOT tilt the approach beyond ~.6 under load and keep steps <= 4 cm (a (1,0,.8) step dropped it).
-5. Carry to the box: THE BLOCKER. Walking while holding the friction pinch dropped it 2/2 (0.19 m and 0.089 m).
-   With the box behind the puppy the box interior is 0.25-0.30 m beyond arm reach from the grasp stance.
-   Next options, in order:
-   a) No-walk place: TESTED att 6 - from the closest stance (paw x .28) the box interior starts at x .68, waist IK
-      reaches only x .54 (.58 flips, .62 unreachable) => impossible in the box-behind layout. Lowering the held
-      puppy onto the table (to walk with low load) also slipped (width .0255 -> .004).
-   b) Stopper grasp before walking: pads across a leg shaft with the ball outside (load on the ball, not friction).
-      After a drop the puppy lay on its back legs-up against the box: a shaft grasp with approach (0.97,0.24,0)
-      previewed ik .004, but the hand stopped 2 cm above the shaft twice (z servo saturates at .05).
-   c) If the box is beside the puppy (left/right layouts), the carry is lateral and in arm reach: try that first.
-6. Retreat: open, hand UP then OUT to (0.12,-0.40,0.06) then HOME joints, then walk back 0.1. Never HOME directly
-   from a low hand near the puppy/edge (tilt 8.3 deg this session).
+## Layout (identical on every reset before the update)
+Start square, edge .626; puppy head RIGHT, box BEHIND (front wall = edge + .22, rim z = table + .145 = pelvis ~.11),
+overhang hind paw (.546,-.023,-.002) from the start, other hind paw 11 cm right / 5 cm back, leg (paw->hip) yaw
+-9..-13 deg vs the table normal, horizontal. The reset re-applies the overhang (no help request needed).
 
-## Files (in /tmp/claude-1001/ws_c4f6c3)
-code/puppy_box: walkplan.py (model + MPC search, `python walkplan.py x y psi tx ty tpsi edge_x`), plan4.py (depth-4),
-edges.py (table edge lines), look.py (observe + scene + edges), pawfit.py (sphere fit), preview.py, sweep_angle.py
-(IK reach sweep per approach angle), lift.py (guarded holding moves), pivot_pinch.py/scene.py/percep.py (older).
-memory/{PROGRESS,TIPS,RUNS,INCIDENTS}.md, memory/PARAMS.json (walk.* and pivot_pinch.* rows added).
+## How to plan each subtask in any layout
+1. Stance. Wanted: paw at pelvis x .36-.39, y -.20..-.29 WITH THE ARM AT PREGRASP (waist cmd -.35), heading so the
+   leg is within ~15 deg of +x. From this start: `run.py approach` (back -.1 x3, turn 70, turn -70) -> paw ~(.51-.53,
+   -.19..-.25); `run.py ready` (arm up front, so its reach shift happens now); `run.py fwd .15`, `fwd .1` with the arm
+   at ready. Each forward call: .05-.13 m, rotates the robot 0-4 deg and moves the paw 0-6 cm sideways (either way!).
+   Paw y at pregrasp > -.17 = restance (reaching left yaws the waist +.1..+.2 and drags the paw further left).
+2. Look. The camera cannot see table height at x < ~.36-.40; the hand is never in view near the paw. Use waist yaw
+   cmd -.6 to see the paw fully, measure (sphere fit + 4 shaft-top points for the leg yaw), go back to -.35 and
+   re-localize (code/puppy_box/reloc.py ICP x/y grid, 18 s; the yaw-grid version takes 8 min - do not).
+   Partial sphere fits at the image border were 4-6 cm wrong in x and 4 cm in y -> never grasp on them.
+3. Grasp. Align 7-9 cm short with y error < 5 mm, then ONE advance <= 9 cm to paw + 1.5-2.2 cm along the leg at
+   paw z + .012 (ik must be <= .03: x .35-.40 at y -.17..-.29), close to 0: .0315/.0351 = held, .0145/.0227 = weak,
+   < .012 = miss. Width > .071 before closing = a finger touched the ball (it gets pushed 3-6 cm).
+4. Lift: `run.py lift` right after the close (6 arc steps + 3 waist-assisted raise steps): hand (.39..48, y, .27..37),
+   width flat .031. The puppy hangs ~22 cm below the hand (head lowest) -> the 14 cm rim needs the hand >= .35.
+5. Carry (OPEN PROBLEM): the box front wall is ~.24-.30 m beyond the lifted hand -> ~.25 m of walking with the hand
+   at z .36 and an edge clearance ending ~.15 m. Next session: right after the raise, do NOT extend with the waist;
+   immediately run `run.py carryloop` (walk .15 cmds, width check, release only >= 3 cm past the box front edge).
+   Or test first whether the grip survives 10-30 s held still at z .36 (it slipped after ~2 min at z .275).
+   Alternative worth testing: lift lower (z .27) and walk only while the puppy is still in front of the table, so
+   the long walk happens before the hand needs the height.
+6. Retreat: open, hand up/out (.25,-.32,.15), HOME (waist 0), walk back -.1. Worked every time (no incidents).
+
+## Files
+code/puppy_box/run.py (step controller: approach, ready, fwd, look, pre, align, grasp, lift, carryloop, release,
+retreat), m.py/look2.py (observe + paw fits), p3d.py (pixel -> 3-D of saved frames), reloc.py (ICP), topdown.py,
+plan6/7/8.py (walk planners with TURN_RATIO env; turn ratios this session .74-.96 -> do not trust for < 5 cm).
+memory/PROGRESS.md (attempt log), RUNS.md, TIPS.md, INCIDENTS.md, PARAMS.json.

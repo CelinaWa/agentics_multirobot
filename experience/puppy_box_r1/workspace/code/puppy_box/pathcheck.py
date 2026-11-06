@@ -1,9 +1,9 @@
 import sys, json, numpy as np
-sys.path.insert(0, '/home/junjieye/workspace/multirobot/real_g1_release/rax/runtime/sessions/20261105T232821Z_puppy_box_r1_c4f6c3/agent-workspace/.agents/skills/robot-interface/scripts')
-sys.path.insert(0, '/home/junjieye/workspace/multirobot/real_g1_release/rax/runtime/sessions/20261105T232821Z_puppy_box_r1_c4f6c3/agent-workspace')
+sys.path.insert(0, '/home/junjieye/rax-runtime-r1/sessions/20261106T010905Z_puppy_box_r1_f6b331/agent-workspace/.agents/skills/robot-interface/scripts')
+sys.path.insert(0, '/home/junjieye/rax-runtime-r1/sessions/20261106T010905Z_puppy_box_r1_f6b331/agent-workspace')
 from r1_kin import Kinematics
 from api.runtime import Context
-K = Kinematics('/home/junjieye/workspace/multirobot/real_g1_release/rax/runtime/sessions/20261105T232821Z_puppy_box_r1_c4f6c3/agent-workspace/.agents/skills/robot-interface/scripts/r1_piper_kin.xml')
+K = Kinematics('/home/junjieye/rax-runtime-r1/sessions/20261106T010905Z_puppy_box_r1_f6b331/agent-workspace/.agents/skills/robot-interface/scripts/r1_piper_kin.xml')
 ARM = ['right_shoulder_pitch_joint','right_shoulder_roll_joint','right_shoulder_yaw_joint','right_elbow_joint','right_wrist_roll_joint']
 def path(q0, q1, n=20):
     out=[]

@@ -4,7 +4,7 @@ Usage: PYTHONPATH=pylib python contik.py '<q0 json {joint: rad}>' '<goals json [
 import sys, json
 from pathlib import Path
 import numpy as np
-SK = Path('/home/junjieye/workspace/multirobot/real_g1_release/rax/runtime/sessions/20261105T232821Z_puppy_box_r1_c4f6c3/agent-workspace/.agents/skills/robot-interface/scripts')
+SK = Path('/home/junjieye/rax-runtime-r1/sessions/20261106T010905Z_puppy_box_r1_f6b331/agent-workspace/.agents/skills/robot-interface/scripts')
 sys.path.insert(0, str(SK))
 from r1_kin import Kinematics, ARM
 

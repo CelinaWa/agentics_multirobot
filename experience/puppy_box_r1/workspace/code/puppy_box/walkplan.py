@@ -6,7 +6,8 @@ robot's right.
 python walkplan.py x y psi_deg  tx ty tpsi_deg  edge_x  [min_clear]
   (world frame = odometry; world x = table normal; edge_x = world x of the front edge)"""
 import sys, math, itertools, json
-import numpy as np
+import numpy as np, os
+RATIO = float(os.environ.get('TURN_RATIO', '0.87'))
 
 TURNS = [c for c in range(-100, 101, 10) if c != 0]
 WALKS = [-0.1, 0.1, 0.15, 0.2, 0.3, 0.4]
@@ -22,7 +23,7 @@ def step(pose, act):
     kind, c = act
     p = np.array([x, y])
     if kind == 'turn':
-        th = math.radians((0.87 if c > 0 else 0.86) * c)
+        th = math.radians(RATIO * c)
         cen = np.array([0.05, 0.31]) if th > 0 else np.array([0.02, -0.52])
         d = (np.eye(2) - rot(th)) @ cen
         p = p + rot(psi) @ d

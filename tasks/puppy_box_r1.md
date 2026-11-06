@@ -37,7 +37,7 @@ Keep the gripper commanded fully closed (width 0) from the grip until the releas
 
 ## Walking and the operator (read this)
 
-- `r1_walk` is your way to move. A pure `turn_deg` (forward_m 0) now turns roughly in place (~0.1-0.2 m of drift); a forward walk of 0.3 moves ~0.3-0.5 m. Re-observe after every walk. Do ALL large turning while well clear of the table (>= 0.5 m), then approach with straight 0.25-0.3 m steps and stop with the front edge ~0.25-0.35 m ahead of your pelvis.
+- `r1_walk` is your way to move. It blocks until you are standing still and corrects its own distance and heading (residual under ~3 cm / 6 deg; the reply carries `walked_m`, `turned_deg`, `passes` and your pelvis odometry). Measured (sim, 2026-11-05): mean distance error 2.5 cm, turns within ~3 deg; every call still drifts you 2-7 cm to the RIGHT, and a pure turn pivots about a point ~0.3 m to the side, so a 70 deg turn also moves you ~0.3 m. Re-observe after every walk. Do ALL large turning while well clear of the table (>= 0.5 m), then approach with straight 0.1-0.25 m steps and stop with the front edge ~0.25-0.35 m ahead of your pelvis.
 - The scripted operator turns almost every `help` request into a TABLE SLIDE (even "move the box"), one direction per request, and it cannot slide the table through the wall behind it. So do NOT ask the operator to move the box or the table or you: **reposition yourself by walking/turning** instead. Only ask the operator to (a) position the puppy's hind leg to overhang the front edge for the grasp, and (b) reset the scene. If a slide happens you did not want, re-observe and walk to adjust.
 
 ## Ask the operator (`request_operator`) when

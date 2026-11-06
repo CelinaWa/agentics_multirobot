@@ -51,6 +51,15 @@
       ]
     }
   },
+  "lift.max_hand_z_waist_m": {
+    "note": "hand height reached holding the puppy with waist help, x ~.39",
+    "sim": {
+      "how": "arc + 3 use_waist steps held (sim f6b331 att 6)",
+      "measured": "2026-11-05",
+      "value": 0.365
+    },
+    "unit": "m"
+  },
   "pelvis_shift_back_reaching_x040_m": {
     "sim": 0.02
   },
@@ -154,6 +163,15 @@
       ]
     }
   },
+  "puppy.hang_below_hand_m": {
+    "note": "hanging by a hind leg, head lowest",
+    "sim": {
+      "how": "depth points of the hanging puppy, hand z .275 -> lowest .05",
+      "measured": "2026-11-05",
+      "value": 0.22
+    },
+    "unit": "m"
+  },
   "right_hand_reach_x_max_m_use_waist": {
     "sim": {
       "no_waist": 0.5,
@@ -174,6 +192,33 @@
       "how": "rim corners in 3 frames, c4f6c3",
       "measured": "2026-11-05",
       "value": 0.2
+    },
+    "unit": "m"
+  },
+  "shaft_grasp.depth_past_ball_m": {
+    "note": "grasp point offset along the leg from the paw-ball centre",
+    "sim": {
+      "how": "held at 1.5-3 cm past the ball centre; .008 at z+.03 weak",
+      "measured": "2026-11-05",
+      "value": 0.02
+    },
+    "unit": "m"
+  },
+  "shaft_grasp.max_x_at_table_m": {
+    "note": "right-hand reach at table height, fingers horizontal",
+    "sim": {
+      "how": "IK previews waist cmd -.35, y -.17..-.24 (<= .385 at y -.265)",
+      "measured": "2026-11-05",
+      "value": 0.4
+    },
+    "unit": "m"
+  },
+  "shaft_grasp.width_held_m": {
+    "note": "closed width when the jaws hold the leg just past the paw ball",
+    "sim": {
+      "how": "2 holds: .0315, .0351 (sim session f6b331)",
+      "measured": "2026-11-05",
+      "value": 0.033
     },
     "unit": "m"
   },

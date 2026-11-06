@@ -20,3 +20,11 @@
 | 16:01 | rotated-approach grasp | miss, puppy ended off the table | 0.4 | reset |
 | 16:14 | HOME joints with the hand at (0.22,-0.30,0.12) beside the puppy/edge | hand stuck at (0.16,-0.35,-0.05) | 8.25 | hold; up -> out (0.12,-0.40,0.06) -> HOME; back 0.1 |
 Hazard zone: right hand low (z < 0.12) within 0.1 m of the table edge or the puppy -> never use HOME joints directly.
+
+# Session 20261106T010905Z_puppy_box_r1_f6b331 (sim) — no falls, no tilts > 3 deg
+| time | situation | what happened | fix / rule |
+|---|---|---|---|
+| 17:51 / 17:59 | long or misaligned advance to the paw | fingers pushed the paw 3-6 cm (width > .071 before close) | align 7-9 cm short, y err < 5 mm, advance <= 9 cm |
+| 17:54-17:56 | held puppy at z .275, arm still ~2 min while planning | grip crept and let go (.0313 -> .004), puppy on table | never pause while holding |
+| 18:05 | held at z .365, waist-assisted forward extension | slip -> puppy dropped near the edge (floor?) | no waist change under load; walk straight after the raise |
+Hazard zone: holding the puppy (any pause or waist motion) - the grip is friction-limited and creeps.

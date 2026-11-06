@@ -2,7 +2,7 @@
 
 Run ONE step at a time and look at the printed report / frames between steps (the agent is the checkpoint):
 
-    PYTHONPATH=/tmp/claude-1001/ws_c4f6c3/pylib python controller.py <step> ['{json args}']
+    PYTHONPATH=/home/junjieye/rax-runtime-r1/sessions/20261106T010905Z_puppy_box_r1_f6b331/agent-workspace/pylib python controller.py <step> ['{json args}']
 
 Steps (in order):
     look                      head 0.6, observe, print edge / paws / box (pelvis frame)

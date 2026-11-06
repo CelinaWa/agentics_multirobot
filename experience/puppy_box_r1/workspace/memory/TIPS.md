@@ -137,3 +137,31 @@
   right-hand IK with waist reaches x .54 -> the carry needs ~0.15 m of walking, which the friction pinch does not
   survive (0/2), nor does lowering the puppy onto the table (0/1). Next: a stopper grasp, or ask whether a
   box-beside layout / operator help is allowed.
+
+# Session 20261106T010905Z_puppy_box_r1_f6b331 (r1sonic sim, where: sim) — new rows
+- [strategy] where: sim. The TASK.md leg-SHAFT grasp works: fingers (0,1,0), approach (1,0,0), grasp point 1.5-2.2 cm
+  past the paw-ball centre along the leg -> width .0315/.0351 held (2/4; the 2 misses pushed the paw). Library skill
+  r1-leg-shaft-grasp-lift.
+- [strategy] where: sim. Arc lift (6 x (+1 cm toward hip, +4 cm up), approach z .1 -> .5) then 3 waist-assisted
+  (use_waist) raise steps keeps the width flat (.031) to hand z .365 (2/2). Hanging puppy ~22 cm below the hand.
+- [strategy] where: sim. The shaft grip CREEPS: let go after ~2 min held still (z .275) and at a waist-moving forward
+  extension (z .36). Chain lift -> carry without pauses; avoid waist changes while holding.
+- [strategy] where: sim. Reaching the right hand to y > -0.17 (left of the shoulder) yaws the waist +.06..+.23 rad
+  (cmd 0 or -.35) and the paw moves +1..+10 cm left in the pelvis frame. Keep the paw at y -.20..-.29 at pregrasp.
+- [strategy] where: sim. The pelvis-frame scene does NOT shift after walks (2 frames 6 s apart: .5 cm) nor when the
+  arm goes to READY (.30,-.25,.08) (-2 cm x). Put the arm at READY before the last walks, then measure.
+- [param] where: sim. Camera (head .5-.6) cannot see table height at x < ~.36 (waist 0) / ~.33 (waist -.6 measured -.33).
+  Paw sphere fits on a ball cut by the image border were 4-6 cm off -> require n > 1500 and not at the border.
+- [param] where: sim. Right-hand IK at table height (z .0-.03, fingers horizontal, waist cmd -.35): x <= .40 at
+  y -.17..-.24, x <= .385 at y -.265 (z .03), x <= .346 at y -.286 (z .016); z .006 at (.346,-.287) refused (.031).
+- [strategy] where: sim. A single 12 cm advance to the grasp deviated and pushed the ball 5.6 cm; align 7-9 cm short
+  with < 5 mm y error first (the 7 cm opening clears the 5 cm ball by 1 cm per side).
+- [param] where: sim. Walks this session: back -.1 -> .19-.24; fwd .15 -> .064-.18; fwd .1 -> .048-.13; fwd .08 -> .077;
+  turn 70 -> 57-58 deg (moved ~.33); turn -70 -> 67 deg (moved .42-.44); turn 60 -> 44.5; turn -40 -> -30; turn 20 ->
+  7.6 deg + .08 m right drift. The sequence back x3, turn 70, turn -70 from the start gives paw (.51-.53,-.19..-.25).
+- [strategy] where: sim. ICP re-localization (code/puppy_box/reloc.py) needs a coarse x/y grid init (plain ICP picked a
+  wrong minimum with the same residual); 18 s per call; a yaw grid made it 8.5 min.
+- [sim-only] where: sim, 2026-11-05 18:13 sim update (operator notice): the held-puppy creep/slip on pauses and waist
+  moves (att 4, 6) was a simulator contact artifact, now fixed; r1_walk now self-corrects distance/heading (< 3 cm /
+  6 deg) - all walk statistics above 18:13 are stale. Observed after the update: small turns (12-20) give 6-16 deg,
+  a 100 deg turn moved .58 m, a +90/.15/-90 side-step moved the robot right; fwd .35 -> .32-.38 with ~.1 m right drift.

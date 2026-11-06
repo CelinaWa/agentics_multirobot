@@ -1,5 +1,5 @@
 import sys, json, itertools
-sys.path.insert(0, '/home/junjieye/workspace/multirobot/real_g1_release/rax/runtime/sessions/20261105T232821Z_puppy_box_r1_c4f6c3/agent-workspace')
+sys.path.insert(0, '/home/junjieye/rax-runtime-r1/sessions/20261106T010905Z_puppy_box_r1_f6b331/agent-workspace')
 from api.runtime import Context
 pts = json.loads(sys.argv[1]); appr = json.loads(sys.argv[2]) if len(sys.argv) > 2 else None
 waist = len(sys.argv) > 3 and sys.argv[3] == 'waist'

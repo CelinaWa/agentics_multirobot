@@ -1,6 +1,6 @@
 """Preview right-hand goals: python preview.py x y z ax ay az fx fy fz [x y z ...]"""
 import sys, json
-sys.path.insert(0, '/tmp/claude-1001/ws_c4f6c3')
+sys.path.insert(0, '/home/junjieye/rax-runtime-r1/sessions/20261106T010905Z_puppy_box_r1_f6b331/agent-workspace')
 from api.runtime import Context
 ctx = Context()
 a = [float(v) for v in sys.argv[1:]]

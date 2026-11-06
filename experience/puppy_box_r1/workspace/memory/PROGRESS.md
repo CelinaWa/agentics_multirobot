@@ -1,75 +1,102 @@
-# PROGRESS — puppy_box_r1 (session 20261105T232821Z_puppy_box_r1_c4f6c3, sim)
-Workspace READ-ONLY again -> working copy /tmp/claude-1001/ws_c4f6c3 (code/ memory/ handoff/ skill-library/ kin/ pylib->ws_08803f).
-Read tool denied everywhere; images only via direct r1_observe. Frames: agent-workspace/runtime/frames/<id>/ (cat works).
-New this session: operator help "hind leg overhang" answered in 27 s, presents ONE hind leg ~8 cm past the edge, the
-other hind paw ~11 cm away (clean for the pivot pinch). Front paws also overhang but as a tight pair.
-New tool code/puppy_box/edges.py (RANSAC table edges: distance + normal yaw = robot heading vs table) + look.py.
-## Attempt 1 (initial scene) — approach failed, no contact
-- t0 frame 2026110515294214302e: edge .63, head RIGHT, box BEHIND puppy (x .84-1.14, y -.28..+.12), hind paw (overhang)
-  at (.555,+.03,+.01) -> needs ~0.17 m shift LEFT for the right hand.
-- Turn-walk plan FAILED: in-place turns cmd 45 -> 39.3deg (+0.165 m), cmd 50 -> 40deg (+0.224 m), cmd -45 -> ~35deg
-  (+0.23 m): every pure turn moves the robot ~0.2 m FORWARD along its heading. Ended 0.18 m from the edge at heading
-  44deg with the hanging paw beside the right hip (robot (-.11,-.26)) - no safe move out (back = arm into leg,
-  fwd/turn = body into table). -> reset 1.
-- LESSON: never do lateral re-positioning by turns near the table; each turn ~ +0.2 m forward. Budget it from >=0.8 m.
-## Attempt 2 (reset 1, 15:38) — approach failed again, no contact
-- Same layout (shifted 5 cm right): hanging hind paw centre (.555,-.024), other hind (.58,-.135), front pair overhangs too.
-- Walk data: turn 25 -> 14.2deg (.089 m), fwd .08 -> .149 (+6 cm right drift), back -.1 -> .225 (+4-5 cm right),
-  turn 33 -> 26deg (.077 m, edge 8 cm closer, ~6-8 cm right).
-- DRIFT MODEL [sim]: EVERY walk/turn call drifts the robot ~0.05-0.08 m to its RIGHT (per call, not per metre);
-  turns also move it ~0.002-0.005 m/deg toward the table (X). Lateral shifts LEFT are expensive.
-- IK sweep (horizontal fingers, z .01; code/puppy_box/sweep_angle.py): approach 0deg OK x .33-.38 y -.10..-.25;
-  -15deg OK y -.20..-.30 (y -.15 flips to vertical); -30deg OK y -.25..-.30; -45 only y -.30 x .33. Downward-tilted
-  approaches at x .44 err .02-.046. => the leg must point within ~0-20deg of the robot x axis (square-ish stance) with
-  the paw at y -.10..-.25; an approach 40deg off the leg puts the right finger on the leg.
-- New tools: pawfit.py (sphere fit r .025 to the brown blob near a seed pixel; rms .3 mm), preview.py, edges.py, look.py.
-## Attempt 3 (reset 2, 15:45-15:55) — GRASP + full hanging LIFT to z .285, then SLIP (puppy fell to the floor)
-- Approach (11 walk calls): back -.1 (.237, no drift), turn 95 -> ~84deg moved (+.34,+.35) [world=odometry, x=table normal],
-  combo fwd -.25 + turn -45 -> moved .96 m (!! never combine), turn 60 (.23), walk .2/.1/.15 (.10/.003/.085), turn -100
-  -> moved .53 m to 0.21 from the edge, back -.1 x2 (.117/.165), fwd .1 (.097).
-  Odometry pelvis (r1_walk reply) is consistent with perception (edge world x .747 +-1 cm) -> use it.
-- Turn model fitted: turns pivot about a centre ~0.25-0.39 m to the inside of the turn (car-like arc), x ~0..0.17.
-- Paw not visible at x<.34 (head .6 max): r1_move_joints waist_yaw -.35..-.45 makes it visible (hand swings BACK, safe).
-  Waist-yawed frames: edge yaw differs by ~3.7deg vs waist-0 frame (camera/pelvis coupling); measure in the SAME
-  waist config you will grasp in. Grasped WITH the waist at -0.35 cmd (-0.16..-0.25 measured).
-- Pivot pinch: paw (0.31,-0.213,-0.029) (sphere fit), pregrasp x-.08, grasp (0.313,-0.212,-0.028) approach (1,0,0)
-  fingers (0,1,0): IK err .022 (low z), servo ok -> close -> width .032 HELD (1/1).
-- Lift (code/puppy_box/lift.py guarded): approach (1,0,0) to z .123 (w .0311), then (1,0,.3/.4/.5/.6) to z .285 at
-  x .29: w .0311 STABLE, puppy FULLY HANGING head-down in front of the table edge (hand 12 cm before the edge).
-  Next step z .325 with approach (1,0,.8): servo correction 3 cm in y + approach change -> SLIP (w .004), puppy fell
-  to the FLOOR. Lesson: under full load keep the approach constant, small steps, no big servo jumps; keep the hand
-  over the table (x >= edge) so a drop lands on the table.
-## Attempt 4 (reset 3, 15:58-16:02) — grasp MISSED, puppy knocked to the floor
-- Approach: back x2, turn 90 (-> 77.7deg, (+.34,+.15)), back (Y -.25), turn -90 (moved .50 m! to .25 from the edge),
-  back, fwd .1 -> paw (.32,-.27) at waist 0. RIGHT TURNS pivot about a centre ~(0.02,-0.52) (2 fits), left ~(.05,.31).
-- Waist -0.35 look: pelvis counter-rotates (IMU yaw +5.9deg) -> paw appeared at (.354,-.306): pinch unreachable (ik .043).
-- turn -15 -> heading -16..-20deg and moved BACK ~0.1 (unexpected). fwd .12 -> .095. Paw (.38,-.162) visible at waist 0.
-- Pinch with approach rotated +10deg (leg at +20deg): pregrasp ok (ik .019), paw re-measured with arm out (.369,-.167),
-  advance to (.372,-.166,-.026) -> close -> width .004 = MISS; afterwards the puppy was gone from the table (floor).
-  Cause unknown (no view of the contact). Lesson: only grasp in the proven configuration (heading ~0, approach (1,0,0),
-  paw at (.31,-.21) measured in the waist -0.35 config).
-## Attempt 5 (reset 4, 16:03-16:15) — grasp + lift ok, DROPPED by walking while holding
-- Approach with the MPC planner (walkplan.py/plan4.py, turn-arc model): back, back, turn 60 (46.6deg), turn -50 (6.9deg,
-  edge .528), fwd .1/.1/.15 -> paw (.381,-.169,-.004) in the waist -.35 config; pregrasp; re-measured (.389,-.183,-.006);
-  grasp at (.383,-.183,-.004) (full depth ik .031 > limit) -> width .0344 HELD.
-- Lift (1,0,0) to z .09 (w .0313), then forward+up (.39,.125)->(.43,.18)->(.43,.265) approach (1,0,.2..0.5): w .0307,
-  puppy hanging over the table top. Box front wall then at x .68 (edge .48, heading 10.5deg).
-- r1_walk 0.15 (0.089 m) holding -> width .0041: DROPPED; the puppy landed on its back, legs up, against the box front.
-- Tried a stopper grasp on an upward leg shaft (approach (0.97,0.24,0), no waist ik .004 / with waist exact): the hand
-  stopped 2 cm high twice (z servo maxed) -> width .004; a ball pinch also missed (pelvis moved with the waist).
-- HOME from beside the puppy -> tilt 8.25deg (hand caught); freed by up -> out -> HOME; stepped back. Robot safe.
-## FINAL (16:22, 54 min used of 120; resets 4/10; falls 0)
-- TASK NOT ACHIEVED (0 placements). Final state: robot standing ~0.37 m from the edge, arms home, grippers open;
-  puppy on its back on the table in front of the box; box upright; nothing on the floor.
-- Skill library: commit 6e5f23d (new r1-walk-approach draft; r1-paw-pivot-pinch v2) in /tmp/claude-1001/ws_c4f6c3/
-  skill-library, patch in output/; skill_library_merge -> merged:false (reads the read-only workspace clone).
-## Attempt 6 (reset 5, 16:19-16:23) — test of the no-walk place: box OUT OF REACH, then slip on lowering
-- Same approach sequence (back, back, turn 60, turn -50, fwd .15/.15/.2) -> close stance: paw (.28,-.202,.011) at waist
-  -.35; pregrasp (.20) -> grasp (.283) -> width .0345 held (3/3 in this configuration over the session).
-- Lift (1,0,0) to z .10, forward+up to (.42,-.217,.26): width .0315 stable.
-- Box front-left bottom corner at (.663,-.164) -> interior x >= .68. Waist IK preview: (.54,-.24,.28) ok (waist roll
-  .47 = limit), (.58) flips branch, (.62) unreachable => the no-walk place is ~0.12-0.15 m short in this layout.
-- Lowering to z .16 (approach (1,0,.3)) to rest the body on the table before a walk -> width .0255 -> .004 SLIP
-  (load direction change when the body touches the table). Puppy on its back in front of the box again.
-- Final (16:23): robot ~0.6 m back from the edge, arms home, grippers open, tilt 1.3; puppy on the table; box upright;
-  nothing on the floor. Resets used 5/10.
+# PROGRESS — puppy_box_r1, session 20261106T010905Z_puppy_box_r1_f6b331 (sim)
+Workspace WRITABLE this time. Inherited code paths repointed (sed) to this workspace.
+New in TASK.md: SHAFT grasp (grasp point ~3 cm up the leg from the paw ball toward the hip, approach (1,0,0),
+fingers (0,1,0), close to 0 -> held .031-.040), ARC lift (+1.5 cm fwd per 4 cm up first 10 cm, then +1/4,
+approach (1,0,0)->(1,0,.5), steps <= 4 cm), walking while holding OK with the deep grasp (3 walks .05-.08).
+
+## Attempt 1 (initial scene, 17:10)
+- Start frame 202611051710086ba406: edge .634 square, head RIGHT, box BEHIND (x .85-1.14, y -.27..+.13).
+- help overhang (29 s): frame 2026110517112365e969: overhanging hind paw (.556,+.048,.003), other hind (.604,-.063),
+  front paws (.558,-.135,-.011) (also overhangs), (.576,-.185). Box y -.266..+.132.
+- Plan (walkplan model): back -.1, back -.1, turn 70, turn -60 -> pelvis world (.238,.251,9deg); target paw at (.30,-.20).
+- Walk log (odometry 'pelvis' = world, consistent with edges to ~1 cm): back -.1 -> .20 / .219 (+-3 cm y);
+  turn 60 -> 44.5deg actual, moved (.269,.07) [model ok]; fwd .15 -> .18 at heading 45; turn -40 -> -29..-31deg actual,
+  moved .26; back -.1 -> .217; fwd .15 -> .10. => this session turn ratio ~0.74-0.75 x cmd (model had 0.87).
+- Ended heading +15.8, edge .49, paw (.369,-.144,-.023) [waist -.35]. Leg (paw->hip) measured from shaft surface
+  points: pelvis yaw -32deg (= -13deg vs table normal), pitch +24deg up. Approaches along the leg (-15..-32deg) are
+  unreachable at y -.16 (shoulder roll at limit) except with use_waist (waist yaw +.7, roll .47 = limit -> not used).
+  (1,0,0) ik .031 but 30deg off the leg. Lesson: the stance needs heading <= 0 (leg within ~15deg of +x) AND paw at
+  y -.20..-.25; leftward shift + right heading is not reachable near the table -> reset 1 to re-approach.
+## Attempt 2 (reset 1, 17:20) — approach only, no contact
+- Reset layout = c4f6c3 layout: edge .626 square; overhang hind paw (.546,-.023,-.002), other hind (.597,-.133).
+  Leg (paw->hip) measured at waist 0 from >= .45 m: yaw -9..-13 deg vs table normal, rising ~14 deg; horizontal-ish.
+  !! Close-range waist-yawed views (paw x < .34) gave leg yaw -32..-44 = ARTEFACT. Measure the leg at waist 0, x >= .40.
+- Walks: back .236, back .234 (odometry not reset by the operator reset), turn 70 -> +58.4deg (ratio .83), moved (.333,.065);
+  turn -70 -> -67.4deg (ratio .96), moved (.441,.231) -> paw (.276,-.231) heading -8.5 (too close to see);
+  back -.1 -> .207 => paw (.451,-.222) waist 0, visible, leg yaw -6 (robot frame);
+  fwd .15 -> .087 (+.047 drift right) => paw (.388,-.175) [GOOD stance: preview grasp (.418,-.178,-.008) ik .024];
+  fwd .1 -> .11 => paw ~(.29,-.15) (invisible) ; back -.1 .218 ; fwd .15 .064 => paw (.426,-.117);
+  turn 20 -> only 7.6deg and drifted .08 RIGHT => paw (.37,-.067). Small turns (<= 20) are useless (mostly drift).
+- IK at waist 0: grasp x >= .445 at y -.12 is NOT reachable with fingers horizontal (ik .032-.04, wrist flips).
+  With use_waist the backend wants waist yaw .58-.76 + roll .44-.47 (limit) -> not used.
+## Attempt 3 (reset 2, 17:27) — approach ok, reach aborted (paw drifted left in the pelvis frame), no contact
+- Deterministic: back x3 (.237,.236,.226), turn 70 (57.3deg, (.339,.088)), turn -70 (moved .439) -> paw (.513,-.232)
+  heading -5.2 edge .572; fwd .15 (.086) -> paw (.461,-.202) heading -9.2 [frame 2026110517275593f4fc, best ref view];
+  fwd .1 (.103) -> paw (.389,-.165) heading -13.7 (paw at image bottom) [frame A 20261105172803865b10].
+  Forward walks rotate the robot right ~4deg each and drift it right 3-5 cm.
+- Pregrasp (.34,-.166,.012) fingers (0,1,0): measured waist yaw +.17 (cmd 0); then the scene was SHIFTED +.057..+.107 m
+  in y (and -.02..-.03 x) vs frame A in every later frame (landmarks: box corner, tail; ICP). Paw then ~(.36,-.08..-.10)
+  = too far left (y > -.12: shoulder roll at limit, IK flips fingers vertical). Not caused by the current arm pose
+  (persists with the arm home). Unknown whether A was a post-walk transient -> TEST: observe twice after a walk.
+- Camera cannot see the paw at grasp range (x < .36-.40) in any waist config; hand is never in view near the paw.
+- code/puppy_box/reloc.py (ICP re-localization): coarse x/y grid init needed (plain ICP stuck at a wrong minimum);
+  the yaw grid version took 8.5 min = TOO SLOW, do not use the yaw grid. topdown.py renders a top view (debugging).
+## Attempt 4 (reset 3, 17:49) — FIRST HELD SHAFT GRASP + full arc lift, then slip while holding still
+- approach.py (back x3, turn 70, turn -70): paw (.526,-.235) heading -4; settle check: 2 frames 6 s apart differ .5 cm
+  (=> walking does NOT cause the big shift; reaching across (y > -.17) with waist 0 does: waist yaws +.17..+.23).
+- Arm READY (.30,-.25,.08) before walking (shift only -.02 x): fwd .15 -> .077, fwd .1 -> .048 => paw (.413,-.234)
+  [frame 20261105175004ec2c58, leg yaw -6]; fwd .1 -> .065 => paw invisible (x ~.35).
+- waist cmd -.35 -> paw partially visible (.339,-.215) [partial sphere fit = BIASED]; pregrasp (.27,-.218,0);
+  advance to (.361,-.215,0) + close -> .009 = MISS (paw really at ~.39,-.17: pushed ~3 cm).
+- Re-look with the hand at pregrasp (.28,-.22,.01), waist cmd -.35 (measured -.10): paw FULLY visible (.383,-.171)
+  -> align (.31,-.178,.016) -> paw (.39,-.167,.007), leg yaw -15 -> grasp (.405,-.173,.014) (ik .0276; hand ended
+  (.42,-.161,.037)) -> close -> width .0351 HELD.
+- Arc lift lift.py 6 steps (dx +1, dz +4, approach z .1->.5): width .0313 constant, hand (.477,-.163,.275), puppy
+  hanging head-down, lowest point z ~.05-.07 (hang ~22 cm below the hand; rim z .11 => hand must be >= .35).
+  Without waist the hand cannot go higher/further (x .50 z .30 ik .044); with use_waist z .37-.40 at x .45-.48 is
+  reachable (waist roll .14-.2).
+- I then spent ~2 min planning with the arm still: width went .0313 -> .004 = SLIPPED WHILE STATIONARY; puppy on its
+  back on the table in front of the box. => chain lift -> raise -> walk without pauses (code/puppy_box/run.py).
+## Attempt 5 (reset 4, 17:58) — run.py steps; grasp missed twice (paw pushed), no lift
+- approach -> paw (.527,-.193) (4 cm more left than att 4: turn-arc noise +-2-4 cm); ready; fwd .15 (.071) -> (.46,-.197);
+  fwd .1 (.082) -> (.376,-.218); pre -.21 -> paw (.383,-.204) visible, leg yaw -8.6.
+- grasp (.40,-.207,.018) in ONE 12 cm advance from (.278,-.209): width .0727 before closing (= contact), closed .0227,
+  then .0097 within 5 s; paw pushed 5.6 cm (to .439). LESSON: always align ~8 cm short first (att 4), single long
+  advance deviates and pushes the ball; jaw clearance around the 5 cm ball is only +-1 cm.
+- After the push: paw (.365,-.148) -> pre/align at y -.15: every leftward reach yaws the waist +.06..+.19 and the paw
+  shifts +1..+4 cm left in the pelvis frame -> grasp (.398,-.135) missed (.004). Paw y must be <= -.17 at pregrasp.
+## Attempt 6 (reset 5, 18:02) — grasp HELD .0315, lift+raise to z .365 OK, SLIP on forward extension
+- approach -> paw (.509,-.248); ready; fwd .15 -> paw (.459,-.308) (robot drifted LEFT + turned left 4deg this time);
+  fwd .1 (.13) -> paw invisible; pregrasp (.24,-.28,.02) waist -.35; waist -.6 -> paw fully visible (.333,-.293),
+  leg yaw -12.5; waist back -.35, align (.272,-.297,.015); fast ICP (reloc.py, x/y grid only, 18 s) -> paw
+  (.326,-.283); grasp (.346,-.286,.016) ik .0278 -> width .0315 HELD (z .006 was ik .0312 refused).
+- run.py lift: 6 arc steps + 3 waist-assisted raise steps, hand (.39,-.27,.365), width .0316 -> .0306 (creeping).
+- Then extension (.43,-.26,.35) with use_waist (waist yaw/roll moved): SLIP .004 -> puppy fell (hand just in front
+  of the edge -> probably floor). Waist motion under load = slip (also att 4's stationary slip).
+## Attempt 7 (reset 6, 18:07) — stance ok, grasp too shallow (.0145), stopped for time
+- approach -> (.547,-.251); ready; fwd .15 -> (.464,-.273); fwd .1 -> (.371,-.281); pre (.26,-.28) + waist -.6 look
+  -> paw (.369,-.266) leg yaw -13.6; waist -.35, align (.29,-.268) -> paw visible (.377,-.265,0) with the arm out.
+- 2 cm-deep grasp (.394,-.27,.014) ik .0396 refused; (.385,-.265,.03) ik .0293 -> width .0145 (weak) -> released,
+  retreat (up/out -> HOME -> back -.1). FINAL 18:09: robot standing .63 m from the edge, arms home, grippers open,
+  tilt 1.0; puppy on the table, box upright; nothing moved by the robot in this attempt.
+
+## FINAL STATE / NEXT STEPS (18:20)
+- TASK NOT ACHIEVED. Resets 6/10. Falls 0. Best: grasp + lift + raise to z .365 (att 6).
+- Skill library: r1-leg-shaft-grasp-lift (draft) merged -> main aa203c6.
+- Handoff: handoff/README.md (this session), older one moved to handoff/README_c4f6c3.md.
+- Next: (1) after the raise, walk immediately (run.py carryloop) - no extension, no pause; (2) or test grip
+  endurance at z .36 for 10-30 s first; (3) stance so the paw is at x .36-.38, y -.20..-.25 at pregrasp (deep grasp
+  reachable).
+## 18:14 ENGINEERING NOTICE (operator, reset 7): simulator updated at 18:13:
+  (1) held puppy no longer creeps out of a closed gripper on pauses / waist moves (att 4/6 slips = sim artifact, fixed);
+  (2) r1_walk now waits until still and corrects distance + heading (residual < 3 cm / 6 deg; reply has turned_deg);
+      old walk statistics are STALE; rightward drift per call remains. Reset budget continues (7/10 used).
+## Attempt 8 (reset 7, new sim, 18:14-18:18) — stance chase only, no contact
+- New layout after the sim update: overhang hind paw (.551,-.068) with the other hind paw only 6.5 cm LEFT (no room
+  for the left jaw); lower FRONT paw (.548,-.25) overhangs too, leg yaw +11 (both legs now point +11..+13 deg).
+- New r1_walk (self-correcting) observations: turn -90 -> heading ok, moved .15; fwd .1 -> .104; turn 100 -> moved
+  .578 (!), heading only ~+88; turn 18 -> +10 deg; turn 20 -> ~+16; fwd .35 -> .32/.379 (paw drifted ~+.2 left in
+  the robot frame over 2 walks); turn 12 -> +6; turn +90 / fwd .15 / turn -90 side-step moved the robot RIGHT, not left.
+  => small turns still under-turn; turn pairs still displace a lot. Re-model the new walk before planning stances.
+- FINAL (18:18): robot standing ~.6 m from the table edge, heading ~24 deg, arms home, grippers open, tilt 1.3;
+  puppy on the table near the box (not in it), box upright, nothing on the floor in view. Resets 7/10. Falls 0.

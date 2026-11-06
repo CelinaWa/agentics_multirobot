@@ -46,3 +46,17 @@ Funnel (this session, 4 resets used of 10, 0 falls): approach 5/5; grasp: vertic
 | 4 | 3 | 9 calls | rotated approach +10deg: MISS w .004 | - | puppy off the table -> reset 4 |
 | 5 | 4 | 7 calls (MPC planner) | pivot pinch w .0344 | z .265 over the table edge ok; walk .089 -> DROP | puppy on its back in front of box; 3 leg grasps missed; robot safe |
 Look points: every approach call (edges.py heading + odometry); paw sphere fit before pregrasp, after pregrasp; image after each lift stage.
+
+# Session 20261106T010905Z_puppy_box_r1_f6b331 (sim) — by hand + code/puppy_box/run.py steps, no unattended runs
+| att | reset | stance (paw at pregrasp) | grasp | lift / carry | outcome | frames |
+|---|---|---|---|---|---|---|
+| 1 | start | turns ended heading +16, paw (.37,-.14) | - | - | leg 30 deg off the approach -> reset | 2026110517112365e969, 20261105171644da5397 |
+| 2 | 1 | paw drifted to y -.07 (small turns = drift) | - | - | reset | 20261105172618b4594d |
+| 3 | 2 | paw (.389,-.165) home; after reach ~(.36,-.09) | - | - | scene shifted +7-10 cm on reach -> reset | 20261105172803865b10, 202611051736096e7d72 |
+| 4 | 3 | (.39,-.167) at pregrasp | 1st miss (.009, pushed), 2nd HELD .0351 | arc lift to z .275 ok; slipped while still ~2 min | puppy on table (back) | 20261105175256808e82, 20261105175402b09f0a, 20261105175600c233c3 |
+| 5 | 4 | (.383,-.204) | .0227 -> .0097 (pushed 5.6 cm); retry .004 | - | reset | 2026110517590404a107, 2026110517593973b647 |
+| 6 | 5 | (.326,-.283) via waist -.6 look + ICP | HELD .0315 | lift + raise to z .365 ok; slip on waist extension | puppy dropped (floor?) | 20261105180340cc925c, 20261105180543d85505, 20261105180556c9c9e8 |
+| 7 | 6 | (.377,-.265) | (.385,-.265,.03) -> .0145 weak | - | stopped (time); robot retreated | 202611051808396c3725, 20261105180927942b30 |
+Funnel: stance usable 5/7; grasp held 2/6 tries (strong) + 2 weak; lift to z>=.27 2/2; carry 0/0 started; place 0.
+Final: robot standing .63 m from the edge, arms home, grippers open, tilt 1.0; puppy on the table (reset 6 layout), box upright.
+| 8 | 7 (new sim) | front paw (.548,-.25) target; stance chase with the new self-correcting walk failed (side-step went right) | - | - | stopped; robot ~.6 m from the edge, arms home, grippers open | 20261105181416ff3e82, 20261105181816959b47 |
