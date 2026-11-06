@@ -6,7 +6,7 @@ STATUS 2026-11-06 (tested): run against the REAL R1 deployment in simulation - r
 CPU build of r1_deploy_onnx_ref) + the lab's R1 MuJoCo DDS simulator (MA-Teleop teleop/clients/sim/r1_sonic_sim.py,
 DDS domain 42 on lo; run.sh fixes its gyro frame, see there), free-running like the robot. Through the RAX backend:
 table-front reaches 27/27 (0.3-1.8 cm); walk() 0.14-0.5 m and +/-30 deg turns, no falls; carry chain (reach, close,
-lift, r1_carry_release, lower, open) 13/14 to the 0.21 m target and released, no falls (one bridge crash, see main).
+lift, r1_carry_release, lower, open) 20/22 to the 0.21 m target and released, no falls (one stall, one bridge crash).
 Long walks overshoot (0.5 m -> 0.6-0.9 m): re-observe after walking.
 Head pitch tracks (deploy needs --r1-head-tracking --r1-head-pitch-range 0.5). Camera: frames from MA-Teleop
 tools/r1/publish_camera.py tested with a video source. Right PiPER: tested against a protocol stand-in only.
