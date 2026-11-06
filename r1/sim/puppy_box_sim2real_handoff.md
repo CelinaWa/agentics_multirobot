@@ -120,3 +120,24 @@ Other measured facts: forward walks drift 2-6 cm right; reaching right of y > -0
 cm off); the pelvis moves ~2 cm back when the arm extends; an IK wrist flip can drop a held paw (its safe_move
 guard now refuses flips). Handoff plan: separate the paws >= 3 cm, pivot-pinch, lift along the recorded
 waypoints, carry in <= 0.1 m walks checking the grip, lower over the box, release.
+
+## RAX session 4 (2026-11-05, sim) and the grasp-depth measurement
+- Session 4 (`20261105T232821Z_puppy_box_r1_c4f6c3`): 0 placements, 5/10 resets, 0 falls. The agent's pivot pinch
+  held 3/3 in its proven stance and lifted the puppy to a full hang (hand z 0.285), but every walk toward the box
+  dropped it, and the box-behind layout put the box interior 12-15 cm beyond no-walk reach. New skills:
+  `r1-walk-approach` (turn-arc walk model + planner) and `r1-paw-pivot-pinch` v2.
+- Engineering measurement afterwards (private sim, the agent's own `r1_move_hand`/`r1_gripper`/`r1_walk` path,
+  contact forces logged): the clamp is 5-6 N per jaw at friction 3.0, so friction is not the problem. The grasp site
+  sits only ~2 cm from the fingertip end of the pads, so a pinch centred on the paw ball lets the leg pull out after
+  ~2 cm of slip, and a straight vertical lift forces that slip (the leg pivots at the hip 7 cm away).
+  Grasping ~3 cm up the shaft and lifting along the arc about the hip: lifts held 4/5 (vs ~50% before) and the
+  held puppy survived three `r1_walk` calls, including the hand passing over the table edge, with the width
+  unchanged (0.031 m). The held puppy's body hangs only ~15 cm below the hand (the hip joint locks), so a hand
+  ~0.30 m above the table clears the 14 cm rim. These facts are now in the task's gripper note for the agent.
+- **Real-robot check:** the 2 cm pad margin is a property of the model's grasp site vs the PiPER pads: confirm on
+  the hardware where the real pads end relative to the commanded grasp point, and that a real plush leg (soft,
+  longer) behaves like the sim's 7 cm rigid capsule only loosely - the arc lift should matter less with fabric.
+- Sim/harness fixes from this round: a puppy limb arranged by the operator kept its spring rest across resets and
+  could prop the re-placed puppy up like a kickstand (fixed: `reset`/`reset_scene` clear the puppy's joints);
+  sessions now live outside the protected `rax/` checkout (`rax/runtime` is a link to `~/rax-runtime-r1`), so the
+  agent's workspace is writable and its skill-library merges work without the manual patch dance.

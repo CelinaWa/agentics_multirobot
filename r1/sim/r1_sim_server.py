@@ -112,6 +112,7 @@ class Sim:
     def _reset_robot(self):
         m, d = self.m, self.d
         mujoco.mj_resetData(m, d)
+        self._reset_dog_joints()
         sx, sy, syaw = [float(v) for v in self.layout.get("spawn", "0,0,0").split(",")]
         if self.spawn_back is not None and "edge" in self.layout:
             sx = self.layout["edge"] - self.spawn_back
@@ -602,6 +603,11 @@ class Sim:
         out["right_grasp"] = d.site_xpos[site].round(4).tolist()
         out["dog_parts"] = [d.xpos[m.body(n).id].round(4).tolist() for n in ("dog",)]
         out["dog_paws"] = [d.geom_xpos[m.geom(f"dog_paw_{k}").id].round(4).tolist() for k in range(4)]
+        out["dog_hips"] = [d.xpos[m.body(f"dog_limb_{k}").id].round(4).tolist() for k in range(4)]
+        out["dog_limb_q"] = {f"{k}_{j}": round(float(d.qpos[m.jnt_qposadr[m.joint(f"dog_limb_{k}_{j}").id]]), 3)
+                             for k in range(4) for j in ("swing", "splay")}
+        out["dog_limb_spring"] = {f"{k}_{j}": round(float(m.qpos_spring[m.jnt_qposadr[m.joint(f"dog_limb_{k}_{j}").id]]), 3)
+                                  for k in range(4) for j in ("swing", "splay")}
         _ci = m.camera("head_cam").id   # true camera pose + the right grasp site, for calibration checks
         out["head_cam_world"] = {"pos": d.cam_xpos[_ci].round(4).tolist(),
                                  "xmat": d.cam_xmat[_ci].round(4).tolist()}
@@ -632,9 +638,22 @@ class Sim:
         self.table_shift += (dx, dy)
         mujoco.mj_forward(m, d)
 
+    def _reset_dog_joints(self):
+        """A fresh plush: every puppy limb/neck/tail joint back to 0, and the spring rests the operator set (dog_joint)
+        cleared, so an arranged leg cannot prop the re-placed puppy up like a kickstand on the next reset."""
+        m, d = self.m, self.d
+        dog = m.body("dog").id
+        for j in range(m.njnt):
+            b = m.jnt_bodyid[j]
+            if m.jnt_type[j] == mujoco.mjtJoint.mjJNT_FREE or m.body_rootid[b] != dog or b == dog:
+                continue
+            a, v = m.jnt_qposadr[j], m.jnt_dofadr[j]
+            d.qpos[a] = 0.0; d.qvel[v] = 0.0; m.qpos_spring[a] = 0.0
+
     def reset_scene(self):
         """Puppy and box back where the layout put them on the table (wherever the table now is)."""
         m, d = self.m, self.d
+        self._reset_dog_joints()
         for body, key in (("dog", "place"), ("box", "place_box")):
             f = [float(v) for v in self.layout[key].split("=")[1].split(",")[1:]]
             self.place(body, [f[0] + self.table_shift[0], f[1] + self.table_shift[1], f[2]], f[3:7])
@@ -708,6 +727,21 @@ def serve(sim, port, stop):
                     j = sim.m.joint(req["name"]).id; a = sim.m.jnt_qposadr[j]
                     sim.d.qpos[a] = float(req["value"]); sim.m.qpos_spring[a] = float(req["value"]); sim.d.qvel[sim.m.jnt_dofadr[j]] = 0.0
                     mujoco.mj_forward(sim.m, sim.d); out = {"name": req["name"], "value": float(req["value"])}
+                elif op == "contacts":      # diagnostics: every contact on a gripper (geoms, normal force, penetration, friction)
+                    out = {"contacts": []}
+                    f6 = np.zeros(6)
+                    for i in range(sim.d.ncon):
+                        c = sim.d.contact[i]
+                        n1, n2 = sim.m.geom(c.geom1).name or "", sim.m.geom(c.geom2).name or ""
+                        if "gripper" not in n1 + n2: continue
+                        mujoco.mj_contactForce(sim.m, sim.d, i, f6)
+                        out["contacts"].append({"geoms": [n1, n2], "normal_N": round(float(f6[0]), 3),
+                                                "tangent_N": round(float(np.hypot(f6[1], f6[2])), 3), "dist_m": round(float(c.dist), 5),
+                                                "mu": round(float(c.friction[0]), 3), "dim": int(c.dim)})
+                    for s_ in ("left", "right"):
+                        out[f"{s_}_ctrl"] = [round(float(sim.d.ctrl[k]), 4) for k in sim.grip_act[s_]]
+                        out[f"{s_}_act_force"] = [round(float(sim.d.actuator_force[k]), 3) for k in sim.grip_act[s_]]
+                        out[f"{s_}_width"] = round(sim.gripper_width(s_), 4)
                 elif op == "head":          # command head pitch (rad, + = look down); held like the real r1_head
                     sim.row[23] = float(np.clip(req["pitch"], -0.62, 0.62)); out = {"head_pitch": float(sim.row[23])}
                 elif op == "shutdown":
