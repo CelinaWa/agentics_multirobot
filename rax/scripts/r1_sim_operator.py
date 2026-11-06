@@ -19,6 +19,7 @@ def main():
     ap.add_argument('--notice', default='', help='engineering notice appended to every reply (e.g. a simulator update)')
     ap.add_argument('--resets-used', type=int, default=0, help='resets already granted before this daemon started (restart)')
     ap.add_argument('--max-stances', type=int, default=20, help='sim-only "grasp stance" placements granted (0 disables)')
+    ap.add_argument('--stances-used', type=int, default=0, help='stance placements already granted before this daemon started')
     a = ap.parse_args(); root = a.session; ctx = zmq.Context()
 
     def req(op, **f):
@@ -84,7 +85,7 @@ def main():
         return hang, g, paw
 
     arm(); log('armed for', a.arm_minutes, 'min; max resets', a.max_resets)
-    resets = a.resets_used; stances = 0; seen = set()
+    resets = a.resets_used; stances = a.stances_used; seen = set()
     while True:
         folder = os.path.join(root, 'operator', 'requests')
         for p in sorted(glob.glob(os.path.join(folder, '*.json')), key=os.path.getmtime):
