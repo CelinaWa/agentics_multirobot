@@ -28,6 +28,14 @@
   "camera_z_bias_waist_yawed_m": {
     "sim": 0.02
   },
+  "carry.edge_min_m": {
+    "sim": {
+      "how": "3d54de R8: carry ended .147 from the edge, no contact; .22 cut R10 short (torso on the rim)",
+      "measured": "2026-11-06",
+      "value": 0.16
+    },
+    "unit": "m"
+  },
   "carry.high_raise_walk_survival": {
     "sim": {
       "how": "cf6e88 st8, st9: approach z 1.0 cmd z .50-.54, width .053",
@@ -88,6 +96,18 @@
       "value": "wall + 0.10 - (hand_x + 0.06)"
     }
   },
+  "carry.torso_ahead_of_hand_m": {
+    "sim": {
+      "how": "3d54de operator ground truth after r1_carry_release (R10, R8, s4): torso x - final hand x",
+      "measured": "2026-11-06",
+      "value": [
+        0.025,
+        0.044,
+        0.053
+      ]
+    },
+    "unit": "m"
+  },
   "carry.walk1_survival": {
     "sim": {
       "how": "cf6e88 stance runs",
@@ -110,6 +130,13 @@
       "value": "0/2 (walk .1 -> drop; walk .05 -> drop)"
     }
   },
+  "carry_release.counts_advance": {
+    "sim": {
+      "how": "3d54de s1/R3: walk stopped once advance_m + walked >= target_forward_m",
+      "measured": "2026-11-06",
+      "value": true
+    }
+  },
   "carry_walk_with_pivot_pinch": {
     "sim": "0/1 (dropped during a 0.186 m walk with the hand at z .27)"
   },
@@ -128,6 +155,14 @@
     "note": "close width above which the pads are on the paw ball (horizontal fingers)",
     "sim": {
       "how": "5600c1: horizontal regrasps at .033/.0385 widened (.037->.043) and pushed the paw (j11, R3); final gate .045 + 1 regrasp: 3/3 placed",
+      "measured": "2026-11-06",
+      "value": 0.045
+    },
+    "unit": "m"
+  },
+  "grasp.depth_past_my_paw_fit_m": {
+    "sim": {
+      "how": "3d54de cl.py; reduced to .405 - paw x for far paws",
       "measured": "2026-11-06",
       "value": 0.045
     },
@@ -183,6 +218,13 @@
     },
     "unit": "m"
   },
+  "lift.chain_completion": {
+    "sim": {
+      "how": "3d54de chain.py LIFT profile via cl.py (s4,s5,s6,s7,s8,R6,R8,R8b,R10)",
+      "measured": "2026-11-06",
+      "value": "6/9"
+    }
+  },
   "lift.end_hand_z_m": {
     "sim": {
       "how": "2fbfb7 chain.py LIFT profile, servo off, measured hand z",
@@ -210,6 +252,13 @@
       "value": 0.4
     },
     "unit": "m"
+  },
+  "lift.r1_leg_lift_completion": {
+    "sim": {
+      "how": "3d54de bl.py (s1,R2,R3,R4,R5,s2,s3)",
+      "measured": "2026-11-06",
+      "value": "2/7"
+    }
   },
   "lift.success_rate_horizontal": {
     "note": "slip signature: width rises 2-4 mm at steps 0-2 then falls at hand z .10-.17",
@@ -290,6 +339,17 @@
   },
   "pelvis_shift_back_reaching_x040_m": {
     "sim": 0.02
+  },
+  "perception.paw_fit_bias_vs_operator_m": {
+    "sim": {
+      "how": "3d54de s1-s7: my sphere fit minus the operator paw (x, y)",
+      "measured": "2026-11-06",
+      "value": [
+        0.012,
+        0.006
+      ]
+    },
+    "unit": "m"
   },
   "pinch_paw_width_held_m": {
     "sim": [
@@ -755,5 +815,13 @@
   },
   "walk_lateral_drift_per_forward_walk_m_e0ac0c": {
     "sim": "0.02-0.06 to the RIGHT each call (scene shifts +y)"
+  },
+  "walkin.x_ok_m": {
+    "sim": {
+      "how": "3d54de: paw x .378 -> chain lift step 0 refused (IK); stop while visible",
+      "measured": "2026-11-06",
+      "value": 0.375
+    },
+    "unit": "m"
   }
 }

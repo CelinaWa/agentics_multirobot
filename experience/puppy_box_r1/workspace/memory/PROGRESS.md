@@ -1,27 +1,29 @@
-# PROGRESS - session 20261106T094654Z_puppy_box_r1_5600c1 (sim, 7200 s budget)
+# PROGRESS - session 20261106T112411Z_puppy_box_r1_3d54de (sim, 7200 s, started ~03:23 local, ends ~05:23)
 
-## Current step (FINAL, ~4600 s of 7200)
-FINAL STATE (j21): puppy INSIDE (operator), robot .44 m behind the edge, standing (tilt .85), arms home, grippers open.
-6 inside / 25 attempts (j2, j4v, R2 walk-in, j13, j14, j21). Library v4.1 merged (main f3b9bcd).
-KEY FINDING: lift completes 1/9 with paw x < .32, 5/6 with x >= .32 and y <= -.18 (j21 = prospective confirmation).
-Resets 5/10, stance placements 21/30. Next session: make the walk-in land at paw x .32-.38, y -.19..-.24 (no back steps).
-Handoff written (handoff/README.md). Next session: improve the LIFT (~50%): try moving the hand toward the body's
-centre of mass while lifting, or the box-beside layout; walk-in: stop at paw x <= .39 (visible) instead of stepping back.
+## Current step (05:01) - session wrap-up done
+Resets 10/10 used. Stance placements 19/20 (s15-s19 all failed: lift aborts, s17 carry stall; regrasp rule OFF after s18). Library merged 4x:
+r1-walkin-leg-chain-lift-box v2 (draft) + r1-leg-lowtilt-lift-advance-carry v4.2 -> main 83707ce. handoff/README.md,
+TIPS rows, INCIDENTS rows, PARAMS.json entries written. Final: robot backed off, arms home, grippers open (puppy NOT in the box at the end: s19 failed).
 
-## (start of session) Start: run library skill r1-leg-lowtilt-lift-advance-carry v3 (python code/puppy_box/run_skill.py <tag>) from
-JITTERED operator grasp stances (+-3 cm this session), count per stance offset in memory/RUNS.md, fix weakest stage.
-Then >= 1-2 reset walk-ins (python code/puppy_box/home.py 0.6; python code/puppy_box/walkin3.py 0.38 0.35 6).
+## Controller (final)
+`bash code/puppy_box/full.sh <tag>` = home.py -> walkin5.py (.35/.375) -> cl.py -> one in-place retry after a safe
+lift abort / weak-grip put-back / grasp miss. Then ask the operator "Question only, please do not move anything: is
+the puppy inside the box?". From a stance: `python code/puppy_box/cl.py <tag>`; sim batches:
+`python code/puppy_box/stance_batch.py <n0> <n> [key=value]`.
+cl.py v6: look (lowtilt v4.2 waist look) -> grasp depth .045 (<= .405 - paw x) -> regrasp 1.5 cm deeper while close
+< .039 (max 2) -> chain lift (1.2 s/step, yaw -> 2 deg, abort_fall .006 steps 0-5, waist retry for refused low
+steps) -> top gate .031 -> r1_carry_release(total = wall + .09 - (hand x + .035), walk <= edge - .16, lower .12) ->
+v4.out retreat with a walk-back recovery (hand up, HOME, walk -.15).
 
-## Inherited (verify): see handoff/README.md (90b103): 7/11 placements at exact stance, 0/4 lifts at walk-in stances.
+## Results (memory/RUNS.md, session 3d54de section)
+- Reset walk-ins (10): INSIDE R6, R8. First five (R1-R5, ctl.py/bl.py lifts): 0 inside. Final chain (R6-R10): 2/5.
+- Stance placements: INSIDE s1 (bl.py) and s14 (cl.py v6, dropped past the wall); rim s4; others lift aborts / drop.
+- Lift is the weak stage: chain lift 8/26 attempts (reset walk-in scenes 3/4, stance placements 4/19), r1_leg_lift 2/7, lowtilt 0/1. Carry + release with the final
+  target 2/3 inside (R8, s14; s17 carry stalled and dropped).
+- Falls 0, puppy off the table 0. One stuck retreat (s14) recovered by hand (hand up, HOME, walk back).
 
-## Runs this session (details in memory/RUNS.md) - at ~57 min
-Placements: j2 (stance, horizontal), j4v (stance, vertical, dropped past the wall), R2 (WALK-IN reset 2, ctl.py v4),
-j13, j14 (stance, ctl.py v4 final). Total 5 inside / 17 attempts; final config 3/3.
-Later failures: j12 lift abort + pull-back -> puppy OFF the table (pull-back disabled); R3 (walk-in) ball gate refused.
-Failures: lift aborts j1 j3 j10 j7v j8v R1 (safe), lift-top sudden loss j9v (puppy on the table), carry drops j6v (on rim),
-j10b (in front of box), grasp gate j11 (ball_w .033 too strict), grasp miss j5v (robot drifted after walk-back).
-Incident: j3 overhang re-request after a put-back pushed the puppy OFF THE TABLE.
-Code: code/puppy_box/lowtilt_v4.py (skill v4 copy), code/puppy_box/ctl.py (in-place retries), look_waist.py,
-look_only.py, dry_v.py, ov2.py.  Run: python code/puppy_box/ctl.py <tag> tries=3   (from a grasp stance)
-Walk-in: python code/puppy_box/home.py 0.6; python code/puppy_box/walkin3.py 0.39 0.35 7; then ctl.py.
-Vertical straddle (fingers 0,0,1): lift widths steady but SUDDEN losses (carry 0/2 held, top-of-lift loss 1) -> dropped.
+## Lessons
+- Close width >= .039 lifted 6/13, < .039 0/13 (chain lift): weak predictor; regrasping to widen lifted 1/5.
+- r1_carry_release counts advance_m inside target_forward_m; torso lands at hand x + .02..+.05.
+- Walks drift 0-5 cm either side; each waist look shifts the pelvis 2-5 cm; far paw (> .37) = IK dead end for the
+  lift, close paw (< .30) = grasp misses.

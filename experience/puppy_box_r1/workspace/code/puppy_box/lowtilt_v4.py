@@ -74,24 +74,75 @@ def rigid2d(A, B):
     return R, cb - R @ ca
 
 
+def _shared(oA, oB, maxd=0.08, exclude=None):
+    """greedy one-to-one matching of good paws A -> B by distance (v5, R2: a paw hidden in B was matched to the
+    neighbour's B paw a second time -> residual > .01 -> look refused)."""
+    A = [p for p in oA['paws'] if chain.good(p) and (exclude is None or math.dist(p['c'][:2], exclude[:2]) >= 0.005)]
+    B = [q for q in oB['paws'] if chain.good(q)]
+    pairs = sorted(((math.dist(p['c'][:2], q['c'][:2]), i, j) for i, p in enumerate(A) for j, q in enumerate(B)))
+    ua, ub, pa, pb = set(), set(), [], []
+    for d, i, j in pairs:
+        if d >= maxd or i in ua or j in ub:
+            continue
+        ua.add(i); ub.add(j); pa.append(A[i]); pb.append(B[j])
+    return pa, pb
+
+
+def _select_via_B(oA, oB, log=print):
+    """v5: map the yawed view's paws into the waist-0 view (mean translation of the shared paws), compute each paw's
+    overhang from the waist-0 edge, then apply chain.select's rules (overhang > .045, lateral gap >= .09, rightmost)."""
+    e = oB.get('edge')
+    if not e:
+        return None
+    pa, pb = _shared(oA, oB)
+    if not pa:
+        return None
+    t = np.mean([np.asarray(q['c'][:2]) - np.asarray(p['c'][:2]) for p, q in zip(pa, pb)], axis=0)
+    th = math.radians(e['yaw'])
+    cand = []
+    for p in sorted(oA['paws'], key=lambda q: -q['n']):
+        if not chain.good(p):
+            continue
+        if any(math.dist(p['c'][:2], c[0]['c'][:2]) < 0.02 for c in cand):     # R9: one paw split into two blobs
+            continue
+        cb = np.asarray(p['c'][:2]) + t
+        ovh = e['dist'] - (math.cos(th) * cb[0] + math.sin(th) * cb[1])
+        cand.append((p, cb, ovh))
+    ok = [c for c in cand if c[2] > 0.045 and min([abs(o[1][1] - c[1][1]) for o in cand if o is not c] or [1]) >= 0.09]
+    log({'step': 'select_via_B', 't': [round(float(v), 4) for v in t], 'cand': [[round(float(v), 3) for v in c[1]] + [round(c[2], 3)] for c in cand]})
+    if not ok:
+        return None
+    p, cb, ovh = min(ok, key=lambda c: c[1][1])
+    return dict(p, overhang=round(ovh, 3))
+
+
 def look_waist(ctx, wy=-0.35, log=print):
     chain.ctx = ctx; chain.good = _good_v4
     ctx.value('r1_move_joints', joints={'waist_yaw_joint': wy}, secs=1.5)
     oA = chain.perceive('waistA')
     TA, _ = chain.select(oA)
     if TA is None:
+        # v5 (3d54de R2): the yawed-view edge fit read yaw -17.5 (true ~0) -> every overhang wrong, no paw selected.
+        # Select in the waist-0 frame instead: map A's paws by the shared paws, overhang from B's edge.
         ctx.value('r1_move_joints', joints={'waist_yaw_joint': 0.0}, secs=1.5)
-        return {'ok': False, 'why': 'no clean paw with the waist yawed', 'measured': {'A': oA['paws']}}
-    ax = chain.leg_axis(oA['frame'], TA['c'])
-    ctx.value('r1_move_joints', joints={'waist_yaw_joint': 0.0}, secs=1.5)
-    oB = chain.perceive('waistB')
-    pa, pb = [], []
-    for p in oA['paws']:
-        if p is TA or not chain.good(p):
-            continue
-        q = min([q for q in oB['paws'] if chain.good(q)] or [None], key=lambda q: 9 if q is None else math.dist(q['c'][:2], p['c'][:2]))
-        if q is not None and math.dist(q['c'][:2], p['c'][:2]) < 0.08:
-            pa.append(p['c']); pb.append(q['c'])
+        oB = chain.perceive('waistB')
+        TA = _select_via_B(oA, oB, log=log)
+        if TA is None:
+            return {'ok': False, 'why': 'no clean paw with the waist yawed', 'measured': {'A': oA['paws'], 'B': oB['paws']}}
+        ctx.value('r1_move_joints', joints={'waist_yaw_joint': wy}, secs=1.5)
+        oA2 = chain.perceive('waistA2')
+        TA2 = min([p for p in oA2['paws'] if chain.good(p)] or [None], key=lambda p: 9 if p is None else math.dist(p['c'][:2], TA['c'][:2]))
+        if TA2 is not None and math.dist(TA2['c'][:2], TA['c'][:2]) < 0.03:
+            oA, TA = oA2, dict(TA2, overhang=TA.get('overhang'))
+        ax = chain.leg_axis(oA['frame'], TA['c'])
+        ctx.value('r1_move_joints', joints={'waist_yaw_joint': 0.0}, secs=1.5)
+        oB = chain.perceive('waistB2')
+    else:
+        ax = chain.leg_axis(oA['frame'], TA['c'])
+        ctx.value('r1_move_joints', joints={'waist_yaw_joint': 0.0}, secs=1.5)
+        oB = chain.perceive('waistB')
+    sa, sb = _shared(oA, oB, exclude=TA['c'])
+    pa = [p['c'] for p in sa]; pb = [q['c'] for q in sb]
     if not pa:
         return {'ok': False, 'why': 'no reference paw seen in both', 'measured': {'A': oA['paws'], 'B': oB['paws']}}
     R = np.eye(2)
@@ -126,7 +177,12 @@ def look(ctx, log=print):
         if not r['ok']:
             return {'ok': False, 'why': 'paw hidden; waist look failed: ' + r['why'], 'measured': {'frame': o['frame'], **r['measured']}}
         wm = r['measured']
+        e0 = o['edge']
         o = chain.perceive('lowtilt_b')
+        # v5 (3d54de R4): after the waist look the edge fit read .499 (true .355: the near edge left the view) -> the
+        # wall (.719) and the carry's edge bound were wrong. Keep the first waist-0 edge unless they agree within 3 cm.
+        if e0 is not None and (o['edge'] is None or abs(o['edge']['dist'] - e0['dist']) > 0.03):
+            o = dict(o, edge=e0)
         T = {'c': wm['paw'], 'overhang': wm['overhang']}
         ax = {'yaw': wm['leg_yaw'], 'res': wm['axis_A']['res']}
     elif T is None:

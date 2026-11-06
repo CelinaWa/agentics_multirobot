@@ -1,5 +1,5 @@
-session: 20261106T094654Z_puppy_box_r1_5600c1
+session: 20261106T112411Z_puppy_box_r1_3d54de
 robot: r1sonic
-exported: 2026-11-06T10:59:09Z
+exported: 2026-11-06T16:46:42Z
 environment: sim
 host: Puget-271739-04

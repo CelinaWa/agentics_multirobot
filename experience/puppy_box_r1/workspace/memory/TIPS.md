@@ -336,3 +336,31 @@
   and y <= -.18 -> 4/5; x >= .32, y >= -.16 -> 1/4. Fix the stance before grasping; backward walks drift y by +5..+11 cm.
 - [strategy] where: sim. Never pipe a robot script through grep without keeping stderr in a log: a hidden crash in the
   retreat left the robot against the table (j15a). Bound the carry so the pelvis stays >= .22 m from the edge.
+
+# Session 20261106T112411Z_puppy_box_r1_3d54de (r1sonic sim, where: sim) - new rows
+- [strategy] where: sim. CHAIN LIFT beats r1_leg_lift here: chain.py LIFT profile (approach yaw -> 2 deg, approach z
+  0 -> .5, z to ~+.43, 1.2 s/step, grasp 4.5 cm past my paw fit) completed 6/9 lifts; r1_leg_lift 2/7. A width
+  that RISES after a 2-4 mm dip (.045-.053 at the top) = paw-ball stopper -> carries held 4/4. Skill
+  r1-walkin-leg-chain-lift-box.
+- [strategy] where: sim. Do not carry a grip that ended the lift below .031 (s6 .0285 -> dropped beside the box):
+  retrace the lift down and put it back.
+- [param] where: sim. r1_carry_release counts advance_m inside target_forward_m (s1 .06+.093 >= .146 -> released
+  after 1 step; R3 .06+.118 >= .167).
+- [param] where: sim. Torso lands at hand x + .02..+.05 after r1_carry_release with lower .06-.12 (R8 .044, R10 .025,
+  s4 .053). Carry total = wall + .09 - (hand x + .035); edge bound .16 (R8 ended .147 from the edge, no contact);
+  bound .22 left R10's torso on the front rim.
+- [param] where: sim. Walks this session: .178-.194 -> .081-.149; .07 -> .049-.108; .06 -> .006/.042/.053/.08/.108;
+  .092-.141 -> .055-.165; turns -5..-12 -> edge yaw +4..+10 deg, paw y +.03..+.06 (and x +.04..+.08 when close);
+  drift either side 0-5 cm per call. A walk once reported turn_deg 7.4 with no turn commanded.
+- [strategy] where: sim. Each waist look (yaw -.35 and back) shifted the pelvis 2-5 cm (paw y more negative): R9
+  went -.30 -> -.335 -> -.354 -> -.371 over 3 looks = out of reach. Minimise waist looks; stop the walk-in while the
+  paw is still visible.
+- [strategy] where: sim. Waist-look perception bugs fixed (lowtilt v4.2): yawed-view edge fit read -17.5 deg / .497 m
+  (select the paw in the waist-0 frame via shared paws), a hidden paw matched twice (one-to-one matching), a paw split
+  into two blobs (dedupe), post-look edge .499 vs .355 (keep the first waist-0 edge).
+- [strategy] where: sim. Far paw x .378: chain lift step 0 (x .435, z .057) refused by IK; close paw x .285: grasp
+  missed laterally by 2 cm. Usable window for the chain: paw x .31-.37, y -.29..-.17.
+- [sim-only] where: sim. The operator states the paw position at stance placements: my sphere fit reads +.009..+.014
+  in x vs the operator (s1-s7), used as a calibration check.
+- [strategy] where: sim. A background `nohup ... &` inside a Bash call is killed when the call returns (batch died
+  at t 45 s mid-look; the arm was home, harmless). Use run_in_background for long robot scripts.

@@ -1,3 +1,5 @@
-memory/TIPS.md: strategy 82, param 38, sim-only 8, untagged 0
-handoff/README.md: strategy 0, param 0, sim-only 0, untagged 0
-PARAMS.json: 82 measured in sim, 0 on the real robot
+memory/TIPS.md: strategy 76, param 40, sim-only 22, untagged 0
+handoff/README.md: strategy 0, param 0, sim-only 0, untagged 3
+PARAMS.json: 90 measured in sim, 0 on the real robot
+1 untagged rows state numbers (tag them [param] or [sim-only]):
+  handoff/README.md: - Lift aborts (~60%) at steps 2-5: the body leaving the table pulls the leg through the pads (width +2-4 mm, then

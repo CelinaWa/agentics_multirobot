@@ -21,6 +21,8 @@ if __name__ == '__main__':
     # paw is closer than X_MIN, forward if it ends beyond X_MAX (backward walks overshoot 1.5-3.5x and drift right)
     X_MIN, X_MAX = kw.pop('x_min', 0.0), kw.pop('x_max', 9.0)   # OFF by default: j20 walks fixed x (.312 -> .368) but drifted y -.19 -> -.14 (lift failed); enable with x_min=0.315 x_max=0.40
     m.chain.ctx = ctx
+    if 'close_edge' in kw:
+        m.CLOSE_EDGE = kw.pop('close_edge')   # 3d54de: paw cut at the image corner with edge .375 -> waist look
     ctx.value('r1_move_joints', joints=m.v4.HOME_BOTH, secs=1.0); ctx.value('r1_head', pitch=0.6, secs=0.5)
     for k in range(3):
         r = m.look(ctx, log=lambda *a: None)
