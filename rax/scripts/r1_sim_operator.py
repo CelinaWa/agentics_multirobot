@@ -58,6 +58,17 @@ def main():
                    'armed' if arming.read(root)['armed'] else 'NOT armed'))
     def reset():
         req('reset_scene'); req('reset'); time.sleep(3.5); return overhang()
+    def box_beside(side):
+        """Task layout variant: the box beside the puppy (left or right of it on the table, a few cm gap) instead of
+        behind it. Sides are the ROBOT's left (+y) / right (-y)."""
+        g = req('gt'); d = g['dog']['pos']; tx = g['table']['pos'][0]
+        sign = 1.0 if side == 'left' else -1.0
+        head = str(g.get('layout', {}).get('head', 'right'))   # the puppy's head side (robot's left/right): nose adds ~0.23 m
+        extent = 0.13 + (0.23 if head == side else 0.07)     # torso half-length + nose or tail beyond it
+        by = d[1] + sign * (extent + 0.04 + 0.195)            # ... + gap + box half-width (long side along y)
+        bx = min(max(d[0], tx - 0.300 + 0.14 + 0.02), tx + 0.300 - 0.14 - 0.02)   # fully on the table
+        req('place', body='box', pos=[bx, by, g['table_top_z'] + 0.0005], quat=[1, 0, 0, 0]); time.sleep(2.0)
+        g = req('gt'); return g, (by - d[1]), head
     STANCE = (0.31, -0.21)   # the proven pivot/shaft-grasp stance: hanging hind paw here in the pelvis frame, heading square
     def stance():
         """Sim-only accelerator: a fresh scene with the robot already square at the grasp stance (the scene is slid under
@@ -89,6 +100,12 @@ def main():
                     resets += 1; hang, g = reset(); arm()
                     reply = (f'Operator: the robot is restored and RE-ARMED (used reset {resets}/{a.max_resets}). {scene(g)}; '
                              f'the frontmost hind paw hangs {hang:.1f} cm past the edge. Re-check status and observe before moving.')
+                elif 'box' in text and any(w in text for w in ('beside', 'next to', 'side of', 'my left', 'my right', 'to the left', 'to the right', 'left of', 'right of')):
+                    side = 'left' if ('left' in text and 'right' not in text) else 'right'
+                    g, dy, head = box_beside(side); arm()
+                    reply = (f'Operator: done - the box now stands on the table beside the puppy, on your {side} (its centre '
+                             f'{abs(dy)*100:.0f} cm to the {side} of the puppy, ~4 cm beyond its {"nose" if head == side else "tail"}, same depth); the puppy was not moved. '
+                             f'This is one of the task\'s layouts (box left / right / behind); {scene(g)}.')
                 elif 'stance' in text and a.max_stances > 0:
                     if stances >= a.max_stances:
                         reply = f'Operator: the stance budget ({a.max_stances}) is used up; ask for a reset or walk in yourself.'
