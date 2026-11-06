@@ -165,3 +165,34 @@
   moves (att 4, 6) was a simulator contact artifact, now fixed; r1_walk now self-corrects distance/heading (< 3 cm /
   6 deg) - all walk statistics above 18:13 are stale. Observed after the update: small turns (12-20) give 6-16 deg,
   a 100 deg turn moved .58 m, a +90/.15/-90 side-step moved the robot right; fwd .35 -> .32-.38 with ~.1 m right drift.
+
+# Session 20261106T021942Z_puppy_box_r1_cdc45b (r1sonic sim, where: sim) — new rows
+- [sim-only] where: sim. A `reset` request now also puts the ROBOT back at its start pose (edge .62 ahead, square, head
+  pitch 0 -> set .5 again). Resets 2-4 gave the same layout: lower FRONT paw F (.55,-.25) overhangs 7.4 cm with no paw
+  within 12 cm (the first, pre-reset layout differed: hind paw (.546,-.01) + crowded front pair).
+- [strategy] where: sim. From the reset start ONE straight walk of .15-.2 (walked .146-.257, nearly straight) puts F in
+  reach at (.32-.40,-.15..-.25). No turns needed. Never use big turns: +90 moved 1.34 m, -90 .99 m, +45 .42 m.
+- [strategy] where: sim. Grip a clean overhanging paw with HORIZONTAL fingers along its leg (approach yaw = leg yaw,
+  here +7..+17 deg = inward, easy for the right arm; IK .005-.02) and lift with r1_move_hand servo=False in 9 small arc
+  steps: 3/3 whole-puppy lifts to hand z .36-.40. Servo ON jumped the hand 3.3 cm sideways mid-lift -> slip.
+  Vertical fingers clamp the leg's pitch -> slip at z +.10 (1/1). Library: r1-paw-pivot-pinch-servo-off-lift.
+- [strategy] where: sim. r1_walk while holding the pinched puppy DROPPED it 3/3 (.1, .05, .05 commands; .05 overshot
+  to .141). With the box behind the puppy the carry needs ~.3 m: do not plan it as a walk while holding.
+- [param] where: sim. Holding the puppy, right-hand reach at z .36 is x <= .50 (ik .027); x .55 -> .064.
+- [param] where: sim. Hanging puppy (held by front paw F) sits ~9 cm BEHIND and ~16 cm LEFT of the hand, lowest
+  point ~10 cm below it (stiff, does not hang straight down).
+- [param] where: sim. The 7 cm fingers include the paw ball when the grasp point is < ~5 cm past the ball centre:
+  closed width .041-.048 = ball pinch (still lifts); during the lift it may slide onto the shaft (.031).
+- [strategy] where: sim. Every arm reach or waist move shifts the pelvis-frame scene 1-3 cm (and up to 2 deg); the
+  target paw is often hidden once the hand is out -> localize it from a visible neighbour paw + the offset measured at
+  the start pose (consistent to 2-3 mm over 4 frames).
+- [param] where: sim. Waist yaw is NOT tracked with the right arm out (cmd -.45 -> -.12..-.32; cmd -.25 -> +.004).
+- [param] where: sim. Fully open gripper reads .07 even when a jaw presses a paw; a reading < .069 or > .071 at full
+  open means contact.
+- [param] where: sim. Camera z differs between head .5 and .6 and with the pelvis pitch (table z -.047..-.007 in
+  different frames): compare positions only within one frame (relative to the table or a reference paw).
+- [strategy] where: sim. The ball pinch (.044-.054) is NOT a static hold: it crept from .037 to .004 within ~15 s
+  standing still (att 7) and from .031 to .028 in ~60 s (att 5). Chain lift -> carry steps in ONE script with no
+  pauses; a .04 walk immediately after the lift held once (width .054 -> .037).
+- [param] where: sim. Short r1_walk commands are unreliable laterally: .06 -> .023 fwd + 9.3 cm right, .06 -> .013
+  fwd + 6.8 cm right; .2 -> .146-.257 fwd with 0-12 cm drift (either side). Re-localize the paw after every walk.

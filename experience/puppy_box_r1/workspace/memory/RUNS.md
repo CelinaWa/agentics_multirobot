@@ -60,3 +60,18 @@ Look points: every approach call (edges.py heading + odometry); paw sphere fit b
 Funnel: stance usable 5/7; grasp held 2/6 tries (strong) + 2 weak; lift to z>=.27 2/2; carry 0/0 started; place 0.
 Final: robot standing .63 m from the edge, arms home, grippers open, tilt 1.0; puppy on the table (reset 6 layout), box upright.
 | 8 | 7 (new sim) | front paw (.548,-.25) target; stance chase with the new self-correcting walk failed (side-step went right) | - | - | stopped; robot ~.6 m from the edge, arms home, grippers open | 20261105181416ff3e82, 20261105181816959b47 |
+
+# Session 20261106T021942Z_puppy_box_r1_cdc45b (sim) — by hand + code/puppy_box/{nav,safe_move,lift_h2,frontpaw}.py
+| att | reset | stance | grasp | lift / carry | outcome | frames |
+|---|---|---|---|---|---|---|
+| 1 | start | 13 walk calls (turns chaotic), heading ~30, paw C (front lower) at (.29-.34,-.29..-.31) | V fingers on C shaft, .0322 | slip at z +.10 (V clamps leg pitch) | puppy on table | 202611051843512bbe30, 202611051859277278a8 |
+| 2 | 1 (robot also reset) | walk .2 -> .257 straight; paw D (front upper) | H fingers, .0483 (ball) | servo-ON jump -> slip z .08 | puppy on table | 2026110519042180a6e7, 20261105190526ad7705 |
+| 3 | 2 (new layout: F clean) | walk .15 (.196) + .06 (.023, 9 cm right) | H pivot pinch F .0451 | servo-OFF lift to z .363 OK; walk .1 holding -> drop | puppy on table | 2026110519064439bef1, 202611051910037168b4, 20261105191136a00ce8 |
+| 4 | 3 | walk .2 -> .146 | H F 3.6 cm past, .0407 | lift to z .402 OK; walk .05 -> drop | puppy on table | 202611051914060a181c, 202611051915263e370f |
+| 5 | 4 | frontpaw.py walk .2 (.237) + pre | H F ~5 cm past, .0435 -> .031 in lift | lift to z .365 OK; walk .05 (.141) -> drop | puppy in front of box | 20261105192059348229, 202611051922132f789a |
+Funnel: stance 5/5 (1 needed 13 calls); grasp held 5/5; lift to z >= .33: 3/5 (0/2 before servo-off, 3/3 with it);
+carry walk 0/3; place 0. Falls 0. Where I looked: every walk (scene report), pregrasp frames, after each lift step
+(width), the lifted frame (puppy hanging, box behind).
+| 6 | 5 | frontpaw walk .194 + pre | H F 6 cm past: hand 1.8 cm low, pre-close .0681 -> MISS .0072 | - | paws pushed | 2026110519271235350b, 202611051927568b9176 |
+| 7 | 6 | walk .236 (12 cm left drift) + .06 (6.8 cm right) | H F 5 cm past .049 | lift to z .369 OK; walk .04 HELD (.054->.037); crept out ~15 s later | puppy on table, head over edge | 202611051929226d4558, 202611051931169226f8, 20261105193136af5b19 |
+Funnel (final): stance 7/7; grasp held 6/7; lift >= .33: 4/6 (4/4 servo-off); walk holding 1/4 (one .04 step); place 0.

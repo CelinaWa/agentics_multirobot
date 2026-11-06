@@ -1,7 +1,7 @@
 """Observe; print hand, waist, paw blobs + sphere fits. python look2.py"""
 import sys, json
-sys.path.insert(0, '/home/junjieye/rax-runtime-r1/sessions/20261106T010905Z_puppy_box_r1_f6b331/agent-workspace')
-sys.path.insert(0, '/home/junjieye/rax-runtime-r1/sessions/20261106T010905Z_puppy_box_r1_f6b331/agent-workspace/code/puppy_box')
+sys.path.insert(0, '/home/junjieye/rax-runtime-r1/sessions/20261106T021942Z_puppy_box_r1_cdc45b/agent-workspace')
+sys.path.insert(0, '/home/junjieye/rax-runtime-r1/sessions/20261106T021942Z_puppy_box_r1_cdc45b/agent-workspace/code/puppy_box')
 from api.runtime import Context
 import scene, pawfit
 ctx = Context(); o = ctx.value('r1_observe'); f = o['camera']['frame_id']; pr = o['proprio']

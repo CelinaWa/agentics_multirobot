@@ -4,7 +4,7 @@ python edges.py <frame_id> [table_z]  -> JSON lines: point nearest the pelvis, u
 yaw of the line normal (deg, 0 = edge square in front), inliers."""
 import json, sys
 import numpy as np
-sys.path.insert(0, '/home/junjieye/rax-runtime-r1/sessions/20261106T010905Z_puppy_box_r1_f6b331/agent-workspace/code/puppy_box')
+sys.path.insert(0, '/home/junjieye/rax-runtime-r1/sessions/20261106T021942Z_puppy_box_r1_cdc45b/agent-workspace/code/puppy_box')
 from percep import load_frame, cloud, table
 
 

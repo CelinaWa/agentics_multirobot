@@ -1,3 +1,7 @@
-memory/TIPS.md: strategy 43, param 15, sim-only 2, untagged 0
-handoff/README.md: strategy 0, param 0, sim-only 0, untagged 0
-PARAMS.json: 44 measured in sim, 0 on the real robot
+memory/TIPS.md: strategy 48, param 22, sim-only 3, untagged 0
+handoff/README.md: strategy 0, param 0, sim-only 0, untagged 3
+PARAMS.json: 50 measured in sim, 0 on the real robot
+3 untagged rows state numbers (tag them [param] or [sim-only]):
+  handoff/README.md: - A `reset` puts the puppy, the box AND THE ROBOT back (robot .62 m from the edge, square, head pitch 0 -> set .5).
+  handoff/README.md: - Layout after resets 2-4 (identical): puppy head RIGHT, box BEHIND it (front wall edge+.22, rim table+.145), lower
+  handoff/README.md: - r1_walk: straight walks keep distance but drift 0-.5 m right per metre; turns move the robot .4-1.3 m

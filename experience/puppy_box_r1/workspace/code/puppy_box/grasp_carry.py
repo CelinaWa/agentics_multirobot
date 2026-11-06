@@ -2,7 +2,7 @@
 box. Stops (holding) before the release so the agent can look. Prints a JSON log line per step.
 Usage: python grasp_carry.py '{"walk": 0.2, "lift": [dx, dy, z], "skip_grasp": false}'"""
 import sys, json, time
-sys.path.insert(0, '/home/junjieye/rax-runtime-r1/sessions/20261106T010905Z_puppy_box_r1_f6b331/agent-workspace')
+sys.path.insert(0, '/home/junjieye/rax-runtime-r1/sessions/20261106T021942Z_puppy_box_r1_cdc45b/agent-workspace')
 from api.runtime import Context
 args = json.loads(sys.argv[1]) if len(sys.argv) > 1 else {}
 WALK = args.get('walk', 0.2)

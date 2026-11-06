@@ -28,3 +28,13 @@ Hazard zone: right hand low (z < 0.12) within 0.1 m of the table edge or the pup
 | 17:54-17:56 | held puppy at z .275, arm still ~2 min while planning | grip crept and let go (.0313 -> .004), puppy on table | never pause while holding |
 | 18:05 | held at z .365, waist-assisted forward extension | slip -> puppy dropped near the edge (floor?) | no waist change under load; walk straight after the raise |
 Hazard zone: holding the puppy (any pause or waist motion) - the grip is friction-limited and creeps.
+
+# Session 20261106T021942Z_puppy_box_r1_cdc45b (sim) — no falls, no tilts > 2.3 deg
+| time | situation | what happened | fix / rule |
+|---|---|---|---|
+| 18:28-18:31 | large turns (+90 / -90) at 1-1.5 m from the table | robot displaced 1.0-1.3 m | no turns > 45; none near the table |
+| 18:48 | V-finger pregrasp 1 cm high | lower jaw inside C's ball top (width .0706 at full open) | back out along the leg before any correction |
+| 18:59 | V-finger lift step 3 | slip, puppy rolled on the table | use H fingers (pivot) for lifts |
+| 19:05 | servo-ON lift step 2 | hand jumped 3.3 cm sideways -> slip | servo=False during lifts |
+| 19:11 / 19:15 / 19:22 | r1_walk .1/.05/.05 holding the puppy at z .36-.40 | dropped on the table (box untouched) | no walking while holding |
+Hazard zone: holding the puppy + any r1_walk.
