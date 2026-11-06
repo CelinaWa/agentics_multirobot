@@ -259,3 +259,26 @@
 - [strategy] where: sim. A dropped puppy SITS UP leaning on the box front rim (3/9); a closed-gripper push at z .16
   (y -.17, to x .536) did not tip it in; pushes with approach yaw 30 yaw the waist ~30 deg (lost the puppy off the table).
 - [sim-only] where: sim. The clear box: through the front wall a puppy in FRONT of the box looks inside. Judge by depth.
+
+# Session 20261106T060138Z_puppy_box_r1_2fbfb7 (r1sonic sim, where: sim) - new rows
+- [strategy] where: sim. SUCCESS RECIPE (3 operator-confirmed placements): leg-axis grasp 4.5 cm past the paw centre
+  (ball partly in the pads = stopper), chain.py LIFT (yaw -> 2 deg, z .39-.42), walk cmd .07 at once x2, LOWER .06,
+  open, v4.py out. code/puppy_box/attempt.sh.
+- [strategy] where: sim. Watch the gripper width DURING the lift: rising (.038 -> .047-.054) = held through walks;
+  falling (.034 -> .026) = the leg slides out -> abort at low z and re-grasp (v4 exit 4).
+- [strategy] where: sim. The engineering low lift (cmd z .265, leg yaw kept, walk at once) slipped on walk 1 4/4 here,
+  even from a clean .034 grasp; raising the hanging body afterwards slipped (1/1); a 3 s look while holding let the
+  grip creep (.044 -> .051).
+- [strategy] where: sim. Re-grasping "2 cm further up the shaft" when the width is >= .040 made it worse 2/2 (hip,
+  .048/.056). Disabled.
+- [sim-only] where: sim. The operator answers "Question only, please do not move anything: is the puppy inside the
+  box?" from ground truth in 1-2 s without moving anything. Depth + image both misjudged a puppy lying in front of
+  the clear box as bridged on it (2/2). Always verify with the operator.
+- [strategy] where: sim. Release only after lowering the hand ~.06: a high release left the puppy upright on the rim
+  (torso 17 cm, not inside) and once swung it to the floor; a backward push at z .26 did not tip it in.
+- [param] where: sim. Walks this session: fwd .07 -> .03-.119 (mostly .055-.107), .227 -> .181, .15-.22 -> .105-.153;
+  back -.05 -> -.133, -.08 -> -.115, -.2 -> .031 (once!) / -.176..-.27; turns -8 -> ~5 deg net (+4.4 cm scene y).
+- [strategy] where: sim. Yaw probe (close at leg yaw +0/+5/+10, keep the narrowest) found +5 deg narrowest 3/5 times
+  (measured axis biased low) but a CLEAN narrow grip is not what holds (see the width-trend row).
+- [strategy] where: sim. NEVER HOME the arm before confirming the walk back: -0.2 once walked .031 and HOME drove
+  the hand onto the table edge (tilt 6.65).

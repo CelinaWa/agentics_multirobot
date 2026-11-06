@@ -1,5 +1,3 @@
-memory/TIPS.md: strategy 61, param 30, sim-only 7, untagged 0
-handoff/README.md: strategy 0, param 0, sim-only 0, untagged 3
-PARAMS.json: 61 measured in sim, 0 on the real robot
-1 untagged rows state numbers (tag them [param] or [sim-only]):
-  handoff/README.md: - Reset / stance layout unchanged: puppy head right, box BEHIND it (front wall = edge + .22, rim = table + .145),
+memory/TIPS.md: strategy 68, param 31, sim-only 8, untagged 0
+handoff/README.md: strategy 0, param 0, sim-only 0, untagged 0
+PARAMS.json: 65 measured in sim, 0 on the real robot

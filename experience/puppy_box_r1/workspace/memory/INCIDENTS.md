@@ -46,3 +46,10 @@ Hazard zone: holding the puppy + any r1_walk.
 | 19:57 | HOME joints after walking .19 toward the table with the hand at (.28,-.30,.30) | hand stuck at the table edge (.23,-.34,-.03) | 4.9 | hold; hand up/out (.14,-.40,.08); walk back; HOME |
 | 20:33 | move_hand from HOME to (.40,-.21,.16) with the edge only ~.34 ahead | hand came up under the table edge, stuck at (.33,-.25,-.02), grasp error .20 | 5.5 | hold; HOME joints (down/back) freed it; route via (.20,-.28,.16) behind the edge |
 Hazard zone: right hand below table level within ~.1 m of the edge with the edge < .40 ahead (after walking in).
+
+# Session 20261106T060138Z_puppy_box_r1_2fbfb7 (sim) - no falls, max tilt 6.65
+| time | situation | what happened | tilt | fix / rule |
+|---|---|---|---|---|
+| 22:36 | v4 out after st9: walk back -0.2 went only .031, then HOME | hand driven onto the table edge (.26,-.29,.00), gripper blocked .049 | 6.65 | hold; open; hand up (.24,-.31,.16) -> out (.14,-.40,.12); walk -0.2; HOME. out() now repeats the walk back and refuses HOME if short |
+| 23:07 | st17 release at hand z .356 after the LOWER move was refused (jump .49) | puppy ended on the FLOOR (operator) | 1.4 | if LOWER is refused, retry it as a smaller step / skip release and report; never release from a thin (.028) grip high above the rim |
+Hazard zones: (1) arm HOME within .25 m of the table edge; (2) releasing a swinging body high above the box.

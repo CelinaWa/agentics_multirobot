@@ -4,7 +4,7 @@ or python lift.py rel dx,dy,dz [n]  -> n equal steps relative to the current gra
 Each step: preview; refuse if the fingers axis leaves horizontal (|fy|<0.85), a joint jumps > 0.35 rad or the wrist
 roll > 0.4 rad (IK branch flip = drop); execute 2.5 s; stop when width < 0.012 or it fell > 0.008 below the start."""
 import sys, json, time
-sys.path.insert(0, '/home/junjieye/rax-runtime-r1/sessions/20261106T043952Z_puppy_box_r1_cf6e88/agent-workspace')
+sys.path.insert(0, '/home/junjieye/rax-runtime-r1/sessions/20261106T060138Z_puppy_box_r1_2fbfb7/agent-workspace')
 from api.runtime import Context
 ARM = ['right_shoulder_pitch_joint', 'right_shoulder_roll_joint', 'right_shoulder_yaw_joint', 'right_elbow_joint',
        'right_wrist_roll_joint']

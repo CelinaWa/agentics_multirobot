@@ -146,7 +146,13 @@ def good(p):
 
 
 def select(o):
-    c = [p for p in o['paws'] if good(p) and p.get('overhang', 0) > 0.05]
+    # R3 (2fbfb7): one paw split into two blobs with the same centre -> the neighbour rule rejected it; dedupe < 2 cm
+    ded = []
+    for p in sorted(o['paws'], key=lambda q: -q['n']):
+        if all(math.dist(p['c'], q['c']) > 0.02 for q in ded):
+            ded.append(p)
+    o = dict(o, paws=ded)
+    c = [p for p in o['paws'] if good(p) and p.get('overhang', 0) > float(__import__('os').environ.get('OVERHANG_MIN', '0.05'))]
     c = [p for p in c if min([abs(q['c'][1] - p['c'][1]) for q in o['paws'] if q is not p] or [1]) >= 0.09]
     if not c:
         return None, None

@@ -3,7 +3,7 @@ paw-ball centre, above table-0.06, PCA in xy. python legdir.py <frame> <u> <v>  
 deg), pitch, n. Also returns leg yaw relative to the table normal if an edge yaw is given (4th arg)."""
 import sys, json, math
 import numpy as np, cv2
-WS = '/home/junjieye/rax-runtime-r1/sessions/20261106T043952Z_puppy_box_r1_cf6e88/agent-workspace'
+WS = '/home/junjieye/rax-runtime-r1/sessions/20261106T060138Z_puppy_box_r1_2fbfb7/agent-workspace'
 sys.path.insert(0, WS + '/code/puppy_box')
 from percep import load_frame, cloud
 import pawfit

@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import cv2
 
-WS = Path('/home/junjieye/rax-runtime-r1/sessions/20261106T043952Z_puppy_box_r1_cf6e88/agent-workspace')
+WS = Path(__file__).resolve().parents[2]
 
 
 def quat_wxyz_to_R(q):

@@ -1,7 +1,7 @@
 """Observe and print edge line + paw fits near given seed pixels (or auto paw blobs). python m.py [u,v ...]"""
 import sys, json
-sys.path.insert(0, '/home/junjieye/rax-runtime-r1/sessions/20261106T043952Z_puppy_box_r1_cf6e88/agent-workspace')
-sys.path.insert(0, '/home/junjieye/rax-runtime-r1/sessions/20261106T043952Z_puppy_box_r1_cf6e88/agent-workspace/code/puppy_box')
+sys.path.insert(0, '/home/junjieye/rax-runtime-r1/sessions/20261106T060138Z_puppy_box_r1_2fbfb7/agent-workspace')
+sys.path.insert(0, '/home/junjieye/rax-runtime-r1/sessions/20261106T060138Z_puppy_box_r1_2fbfb7/agent-workspace/code/puppy_box')
 from api.runtime import Context
 import scene, edges, pawfit
 ctx = Context()

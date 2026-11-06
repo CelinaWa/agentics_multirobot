@@ -64,7 +64,7 @@
   },
   "carry.walk_cmd_m": {
     "sim": {
-      "how": "cmd .05-.10 held, .12-.18 dropped (7c03aa)",
+      "how": "2fbfb7: walks .055-.107 each; 2 walks usually reach the box",
       "measured": "2026-11-05",
       "value": 0.07
     },
@@ -99,6 +99,14 @@
     },
     "unit": "m"
   },
+  "grasp.past_paw_centre_m": {
+    "sim": {
+      "how": "2fbfb7 st14-18: ball partly in the pads -> width rises under load (stopper); 2/5 inside + 1 on rim",
+      "measured": "2026-11-05",
+      "value": 0.045
+    },
+    "unit": "m"
+  },
   "horizontal_pivot_pinch_width_m": {
     "sim": {
       "reset1": [
@@ -116,11 +124,22 @@
       ]
     }
   },
+  "lift.abort_width_fall_m": {
+    "sim": {
+      "how": "2fbfb7: width falling in lift steps 0-3 predicts a slip (st7, st12)",
+      "measured": "2026-11-05",
+      "value": 0.0025
+    },
+    "unit": "m"
+  },
   "lift.end_hand_z_m": {
     "sim": {
-      "how": "cf6e88: 8 lifts, servo off, approach z .5; cmd z .41-.43, actual .41-.44",
+      "how": "2fbfb7 chain.py LIFT profile, servo off, measured hand z",
       "measured": "2026-11-05",
-      "value": 0.43
+      "value": [
+        0.39,
+        0.42
+      ]
     },
     "unit": "m"
   },
@@ -285,6 +304,14 @@
     },
     "unit": "m"
   },
+  "release.lower_m": {
+    "sim": {
+      "how": "2fbfb7 st15 inside with lowering; st14 upright on rim, st17 floor without",
+      "measured": "2026-11-05",
+      "value": 0.06
+    },
+    "unit": "m"
+  },
   "reset.returns_robot_to_start": {
     "sim": {
       "how": "cdc45b resets 1-3: robot back at edge .62 ahead, square, head pitch 0",
@@ -426,6 +453,16 @@
       "value": 0.08
     },
     "unit": "m"
+  },
+  "walk.short_cmd_overshoot_ratio": {
+    "sim": {
+      "how": "2fbfb7: .07 -> .106/.121, -.05 -> -.133 (but .07 -> .03-.08 also seen)",
+      "measured": "2026-11-05",
+      "value": [
+        1.5,
+        2.7
+      ]
+    }
   },
   "walk.turn_actual_per_cmd": {
     "sim": {

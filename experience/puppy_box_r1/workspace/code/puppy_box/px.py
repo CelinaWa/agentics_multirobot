@@ -1,6 +1,6 @@
 """Pelvis-frame points for pixels of a saved frame: python px.py <frame_id> u,v u,v ..."""
 import sys, numpy as np
-sys.path.insert(0, '/home/junjieye/rax-runtime-r1/sessions/20261106T043952Z_puppy_box_r1_cf6e88/agent-workspace/code/puppy_box')
+sys.path.insert(0, '/home/junjieye/rax-runtime-r1/sessions/20261106T060138Z_puppy_box_r1_2fbfb7/agent-workspace/code/puppy_box')
 from percep import load_frame, cloud
 meta, rgb, dep = load_frame(sys.argv[1])
 P, ok = cloud(meta, dep, stride=1)

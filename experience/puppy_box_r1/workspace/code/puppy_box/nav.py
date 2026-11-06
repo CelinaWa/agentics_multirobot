@@ -6,7 +6,7 @@ along its normal, normal yaw deg: + = edge normal points left of the robot's x),
 the edge, box extent. Exits 2 on tilt > 8 deg or a fall."""
 import sys, json, time, math
 import numpy as np
-WS = '/home/junjieye/rax-runtime-r1/sessions/20261106T043952Z_puppy_box_r1_cf6e88/agent-workspace'
+WS = '/home/junjieye/rax-runtime-r1/sessions/20261106T060138Z_puppy_box_r1_2fbfb7/agent-workspace'
 sys.path.insert(0, WS)
 sys.path.insert(0, WS + '/code/puppy_box')
 from api.runtime import Context
