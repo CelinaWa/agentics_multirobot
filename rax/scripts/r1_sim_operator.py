@@ -102,7 +102,24 @@ def main():
                     resets += 1; hang, g = reset(); arm()
                     reply = (f'Operator: the robot is restored and RE-ARMED (used reset {resets}/{a.max_resets}). {scene(g)}; '
                              f'the frontmost hind paw hangs {hang:.1f} cm past the edge. Re-check status and observe before moving.')
-                elif any(w in text for w in ('inside the box', 'in the box', 'relative to the box', 'count as', 'success criterion', 'is the puppy')):
+                elif (any(w in text for w in ('inside the box', 'in the box', 'relative to the box', 'count as', 'success criterion', 'is the puppy',
+                                              'question', 'do not move', "don't move", 'where is', 'where are', 'tell me'))
+                      and not any(w in text for w in ('please reset', 'reset the scene', 'place me'))):
+                    # QUESTIONS are answered from ground truth and never move anything
+                    g = req('gt'); d = np.asarray(g['dog']['pos']); b = np.asarray(g['box']['pos']); rel = d - b
+                    o = np.asarray(g['pelvis']['pos']); q = np.asarray(g['pelvis']['quat'])[[1, 2, 3, 0]]
+                    Rm = Rotation.from_euler('z', Rotation.from_quat(q).as_euler('zyx')[0]).as_matrix()
+                    paws = [Rm.T @ (np.asarray(p) - o) for p in g['dog_paws']]; front = min(range(4), key=lambda n: paws[n][0])
+                    hip = Rm.T @ (np.asarray(g['dog_hips'][front]) - o); ax = hip - paws[front]
+                    inside = abs(rel[0]) < 0.134 and abs(rel[1]) < 0.189 and 0.0 < rel[2] < 0.145
+                    where = ('INSIDE the box (torso centre within the walls and below the rim)' if inside else
+                             'NOT inside: ' + ('its torso centre is above the rim height (resting on or across the rim does not count)' if (abs(rel[0]) < 0.134 and abs(rel[1]) < 0.189) else 'its torso centre is outside the box footprint'))
+                    edge_x = g['table']['pos'][0] - 0.300
+                    reply = (f'Operator (ground truth, nothing moved): the puppy is {where}. Torso centre relative to the box centre: '
+                             f'{rel[0]*100:+.0f} cm forward, {rel[1]*100:+.0f} cm to your left, {rel[2]*100:+.0f} cm above the box floor. '
+                             f'Frontmost paw-ball centre in your pelvis frame: ({paws[front][0]:.3f}, {paws[front][1]:.3f}, {paws[front][2]:.3f}), '
+                             f'{(edge_x - (o + Rm @ paws[front])[0])*100:.1f} cm past the front edge; its leg direction paw->hip: '
+                             f'({ax[0]:.2f}, {ax[1]:.2f}, {ax[2]:.2f}), yaw {np.degrees(np.arctan2(ax[1], ax[0])):+.0f} deg. {scene(g)}.')
                     g = req('gt'); d = np.asarray(g['dog']['pos']); b = np.asarray(g['box']['pos']); rel = d - b
                     inside = abs(rel[0]) < 0.134 and abs(rel[1]) < 0.189 and 0.0 < rel[2] < 0.145
                     where = ('INSIDE the box (torso centre within the walls and below the rim)' if inside else
