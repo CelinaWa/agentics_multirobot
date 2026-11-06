@@ -225,3 +225,13 @@ reference. `grasp_paw` / `place_in_box` may return `refused` (the agent no longe
 4. Camera: paw-ball localisation error vs a tape measure at 0.3-0.4 m.
 5. First RAX session with `--environment real`, `--experience experience/puppy_box_r1/workspace`, 5 resets, a human
    operator answering requests within a minute.
+
+## Session 12 and the end of the sim phase (2026-11-06 02:50)
+- Session 12 (`20261106T094654Z_puppy_box_r1_5600c1`, practice stances jittered +-3 cm): 6 placements in 25 unattended
+  runs, including the FIRST complete walk-in from the start position (reset 2). Skill `r1-leg-lowtilt-lift-advance-carry`
+  v4.1 carries all 25 runs. Walk-ins 1/4: the sim's short steps land 2-4 cm off the stance.
+- Last locomotion attempt: keeping the legs stepping after the reference root stops ("settle") so the policy closes on
+  the reference. Rejected: this scripted gait is not neutral in place (0.1-0.2 m backward drift per settle, 1 m at full
+  stride). Short-step precision in this reimplementation cannot be fixed cheaply; use the real deploy stack in sim.
+- Totals for 12 sessions: 18 confirmed agent placements, 0 falls; from a good stance every completed lift of the
+  agent's skill went in; the walk-in is the only unreliable stage and it is simulator-specific.
