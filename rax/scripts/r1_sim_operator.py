@@ -102,6 +102,14 @@ def main():
                     resets += 1; hang, g = reset(); arm()
                     reply = (f'Operator: the robot is restored and RE-ARMED (used reset {resets}/{a.max_resets}). {scene(g)}; '
                              f'the frontmost hind paw hangs {hang:.1f} cm past the edge. Re-check status and observe before moving.')
+                elif any(w in text for w in ('inside the box', 'in the box', 'relative to the box', 'count as', 'success criterion', 'is the puppy')):
+                    g = req('gt'); d = np.asarray(g['dog']['pos']); b = np.asarray(g['box']['pos']); rel = d - b
+                    inside = abs(rel[0]) < 0.134 and abs(rel[1]) < 0.189 and 0.0 < rel[2] < 0.145
+                    where = ('INSIDE the box (torso centre within the walls and below the rim)' if inside else
+                             'NOT inside: ' + ('its torso centre is above the rim height (resting on or across the rim does not count)' if (abs(rel[0]) < 0.134 and abs(rel[1]) < 0.189) else 'its torso centre is outside the box footprint'))
+                    reply = (f'Operator: the puppy is {where}. Torso centre relative to the box centre: {rel[0]*100:+.0f} cm along your forward axis, '
+                             f'{rel[1]*100:+.0f} cm to your left, {rel[2]*100:+.0f} cm above the box floor (walls are 14 cm high, interior 27 x 38 cm). '
+                             f'Nothing was moved. {scene(g)}.')
                 elif kind == 'reset' or 'reset' in text:
                     if resets >= a.max_resets:
                         reply = (f'Operator: the reset budget ({a.max_resets}) is used up - no further resets; the scene stays as it is. '
