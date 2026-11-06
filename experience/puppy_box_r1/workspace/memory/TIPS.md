@@ -196,3 +196,32 @@
   pauses; a .04 walk immediately after the lift held once (width .054 -> .037).
 - [param] where: sim. Short r1_walk commands are unreliable laterally: .06 -> .023 fwd + 9.3 cm right, .06 -> .013
   fwd + 6.8 cm right; .2 -> .146-.257 fwd with 0-12 cm drift (either side). Re-localize the paw after every walk.
+
+# Session 20261106T033337Z_puppy_box_r1_7c03aa (r1sonic sim, where: sim) - new rows
+- [sim-only] where: sim. Operator ENGINEERING NOTICE: the visual paw ball is soft; the jaws clamp the LEG CORE.
+  Width .031-.035 = clean grasp along the leg axis; .040-.058 = diagonal clamp or two legs. (Older "ball pinch" rows
+  that interpret .041-.048 as the ball are explained by misaligned approaches.)
+- [param] where: sim. PiPER pads (r1_piper_kin.xml): span grasp-5.1 .. grasp+2.0 cm along the approach, 5.6 cm wide.
+- [strategy] where: sim. MEASURE THE LEG AXIS, do not assume it: x-slices 3-7 cm ahead of the paw, right edge of the
+  leg run (left side merges with the body) -> yaw 19.5-23.8 deg (5 frames, res < 1 mm), axis = edge + 1.6 cm,
+  level. The inherited +11.6/12 deg was ~9 deg off (=> diagonal clamps). code/puppy_box/chain.py leg_axis().
+- [param] where: sim. Right-hand IK without waist at (.36,-.18,.03): commanded approach yaw 20.3 achieves only 17.0
+  (pitch -8, ik .016, hand lands 1.6 cm off); commanding yaw +2..4 deg with pitch -15 achieves the leg yaw with ik
+  .002-.008. Pick by preview (choose_approach). With it: clean .0341 once; .036-.040 typical.
+- [strategy] where: sim. Hanging puppy (front-right leg) centroid lies ~13 cm along the FINGER axis: with the approach
+  yawed 22 deg the body hangs ~5 cm BEHIND the hand; rotating the approach yaw to ~2 deg during the lift puts it
+  ~5-7 cm AHEAD (IK fine at the hold pose).
+- [param] where: sim. Holding the puppy, hand z .40-.43: x <= .46 without waist; the waist solution needs waist yaw
+  ~.87 rad. Lowest hanging point ~.27 below the hand (rim needs hand z >= .41).
+- [strategy] where: sim. Walking while holding: the grip loses ~1-2 mm of width per r1_walk; 2 walks of cmd .05-.10
+  held 6/12 runs, a 3rd walk 0/3, cmd .12-.18 dropped at once 2/2; end-of-lift width < .028 dropped on walk 1 2/2.
+  Arm moves under load after walking (re-raise, reach) also dropped it 2x.
+- [strategy] where: sim. PUSH-IN works: a puppy left lying on the box front rim was tipped inside by two slow forward
+  pushes of the closed gripper (approach (1,0,0), fingers (0,0,1), z rim+.04, near surface x .43-.53 by depth,
+  push to x .52). Route the hand to (.20,-.28,.16) behind the edge before moving forward.
+- [strategy] where: sim. After any operator stance placement/reset, send HOME joints + gripper open FIRST: r1_head
+  re-sent a stale raised-arm command once.
+- [param] where: sim. Walk-in from the reset start (edge .62): .135, .061, .069 (paws then below the view at edge
+  .351), back -.05 -> -.129, fwd .07 -> .088 -> edge .381. Head .6 sees table-height paws only at x >= ~.33.
+- [sim-only] where: sim. Depth sees the box FRONT wall surface at most pixels (not through it): judge "inside the box"
+  from the image (body visible behind the clear wall down to the floor) or from points below rim height.

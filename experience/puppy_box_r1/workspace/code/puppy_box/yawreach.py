@@ -1,7 +1,7 @@
 """Preview-only IK grid: right hand at table height with approach yawed psi (deg) in the pelvis frame, fingers
 horizontal. No motion. python yawreach.py"""
 import sys, json, math
-WS = '/home/junjieye/rax-runtime-r1/sessions/20261106T021942Z_puppy_box_r1_cdc45b/agent-workspace'
+WS = '/home/junjieye/rax-runtime-r1/sessions/20261106T033337Z_puppy_box_r1_7c03aa/agent-workspace'
 sys.path.insert(0, WS)
 from api.runtime import Context
 ctx = Context()

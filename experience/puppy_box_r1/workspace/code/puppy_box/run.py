@@ -12,8 +12,8 @@ python run.py <step> [args]
   retreat               open, hand up/back, home joints (waist 0), walk back -0.1
 Every step prints JSON lines; stops (exit 2/3) on refusal or slip."""
 import sys, json, time, math
-sys.path.insert(0, '/home/junjieye/rax-runtime-r1/sessions/20261106T021942Z_puppy_box_r1_cdc45b/agent-workspace')
-sys.path.insert(0, '/home/junjieye/rax-runtime-r1/sessions/20261106T021942Z_puppy_box_r1_cdc45b/agent-workspace/code/puppy_box')
+sys.path.insert(0, '/home/junjieye/rax-runtime-r1/sessions/20261106T033337Z_puppy_box_r1_7c03aa/agent-workspace')
+sys.path.insert(0, '/home/junjieye/rax-runtime-r1/sessions/20261106T033337Z_puppy_box_r1_7c03aa/agent-workspace/code/puppy_box')
 from api.runtime import Context
 
 ctx = Context()

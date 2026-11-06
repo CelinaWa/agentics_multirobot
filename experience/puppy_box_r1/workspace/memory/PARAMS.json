@@ -28,6 +28,22 @@
   "camera_z_bias_waist_yawed_m": {
     "sim": 0.02
   },
+  "carry.max_walks_holding": {
+    "sim": {
+      "how": "3rd walk 0/3; 2 walks held 6/12 (7c03aa)",
+      "measured": "2026-11-05",
+      "value": 2
+    },
+    "unit": "calls"
+  },
+  "carry.walk_cmd_m": {
+    "sim": {
+      "how": "cmd .05-.10 held, .12-.18 dropped (7c03aa)",
+      "measured": "2026-11-05",
+      "value": 0.07
+    },
+    "unit": "m"
+  },
   "carry.walk_holding_pinch": {
     "sim": {
       "how": "cdc45b att 3,4; widths .048/.049 before the walk",
@@ -41,6 +57,22 @@
   "env": "sim r1sonic (session 20261105T194732Z)",
   "env_08803f": "sim r1sonic (session 20261105T213131Z_puppy_box_r1_08803f)",
   "env_e0ac0c": "sim r1sonic (session 20261105T222431Z_puppy_box_r1_e0ac0c)",
+  "grasp.approach_cmd_offset_deg": {
+    "sim": {
+      "how": "cmd yaw = leg yaw + 2..4 with pitch -15 achieves leg yaw (preview, 7c03aa)",
+      "measured": "2026-11-05",
+      "value": 3.0
+    },
+    "unit": "deg"
+  },
+  "grasp.past_paw_along_axis_m": {
+    "sim": {
+      "how": "grasp point along the measured axis; .05-.06 tested (7c03aa)",
+      "measured": "2026-11-05",
+      "value": 0.06
+    },
+    "unit": "m"
+  },
   "horizontal_pivot_pinch_width_m": {
     "sim": {
       "reset1": [
@@ -74,6 +106,14 @@
       "value": 0.4
     },
     "unit": "m"
+  },
+  "lift.yaw_end_deg": {
+    "sim": {
+      "how": "approach yaw at end of lift; body centroid moves ahead of the hand (7c03aa)",
+      "measured": "2026-11-05",
+      "value": 2.0
+    },
+    "unit": "deg"
   },
   "pelvis_shift_back_reaching_x040_m": {
     "sim": 0.02
@@ -180,18 +220,18 @@
   },
   "puppy.front_paw_leg_yaw_vs_table_deg": {
     "sim": {
-      "how": "3-D shaft points, start frame 2026110519064439bef1 (f6b331 measured +11..13)",
+      "how": "x-slice leg-edge fit, 6 stance frames 19.5-23.8 (7c03aa)",
       "measured": "2026-11-05",
-      "value": 11.6
+      "value": 21.3
     },
     "unit": "deg"
   },
   "puppy.hang_below_hand_m": {
     "note": "hanging by a hind leg, head lowest",
     "sim": {
-      "how": "depth points of the hanging puppy, hand z .275 -> lowest .05",
+      "how": "lowest hanging point below the hand (st2, st4 depth)",
       "measured": "2026-11-05",
-      "value": 0.22
+      "value": 0.27
     },
     "unit": "m"
   },
@@ -200,6 +240,14 @@
       "how": "preview ik .027 at (.50,-.20,.36); .55 -> .064 (cdc45b)",
       "measured": "2026-11-05",
       "value": 0.5
+    },
+    "unit": "m"
+  },
+  "reach.holding_max_x_at_z040_m": {
+    "sim": {
+      "how": "no waist; waist needs yaw .87 rad (7c03aa)",
+      "measured": "2026-11-05",
+      "value": 0.46
     },
     "unit": "m"
   },

@@ -2,7 +2,7 @@
 leg direction (pelvis-frame yaw deg, argv[1]). Width checked every step; stops (exit 3) if width < 0.02.
 python lift_c.py <leg_yaw_deg> [n_steps]"""
 import sys, json, math, time
-WS = '/home/junjieye/rax-runtime-r1/sessions/20261106T021942Z_puppy_box_r1_cdc45b/agent-workspace'
+WS = '/home/junjieye/rax-runtime-r1/sessions/20261106T033337Z_puppy_box_r1_7c03aa/agent-workspace'
 sys.path.insert(0, WS)
 from api.runtime import Context
 ARM = ['right_shoulder_pitch_joint', 'right_shoulder_roll_joint', 'right_shoulder_yaw_joint', 'right_elbow_joint',

@@ -1,6 +1,7 @@
-# TRANSFER — measure before relying on (from sim session cdc45b)
-- r1_walk straight drift (sim 0-.5 m right per metre) and turn displacement (.4-1.3 m): measure on the real robot far
-  from the table before any stance plan.
-- Pivot pinch + servo-off arc lift (sim 3/3): verify grip widths (.031-.048) and that servo=False steps track smoothly.
-- Holding reach at z .36: sim x <= .50.
-- Whether walking while holding drops the puppy (sim 3/3 drops) — test with a short step over the table, not over the floor.
+# TRANSFER - measure before relying on (from sim session 7c03aa)
+- Leg axis by x-slices (right edge + 1.6 cm): verify on real depth noise; the sim fit had res < 1 mm.
+- IK approach compensation (cmd yaw +2..4, pitch -15): re-derive by preview on the real backend.
+- Grip creep per walk (~1-2 mm/walk in sim) and the 2-walk limit: test with short walks over the table first.
+- Hanging puppy: lowest point ~.27 below the hand; body along the finger axis (sim physics of the plush joints).
+- Push-in finish: verify the box does not slide on the real table under a 12 N-class push.
+- Stale backend command after an operator placement (sim backend): check r1_status 'command' before moving.

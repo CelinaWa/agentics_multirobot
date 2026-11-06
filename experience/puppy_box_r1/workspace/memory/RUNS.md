@@ -75,3 +75,22 @@ carry walk 0/3; place 0. Falls 0. Where I looked: every walk (scene report), pre
 | 6 | 5 | frontpaw walk .194 + pre | H F 6 cm past: hand 1.8 cm low, pre-close .0681 -> MISS .0072 | - | paws pushed | 2026110519271235350b, 202611051927568b9176 |
 | 7 | 6 | walk .236 (12 cm left drift) + .06 (6.8 cm right) | H F 5 cm past .049 | lift to z .369 OK; walk .04 HELD (.054->.037); crept out ~15 s later | puppy on table, head over edge | 202611051929226d4558, 202611051931169226f8, 20261105193136af5b19 |
 Funnel (final): stance 7/7; grasp held 6/7; lift >= .33: 4/6 (4/4 servo-off); walk holding 1/4 (one .04 step); place 0.
+
+# Session 20261106T033337Z_puppy_box_r1_7c03aa (sim) - controller code/puppy_box/chain.py
+| run | start | grasp w | lift end w | walks (m, held?) | outcome | looked at / decided |
+|---|---|---|---|---|---|---|
+| st1 | stance | .0402/.0416 | - | - | crept out in ~30 s idle | hand 1.8 cm high; chain everything in one script |
+| st2 | stance | .0437 | .0278 | .158 x | drop | leg yaw 12 assumed (true ~21) |
+| st3 | stance | - | - | - | aborted | stale command swung the arm (r1_head) |
+| st4 | stance | .039 | .0298 | .082 ok, .065 ok, .044 x | drop | rim detector picked the arm |
+| st5 | stance | .0373 | .0284 | .004 x | drop | approach not compensated, hand 1.6 cm off |
+| st6 | stance | .0341 | .0297 | .09 ok, .00 ok, .064 x | drop | choose_approach -> clean grasp |
+| st7 | stance | .0376 | .0471 | .046 ok, .067 ok, .067 x | drop | 3rd walk fails |
+| st8 | stance | .0363 | .0277 | .074 x | drop | weak grip |
+| st9 | stance | .0373 | .0298 | .069 ok, .022 ok, re-raise x | drop | moves under load |
+| st10 | stance | .0377 | .0483 | .066 ok, .056 ok | released -> table in front of box | body hangs behind hand; reach cannot extend |
+| st11 | stance | .0403 | .0297 | .081 (cmd .12) x | drop | yaw rotation: body +7 cm ahead |
+| st12 | stance (shifted layout) | - | - | - | stopped at go | wrong paw (slice window) |
+| st13 | stance | .0387 | .0523 | .099 ok, .053 x | drop | |
+| st14 | stance | .036 | .0279 | .058 x | drop | |
+| reset1 | reset, walk-in (5 walks) | .0425 | .045 (z .34) | .123 ok, .022 x -> on box rim | 2 pushes -> INSIDE box | final frame 20261105203524734959 |

@@ -153,3 +153,17 @@ waypoints, carry in <= 0.1 m walks checking the grip, lower over the box, releas
   oscillated (12 cm minimum pass) and each in-place turn pass wanders ~0.3 m. Pure-pursuit steering of the
   correction pass was tried and rejected (the policy answers off-axis reference motion nonlinearly). Known quirk:
   a forward walk right after a large left turn sometimes nets < 5 cm. The reply carries lateral_m as well.
+
+## RAX session 7 (2026-11-05 evening, sim): FIRST PLACEMENT
+- Session `20261106T033337Z_puppy_box_r1_7c03aa`, 80 min, 1 reset, 14 sim-only stance placements, 0 falls.
+  The full chain with walking in succeeded once: leg-axis shaft grasp (measured leg yaw 19.5-24 deg, over-command
+  the yaw by 2-4 deg), servo-off arc lift to hand z ~0.40, yaw-rotated so the puppy hangs ahead of the hand, two
+  7 cm carry steps, release on the box rim, then two pushes with the closed gripper put the puppy UPRIGHT INSIDE
+  the box (ground truth: torso centre 1.5 cm / 3 cm from the box centre, 11 cm above its floor; `placement_gt.txt`
+  in the session). Skill `r1-leg-axis-grasp-short-carry` (library 41105ce) carries the code and all 12 runs.
+- Carry statistics (sim): two 7 cm steps hold 6/12; a third step 0/3; steps >= 0.12 m drop at once; arm moves
+  under load dropped it 2x; the grip loses 1-2 mm of width per step. The box-behind layout needs ~0.22 m of carry
+  beyond arm reach, hence the rim-release + push-in finish. On hardware the per-step grip loss should be re-measured
+  first: it is soft-contact creep under load spikes in MuJoCo and may not exist with real pads on fabric.
+- Harness fixes this round: stance accelerator and box-beside requests in the scripted operator; the backend
+  re-syncs its commanded pose after an operator reset (a stale command swung the raised arm through the paw area).

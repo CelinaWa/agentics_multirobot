@@ -38,3 +38,11 @@ Hazard zone: holding the puppy (any pause or waist motion) - the grip is frictio
 | 19:05 | servo-ON lift step 2 | hand jumped 3.3 cm sideways -> slip | servo=False during lifts |
 | 19:11 / 19:15 / 19:22 | r1_walk .1/.05/.05 holding the puppy at z .36-.40 | dropped on the table (box untouched) | no walking while holding |
 Hazard zone: holding the puppy + any r1_walk.
+
+# Session 20261106T033337Z_puppy_box_r1_7c03aa (sim) - no falls, max tilt 5.5
+| time | situation | what happened | tilt | fix / rule |
+|---|---|---|---|---|
+| 19:51 | first r1_head after an operator stance placement | backend re-sent the STALE raised-arm command (gripper 0): arm swung through the paw area, scene shifted | 4.1 | after any placement/reset send HOME joints + gripper open first |
+| 19:57 | HOME joints after walking .19 toward the table with the hand at (.28,-.30,.30) | hand stuck at the table edge (.23,-.34,-.03) | 4.9 | hold; hand up/out (.14,-.40,.08); walk back; HOME |
+| 20:33 | move_hand from HOME to (.40,-.21,.16) with the edge only ~.34 ahead | hand came up under the table edge, stuck at (.33,-.25,-.02), grasp error .20 | 5.5 | hold; HOME joints (down/back) freed it; route via (.20,-.28,.16) behind the edge |
+Hazard zone: right hand below table level within ~.1 m of the edge with the edge < .40 ahead (after walking in).

@@ -2,7 +2,7 @@
 Steps: waist 0 + head 0.5, back -0.1 x3, turn 70, turn -70; prints each walk reply. Then observe twice (settle check).
 python approach.py"""
 import sys, json, time
-sys.path.insert(0, '/home/junjieye/rax-runtime-r1/sessions/20261106T021942Z_puppy_box_r1_cdc45b/agent-workspace')
+sys.path.insert(0, '/home/junjieye/rax-runtime-r1/sessions/20261106T033337Z_puppy_box_r1_7c03aa/agent-workspace')
 from api.runtime import Context
 ctx = Context()
 ctx.value('r1_move_joints', joints={'waist_yaw_joint': 0.0, 'waist_roll_joint': 0.0}, secs=1.0)
