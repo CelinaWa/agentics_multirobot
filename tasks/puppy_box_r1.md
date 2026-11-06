@@ -6,7 +6,7 @@ Grasp the plush puppy lying on the table in front of you and place it into the c
 - **You can walk** (`r1_walk`): `forward_m` metres along your current heading (negative = backward), plus an optional `turn_deg` (left +, right -). Your legs step with a built-in gait while your arms hold their last pose; you translate only by stepping. A call blocks until you finish and are standing again, and reports the actual `walked_m`, your new pelvis position and tilt. The commanded distance is approximate (0.2-0.5 m per call works best; larger overshoots), and **you move, so re-observe after every walk**. Walk forward in ~0.2-0.3 m steps until the table's front edge is within reach of your right hand (about 0.25-0.35 m ahead of your pelvis); a hand is in reach when `r1_move_hand` to a point just above the table returns a small error.
 - The object: one plush puppy, cream coloured, about 40 cm nose to tail, lying on its side on the table, legs toward you. Where it lies and whether its head points left or right differs between sessions: find it in an observation first.
 - The box: an open-top clear plastic storage box (no lid), outer size about 39 x 28 cm, 14 cm tall, standing on the table next to the puppy (left, right, or behind it); the gap is a few cm to ~12 cm.
-- Scripted operator (`request_operator`): resets the scene, and positions the puppy so a hind leg overhangs the table's front edge when you ask (for the grasp). The operator does NOT move the table or you - you position yourself by walking. Requests are answered within a few seconds and report where the puppy is. The shell sandbox works (Bash, Python, git): write and test controllers under `code/`.
+- Human operator (`request_operator`): resets the scene, and positions the puppy so a hind leg overhangs the table's front edge when you ask (for the grasp). The operator does NOT move the table or you - you position yourself by walking. Requests take a human a minute or two to answer and report what the operator sees. The shell sandbox works (Bash, Python, git): write and test controllers under `code/`.
 
 ## Goal and success conditions
 
@@ -38,7 +38,7 @@ Keep the gripper commanded fully closed (width 0) from the grip until the releas
 ## Walking and the operator (read this)
 
 - `r1_walk` is your way to move. It blocks until you are standing still and corrects its own distance and heading (residual under ~3 cm / 6 deg; the reply carries `walked_m`, `turned_deg`, `passes` and your pelvis odometry). Measured (sim, 2026-11-05): mean distance error 2.5 cm, turns within ~3 deg; every call still drifts you 2-7 cm to the RIGHT, and a pure turn pivots about a point ~0.3 m to the side, so a 70 deg turn also moves you ~0.3 m. Re-observe after every walk. Do ALL large turning while well clear of the table (>= 0.5 m), then approach with straight 0.1-0.25 m steps and stop with the front edge ~0.25-0.35 m ahead of your pelvis.
-- The scripted operator turns almost every `help` request into a TABLE SLIDE (even "move the box"), one direction per request, and it cannot slide the table through the wall behind it. So do NOT ask the operator to move the box or the table or you: **reposition yourself by walking/turning** instead. Only ask the operator to (a) position the puppy's hind leg to overhang the front edge for the grasp, and (b) reset the scene. If a slide happens you did not want, re-observe and walk to adjust.
+- Do NOT ask the operator to move the box or the table or you: **reposition yourself by walking/turning** instead. Only ask the operator to (a) position the puppy's hind leg to overhang the front edge for the grasp, (b) reset the scene, (c) confirm what they see (is the puppy in the box, where is it).
 
 ## Ask the operator (`request_operator`) when
 
@@ -52,18 +52,9 @@ Keep the gripper commanded fully closed (width 0) from the grip until the releas
 - A fall is not acceptable. If anything reports the robot tilting hard or stepping unexpectedly, `r1_hold` and re-observe. Walk in short steps; do not command large single walks near the table.
 - It cannot reach the floor: if the puppy falls off the table, hold and ask the operator to reset.
 - Use only the right gripper for the puppy; keep the left arm away from it.
-- This is simulation, so exploration is cheap: a `reset` request is allowed five times. If the same grasp has failed twice, change the approach rather than repeating it.
+- A `reset` request is allowed five times (battery and operator time). If the same grasp has failed twice, change the approach rather than repeating it.
 
-## SIMULATION ACCELERATOR: the "grasp stance" request (sim only)
-Walking to a good stance costs you 20-40 minutes per attempt in this simulator and does not transfer. To practise the
-part that does transfer (grasp, lift, carry, place), ask the operator with kind `help`: "place me at the grasp stance".
-The operator then gives you a FRESH scene (puppy and box reset, hind leg overhanging) with the robot already standing
-square to the table at the proven stance: the hanging hind paw ~(0.31, -0.21) in your pelvis frame, front edge ~0.39 m
-ahead, arms home, grippers open. Up to 20 stance placements per session; they are not counted as resets. Use them
-freely to iterate on grasp placement, lift, the carry walk and the release into the box. Your FIRST FIVE resets (the
-transferable ones) should still show the whole chain including walking in; record which strategies worked there.
-
-## MEASURED FULL CHAIN (engineering test through your own tools, sim, 2026-11-05 22:00): 2 placements in 4 runs
+## MEASURED FULL CHAIN (SIMULATION measurement, 2026-11-05; re-calibrate every number on the hardware before trusting it)
 From the grasp stance (hanging hind paw at ~(0.31,-0.21)): (1) measure the leg axis paw->hip; grasp 3 cm up the shaft
 with the approach ALONG that axis and the fingers across it, pregrasp 8 cm short, servo on; close -> width 0.032-0.033.
 (2) Arc lift with the same approach direction, tilting it up to ~0.5 and advancing ~1.5 cm toward the hip per 4 cm of
@@ -75,26 +66,16 @@ front wall (depth image or dead reckoning). (4) Open the gripper. Results: 4 car
 (0.031-0.044); the two that were released over the box both landed inside (ground truth), one stopped 3 cm short of
 the release point, one lift slipped. Reference script: r1/tools/diag/carry_chain_test.py (engineering copy).
 
-## NEW TOOLS (since session 2fbfb7): `r1_leg_lift` and `r1_carry_release`
+## TOOLS `r1_leg_lift` and `r1_carry_release` (the measured chain as primitives)
 The measured chain above is now available as two robot-service primitives, built from the same hand/gripper/walk
 commands you use (so they transfer to the real robot): `r1_leg_lift(paw_position, leg_direction)` does the aligned
 shaft grasp and the arc lift (stops early with width_falling=true if the leg is sliding out: open, re-measure, re-grasp),
 and `r1_carry_release(target_forward_m, lower_m)` does the short-step carry and the release (holds instead of releasing
 if it falls short of your target). Engineering test through the backend: 2 placements in 4 runs plus one safe early abort.
 YOUR job is what the primitives cannot do: perceive the paw-ball centre and the leg direction (paw -> hip) accurately
-(within ~1 cm / 10 deg), choose the stance, estimate target_forward_m from the box's front wall, verify with the
-operator's ground-truth question ("is the puppy inside the box?"), and recover from the reported failure stage.
+(within ~1 cm / 10 deg), choose the stance, estimate target_forward_m from the box's front wall, verify with an observation into the box (and ask the operator to confirm what they see), and recover from the
+reported failure stage. In simulation the skill `r1-leg-lowtilt-lift-advance-carry` (library) placed the puppy in 7 of 7
+completed lifts and aborted safely otherwise; on the real robot, first check that the pads keep the leg through 2-3 short
+carry steps, then re-tune the lift height (0.265 m in sim) and the step length (0.07 m in sim).
 Record per-stage counts in memory/RUNS.md.
 
-## RELIABILITY GOAL (this session)
-The full chain has succeeded once in simulation (session 7c03aa: leg-axis shaft grasp, servo-off lift, two short
-carry steps, rim release, push-in with the closed gripper - see skill `r1-leg-axis-grasp-short-carry`). The goal now
-is REPEATABILITY: run that chain end to end as many times as the budget allows, count successes and failures per
-stage in memory/RUNS.md, and fix the weakest stage. Use the grasp-stance request for repeats; use at least two of
-the first five resets for the complete chain including walking in. If the carry is the weak stage, also try the
-box-beside layout (ask: "please put the box beside the puppy on my left"), which the task allows.
-
-## SIMULATION RESET BUDGET (this session)
-This is a simulation exploration session: the operator will grant up to 10 scene resets (the real robot allows 5).
-Use the extra resets to test different approaches, and record in memory/ which strategies succeed within the
-first 5 resets - those are the ones that transfer to the real robot.

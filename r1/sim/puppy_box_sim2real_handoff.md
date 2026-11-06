@@ -181,3 +181,47 @@ waypoints, carry in <= 0.1 m walks checking the grip, lower over the box, releas
   Verify the real paw's bulge before relying on this.
 - A gait-free "nudge" (shifting the reference root without stepping) was tried for precise small steps: the policy
   ignores it (0 motion). Small steps stay random in this sim; the real stack should be measured for the same.
+
+## Sessions 9-11 and the state at hand-off (2026-11-06 01:15)
+- Agent placements through the RAX loop, all ground-truth confirmed: session 7: 1, 9: 3, 10: 1, 11: 7 (12 total, 0 falls
+  in 11 sessions). In session 11 the agent packaged its chain as library skill `r1-leg-lowtilt-lift-advance-carry`
+  (status verified, v3) and ran it unattended: every lift that completed ended inside the box (7/7); the other runs were
+  safe aborts (width falling -> put the puppy back). From a walk-in stance the lifts were 0/4: the walk-in lands 2-4 cm
+  off the practised stance (paw x 0.34-0.37 instead of 0.32), which this sim's random sub-6-cm steps cannot correct.
+- Two robot-service primitives now carry the measured chain and transfer as code: `r1_leg_lift(paw_position,
+  leg_direction)` (aligned shaft grasp, arc lift, falling-width guard) and `r1_carry_release(target_forward_m, lower_m)`
+  (short-step carry, release). They use only the agent-facing hand/gripper/walk commands.
+
+## WHAT TRANSFERS (take to the real robot)
+| Component | Where | Notes |
+|---|---|---|
+| Robot service + tools | `rax/services/r1sonic/{backend,tools,kin}.py` | unchanged for real; incl. the two primitives and the post-reset re-sync |
+| Stack client protocol | `rax/services/r1sonic/stack.py` | JSON over ZMQ REQ/REP: `state`, `stream` (24-float teleop rows), `hold`, `walk`, `grasp_paw`, `place_in_box` |
+| Task file (real) | `tasks/puppy_box_r1.md` | sim-only sections removed; sim numbers flagged for re-calibration |
+| Experience | `experience/puppy_box_r1/` | 11 sessions of memory/handoff/code + skill bundle (6 skills); `--experience <export>/workspace` |
+| Skill library | bundle in the export; head `r1-leg-lowtilt-lift-advance-carry` v3 | the agent's verified chain (`code/run.py`) |
+| Reference scripts | `r1/tools/diag/carry_chain_test.py` | the engineering chain through the backend (8/12 in sim) |
+
+## SIM-ONLY (do not deploy)
+`r1/sim/r1_sim_server.py` (reimplemented stack, GT ops), `rax/scripts/r1_sim_operator.py` (scripted operator with stance /
+box-beside / GT answers), `tasks/puppy_box_r1_sim.md`, `rax/scripts/r1_sim_options.json`, the evidence videos.
+
+## THE ONE NEW COMPONENT FOR REAL: the stack bridge
+The backend expects the JSON protocol in `stack.py`. The real SONIC_R1 deployment (`r1/gr00t-wbc-r1/gear_sonic_deploy`,
+`deploy.sh --robot r1`) speaks zmq_manager (topic + 1280-byte JSON header + packed little-endian payload). Write a bridge
+process on the robot PC that (1) answers `state` at >= 50 Hz from the stack's joint/IMU/gripper telemetry in the field
+names `backend._state` reads (`joint_names`, `q`, `dq`, `base_quat_wxyz`, `gyro`, `gripper_width_m`, `fallen`,
+`tilt_deg`, `resets`); (2) turns `stream` rows (L wrist, R wrist, chest pose in the reference frame + 2 gripper widths +
+head pitch) into the stack's 3-point teleop reference at 50 Hz; (3) implements `walk(forward_m, turn_deg)` with the
+stack's locomotion command and blocks until still, replying `walked_m`, `turned_deg`, `pelvis`; (4) `hold` = freeze the
+reference. `grasp_paw` / `place_in_box` may return `refused` (the agent no longer needs them). Test with
+`r1/tools/diag/carry_chain_test.py` pointed at the bridge port before any RAX session.
+
+## FIRST REAL DAY, in order
+1. Bridge up; `r1_status`/`r1_observe` through RAX; arm moves with `r1_move_hand` to points above the table (reach check).
+2. Pads: pinch the hanging leg by hand-commanded `r1_move_hand` + `r1_gripper 0`, lift 10 cm, hold 60 s, then two
+   `r1_walk 0.07` steps: does the width stay? This is the sim's least trusted assumption.
+3. Walk precision: 10 walks of 0.07 and 0.15, measure the scatter; set the agent's expectations in the task file.
+4. Camera: paw-ball localisation error vs a tape measure at 0.3-0.4 m.
+5. First RAX session with `--environment real`, `--experience experience/puppy_box_r1/workspace`, 5 resets, a human
+   operator answering requests within a minute.
