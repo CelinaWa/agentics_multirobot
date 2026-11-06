@@ -225,3 +225,37 @@
   .351), back -.05 -> -.129, fwd .07 -> .088 -> edge .381. Head .6 sees table-height paws only at x >= ~.33.
 - [sim-only] where: sim. Depth sees the box FRONT wall surface at most pixels (not through it): judge "inside the box"
   from the image (body visible behind the clear wall down to the floor) or from points below rim height.
+
+# Session 20261106T043952Z_puppy_box_r1_cf6e88 (r1sonic sim, where: sim) - new rows
+- [strategy] where: sim. Grasp+lift (chain.py look/pre/go) is reliable: closed .038-.044, lift to z .41-.44 with width
+  .030-.034 (clean) or .048-.053 (diagonal): 8/9 at the standard stance. The CARRY is the problem (0/9 placements).
+- [strategy] where: sim. To SEE the hanging puppy, tilt the head UP (r1_head .1-.3; carry.py look): at head .6 the body
+  is above the image and cream-pixel "body points" pick up the table through the clear box (meaningless).
+- [strategy] where: sim. After the lift the body is 5-10 cm IN FRONT of the box front wall, bottom ~at rim height; one
+  walk (cmd .07 -> .095) sends it either RIGHT of the box's right wall (y -.25..-.40) or LOW against the front wall
+  (the hand sags 4-5 cm and drifts 5-7 cm right per walk). Neither releases into the box.
+- [param] where: sim. Servo-off hold under load: actual hand = command + (~+.015, ~-.06, -.005..-.04). NEVER issue a
+  hold command at the MEASURED hand position (that jumps the hand by the sag offset -> slip). Move relative to the
+  last command (carry.py move).
+- [param] where: sim. Slow waist yaw while holding (r1_move_joints waist_yaw .25-.3, 3 s): width unchanged (2/2), hand
+  moves +6..+10 cm left; measured waist .19-.32.
+- [strategy] where: sim. High raise (approach z 1.0, cmd z .50-.54, preview ik <= .006): body lies ON the forearm
+  (z .47-.55) but the approach rotation widens the grip .038 -> .053 and the next walk slipped 2/2. Not a carry.
+- [strategy] where: sim. Outward approach yaw (< -10 deg) at the hold pose needs an arm-branch change (jumps > 1 rad).
+- [param] where: sim. Walks this session: .2 -> .121/.136; .15 -> .118; .1 -> .04/.11; .08 -> .053/.083/.121;
+  .06 -> .044; .04 -> -.061 (BACKWARD); -.05 -> -.135; -.06 -> -.07; -.15 -> -.162; turn -10 -> ~10 deg (robot then
+  5 deg off square) and -.024. Lateral drift 4-8 cm per walk, either side. Do not use commands < .06.
+- [param] where: sim. Box-rim pose (chain.box_pose: RANSAC front-rim line at table+.145, gated by the previous pose):
+  x0 and yaw consistent to ~5 mm when nothing else is at rim height; y (right rim) wrong by 5-12 cm when the puppy
+  lies in front of the box. Use the table z of the SAME frame (camera z varies 1 cm).
+- [strategy] where: sim. Walking closer empty-handed (to need no carry walk) gained only 3-5 cm net: walks are noisy,
+  each drifted the paw 1.5-4 cm left, and the arm reach itself pulls the pelvis ~3 cm forward and yaws it 4 deg.
+  A paw at y > -.17 caps the lift at z .33 (IK). Shelved.
+- [strategy] where: sim. A reset request containing "overhang" is routed as an overhang request (no reset). Ask
+  "Please reset the scene and the robot to the start pose." The "box beside the puppy on my left" request moved ONLY
+  the box (44 cm left of the puppy centre); a following overhang request pushed the puppy off the table.
+- [sim-only] where: sim. r1_place_in_box (with a held paw) moved the hand +.19 left, +.10 fwd, -.18 down, released and
+  returned in_box + world dog/box positions (ground truth) - in_box false when the body was beside the right wall.
+- [strategy] where: sim. A dropped puppy SITS UP leaning on the box front rim (3/9); a closed-gripper push at z .16
+  (y -.17, to x .536) did not tip it in; pushes with approach yaw 30 yaw the waist ~30 deg (lost the puppy off the table).
+- [sim-only] where: sim. The clear box: through the front wall a puppy in FRONT of the box looks inside. Judge by depth.

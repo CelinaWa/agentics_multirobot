@@ -2,7 +2,7 @@
 so the ball can rotate about the pinch axis while the puppy hangs (no lever torque on the pinch, only shear).
 r1sonic sim, session 20261105T222431Z_puppy_box_r1_e0ac0c. Run ONE step at a time and look between steps.
 
-  PYTHONPATH=/home/junjieye/rax-runtime-r1/sessions/20261106T033337Z_puppy_box_r1_7c03aa/agent-workspace/pylib python pivot_pinch.py <step> [args]
+  PYTHONPATH=/home/junjieye/rax-runtime-r1/sessions/20261106T043952Z_puppy_box_r1_cf6e88/agent-workspace/pylib python pivot_pinch.py <step> [args]
     look                         head 0.6, observe, print scene (edge, paw blobs, box) - pelvis frame
     seed                         wrist-roll seed so the IK picks the horizontal-finger branch (do it with the hand
                                  in front of the edge, e.g. after `pregrasp` failed or from home)
@@ -16,7 +16,7 @@ commanded joints (an IK branch flip while holding = drop).
 """
 import json, sys, subprocess, time
 from pathlib import Path
-WSR = '/home/junjieye/rax-runtime-r1/sessions/20261106T033337Z_puppy_box_r1_7c03aa/agent-workspace'
+WSR = '/home/junjieye/rax-runtime-r1/sessions/20261106T043952Z_puppy_box_r1_cf6e88/agent-workspace'
 sys.path.insert(0, WSR)
 from api.runtime import Context  # noqa: E402
 

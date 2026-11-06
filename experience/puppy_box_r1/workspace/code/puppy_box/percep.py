@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import cv2
 
-WS = Path('/home/junjieye/rax-runtime-r1/sessions/20261106T033337Z_puppy_box_r1_7c03aa/agent-workspace')
+WS = Path('/home/junjieye/rax-runtime-r1/sessions/20261106T043952Z_puppy_box_r1_cf6e88/agent-workspace')
 
 
 def quat_wxyz_to_R(q):

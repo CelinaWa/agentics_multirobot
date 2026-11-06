@@ -94,3 +94,29 @@ Funnel (final): stance 7/7; grasp held 6/7; lift >= .33: 4/6 (4/4 servo-off); wa
 | st13 | stance | .0387 | .0523 | .099 ok, .053 x | drop | |
 | st14 | stance | .036 | .0279 | .058 x | drop | |
 | reset1 | reset, walk-in (5 walks) | .0425 | .045 (z .34) | .123 ok, .022 x -> on box rim | 2 pushes -> INSIDE box | final frame 20261105203524734959 |
+
+# Session 20261106T043952Z_puppy_box_r1_cf6e88 (sim)
+| run | start | grasp w | lift end w | carry | outcome | looked at / decided |
+|---|---|---|---|---|---|---|
+| st1 | stance | .0397 | .031 | walks .047+.067 held (.0285) | released -> table in front of box | baseline; distance short |
+| bb | box-beside request | - | - | - | operator pushed puppy off the table | box-left geometry worse; dropped |
+| st2 | stance | .0397 | .0306 | yaw rotation -> SLIP | puppy off the table | head-up look: body 5-6 cm short of the wall |
+| st3 | stance + closer walks | - | - | - | abandoned: paw too close (x .158 after the reach shift) | box re-localization works |
+| st4 | stance + closer walks | .039 | .048-.056 (z .33 only) | - | released on table -> sat up on the rim; push -> off table | y -.17 caps the lift |
+| st5 | stance | .0395 | .0297 | walk .095 held (.028); body beside the right wall | place_in_box: in_box false | 1 walk enough in x; y drift right |
+| st6 | stance | .0384 | .0297 | walk .098 (.0285): body low in front of the box right part; waist +.25 held (.0282) | released -> table right of the box front corner | body ends at/right of the right wall |
+| st7 | stance | .0436 (wide) | .049 | waist +.3 then walk .07 -> SLIP | puppy against the box front-left wall (outside) | wide grip slips; image misleading through clear wall |
+| R1 (reset 2/10) | reset, walked in .136+.11, waist -.3 to see the paw | .039 | .034 (z .44) | body hung LOW (legs up) against the front wall; waist +.3 no help | released -> on its back in front of the box | hang pose varies run to run |
+| st8 | stance, HIGH RAISE (cmd z .505, apz 1.0) | .0399 | .053-.056 (wide) | puppy body lay ON the forearm (z .47-.55, x .25-.52); walk .07 -> SLIP | puppy sat up in front of the box, head over the rim | high raise puts body on the arm; wide grip slips |
+| st8b | (same scene) | - | - | - | push on the seated puppy's back (y -.17, z .16, to x .536): no tip-over | push too low/short |
+| R3 (reset 3/10) | reset, walk-in .121, turn -10, .118, .121 (overshoot), back -.07 -> paw (.341,-.195) | .0425 (wide) | SLIP at lift step 9 | - | puppy sat up leaning on the box front rim (3rd time) | box-rim y estimate 5-12 cm off near the puppy |
+| st9 | stance, HIGH RAISE | .0384 | .053-.056 (raise rotates the leg -> wide) | body on the forearm (z .50-.54); walk .07 -> SLIP | puppy in front of the box | high raise 0/2 for walking |
+| bR | box-right request (stance 10) | - | - | - | box centre 60 cm right of the puppy (y -.5..-.8 pelvis): out of the right hand's reach; dropped | box-right worse than behind |
+| st11 | stance; waist +.15 planned | .036 | SLIP at the end of the lift (hold step, unchecked) | - | puppy sat up against the front rim (4th) | hind-leg tip-in try 1: missed (scene shifted on reach) |
+Funnel cf6e88 (sim, 10 attempts: 8 stance + 2 reset walk-ins; resets 3/10, stance placements 11/25, falls 0):
+  stance usable 10/10 (walk-in 2/2, needed a turn or a step back once) -> grasp closed on the leg 10/10 ->
+  lift to z >= .40 8/10 (2 slips) -> walk 1 held 2/6 tries (clean grips 2/2, wide/high-raise 0/4) ->
+  body over the opening 0 -> placement 0/10. Weakest stage: CARRY (body position after a walk is chaotic).
+Decisions were made at image checkpoints: head-up look after the lift (every run from st2), look after each walk,
+look after release (depth vs the front wall, since the clear wall misleads).
+| st12 | stance, v3: waist +.15 -> walk .07 -> raise | .0403 | .0468 | waist moved the hand RIGHT 1.6 cm (measured .096); walk held (.0472); raise refused (IK at z .46; steeper approach = .8 rad jump) | body beside the right wall, low -> released beside the box | waist +.15 too small; body must be raised BEFORE the walk |

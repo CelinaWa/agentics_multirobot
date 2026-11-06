@@ -1,6 +1,6 @@
 """Preview right-hand goals. python pv.py x,y,z ax,ay,az fx,fy,fz [waist]"""
 import sys, json
-sys.path.insert(0, '/home/junjieye/rax-runtime-r1/sessions/20261106T033337Z_puppy_box_r1_7c03aa/agent-workspace')
+sys.path.insert(0, '/home/junjieye/rax-runtime-r1/sessions/20261106T043952Z_puppy_box_r1_cf6e88/agent-workspace')
 from api.runtime import Context
 ctx = Context()
 p = [float(v) for v in sys.argv[1].split(',')]

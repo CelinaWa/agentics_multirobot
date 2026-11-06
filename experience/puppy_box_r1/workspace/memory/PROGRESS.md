@@ -1,77 +1,90 @@
-# PROGRESS — puppy_box_r1, session 20261106T033337Z_puppy_box_r1_7c03aa (sim)
-Started 03:33Z (sim clock 19:33 local). Budget 7200 s, $10 Gemini. Resets 0/10, stance placements 0/20.
-Inherited: 6 sim sessions, 0 placements. Lift works (pivot pinch, servo-off arc). Carry by walking dropped 3/4
-with BALL pinch (.041-.048). TASK.md now: deep SHAFT grasp (~3 cm up the leg past the ball, width .031-.035) held
-150 s still and through 3 short walks. New sim accelerator: help "place me at the grasp stance".
+# PROGRESS - puppy_box_r1, session 20261106T043952Z_puppy_box_r1_cf6e88 (sim), started 2026-11-06 04:40Z
+
+Budget: 7200 s wall clock, $10 Gemini. Resets used 0/10 (first 5 transferable), stance placements 0/20, falls 0.
+Inherited: code/puppy_box/chain.py (look | pre | go 0 <past> <dz> | retreat <back>), library skill
+r1-leg-axis-grasp-short-carry (draft). Prior funnel (7c03aa): lift 12/12, 2 walks held 6/12, 3rd walk 0/3,
+1 assisted placement (release on rim + 2 pushes).
 
 ## Plan
-1. Observe start scene. 2. Practise at grasp stance: deep shaft grasp (fingers 0,1,0; approach 1,0,0), arc lift,
-short walks holding until box under the hand, lower, open. 3. Full chain with walking in on resets.
+1. Stance baseline with chain.py (verify the sim still behaves).
+2. Box-beside layout (TASK.md suggestion) to avoid the carry walk.
+3. Full chains with walking in (>= 2 of the first 5 resets).
 
 ## Log
-### Stance 1 (19:35-19:41): paw (.322,-.202,.024) overhang 7.5, leg yaw ~12, edge .397 sq, table z -.041,
-  box x .626-.906 y -.284..+.114. Pregrasp ok; advance along leg to 5 cm past -> hand ended 1.8 cm HIGH (contact,
-  width .0711); lowered, closed .0402; re-grasp 1.5 cm deeper .0416; ~30 s idle (writing script) -> crept to .0107.
-  Puppy rotated on the table. LESSON: chain grasp->lift in ONE script.
-- GEOMETRY (r1_piper_kin.xml): finger pads span grasp-5.1 cm .. grasp+2.0 cm along the approach, 5.6 cm wide.
-  Approaching along the leg the 5 cm ball is ALWAYS between the pads (shaft-only needs grasp > ball+7.6 cm, leg ~7).
-  So widths .040-.045 = ball equator at the pads' back edge. Side approach (yaw >= 60) not reachable (IK .06-.085).
-### Stance 2 (19:48-19:49): chain.py look/pre/go 0.18 0.05. Target (.327,-.196,.029); ref offset relocalization ok
-  (ref moved 1.5 cm). Advance -> closed .0437; servo-off lift 8 steps -> hand (.434,-.254,.316), width .0437 -> .0278
-  (slid onto the shaft). Hanging body (cream pts): centroid = hand + (.037,+.144,-.12), lowest pt hand z - .27.
-  walk .18 (walked .158) -> DROPPED (.0278 -> .0041). Puppy out of view (probably floor in front of the table).
-  Physics: COM 14 cm sideways along the finger axis -> torque about the approach axis resisted only by the friction
-  couple (~18 N x width ~ .5 N m) -> marginal; walking jerks drop it.
-### Stance 3 (19:51): r1_head after the stance placement RE-SENT the stale arm command (arm up to z .35, gripper 0):
-  the arm swung through the paw area, tilt 4.1, scene shifted .2 m. RULE: after a stance placement/reset, first
-  r1_move_joints HOME + r1_gripper open BEFORE any other motion tool (or make sure the stored command is HOME).
-### Stance 4 (19:53-19:55): ENGINEERING NOTICE: paw ball is soft, jaws clamp the leg core; width .031-.035 = clean
-  shaft on the leg axis; .040-.058 = diagonal/two legs. Leg axis measured by x-slices of the leg band (right edge):
-  yaw 19.5 deg (not 12), axis 4 mm left of the paw centre, level (pitch ~0). Grasp along it: closed .039 -> .030
-  during the lift (clean shaft). Lift to z .396; walks .082 + .065 HELD (w .030 -> .026); hand sagged 6 cm during
-  walks -> body zmin .084 < rim .116 (pressed on the box front wall); rim detector picked the arm -> extra walk ->
-  SLIP. Fixes in chain.py: HOLD_Z .44 re-raised after each walk, dead-reckoned box x, gated rim.
-### Stance 5 (19:59-20:00): front-edge detector replaced (min-x of table points per y bin, robust line). Leg axis
-  slices: yaw 19.7/20.1/22.4/20.3 deg in 4 stance frames, axis 1-3 mm right of the paw centre. Grasp IK: cmd yaw 20.3
-  achieves only 17.0 (pitch -8, ik .016) and the hand landed 1.6 cm left -> closed .0373 (diagonal), lift ok, slipped
-  at the first walk (w .0263). Hanging puppy is mostly ABOVE the camera view at head .6 -> body offset from constants.
-### Stance 6 (20:03-20:04): choose_approach (cmd yaw +4, pitch -15 -> achieved 22.0 = leg 22.3, ik .008): CLEAN
-  GRASP .0341; lift .034->.040->.0297 stable; walk1 .09 held (.0284); re-raise refused (z .455 ik .031); walk2 .00
-  (.0261), walk3 .064 -> SLIP. Each walk costs ~1-1.5 mm of width and the hand sags/drifts right ~2-3 cm per walk.
-### Stance 7 (20:06): leg yaw 23.8; closed .0376 -> grew to .047-.051 during lift (diagonal?) but held; walks .046,
-  .067 held; re-raise ok; 3rd walk .067 -> SLIP. => 3rd walk fails 3/3 (st4, st6, st7); 2 walks survive 3/3.
-  Change: MAX_WALKS 2 (cmd .08), then waist reach (z .43 -> .40) and release regardless.
-### Stance 8 (20:09): yaw 20.8, approach ach 20.2 ik .006, hand 4 mm off; closed .0363 -> .0277 during the lift ->
-  SLIP on the 1st walk (w .0269). Pattern: end-of-lift width ~.030 (st4, st6) or ~.05 (st7) survived 2 walks; < .028
-  (st5, st8) failed at once. Next: past .06 (deeper), lift straight to ~.43.
-### Stance 9 (20:11): past .06: closed .0373 -> .0298 (clean) at lift end z .41; walks .069 (.0284), .022 (.0259);
-  re-raise move -> SLIP (.004). Waist reach solution jumped .87 rad (refused). Tally with end-of-lift width >= .0285:
-  2 walks survived 4/4 (st4, st6, st7, st9); 3rd walk 0/3; arm moves under load after walks also slip.
-  Next: lift straight to ~.44, 2 walks of cmd .10, no re-raise unless z < .40, reach without waist first.
-### Stance 10 (20:14): wide grip .048-.053 (diagonal?) survived 2 walks (.066+.056); reach did not move the hand
-  (x .43, arm cannot extend at z .40); released -> puppy on the TABLE in front of the box. Body hangs ~5 cm BEHIND
-  the hand: the 13 cm sideways offset lies along the finger axis (yawed 22 deg). Fix: rotate approach yaw to ~2 deg
-  during the lift (IK ok at the hold pose), no reach, release right after 2 walks (cmd .12).
-### Stance 11 (20:19): yaw rotation 21.7 -> 2 deg during the lift: grip .0297 at the end, body centroid +.07 AHEAD of
-  the hand (was +.04); walk cmd .12 (walked .081) -> SLIP at once. Back to cmd .07, try MAX_WALKS 3.
-### Stance 12 (20:20): shifted layout (box .2 m right, paw z -.01 variant): wrong paw selected (leg edge at the slice
-  window boundary) -> stopped at 'go' (reference not found). Added the boundary check. No contact.
-### Stance 13 (20:22): yaw-rotated lift, wide grip .039 -> .052; walk .099 held, walk 2 (.053) -> SLIP.
-  2-walk survival so far 5/10 runs (st4,6,7,9,10), 3rd walk 0/3. Back to MAX_WALKS 2 + immediate release.
-### Stance 14 (20:25): grip .036 -> .0279 (weak); hold re-raise with yaw-2 approach jumped the hand 7 cm right; SLIP on
-  walk 1. STOP stance experiments (time). Carry tally: 2 walks survived 5/12, 3rd walk 0/3, placements 0.
-### Reset 1 (20:26-20:35) WHOLE CHAIN, walked in: walks .135, .061, .069 (overshoot: paws below view), -.05 -> -.129,
-  .07 -> .088 -> edge .381; target paw hidden -> localized from the reference paw + offset (previous frame).
-  pre/go: grasp .0425, lift to z .34 (IK limit at y -.17), walk .123 held, re-raise, walk .022 -> DROPPED onto the
-  box FRONT RIM. Push-in: closed gripper, (1,0,0), z .16: push 1 (x .36->.52 at y -.14) moved it over the opening but
-  it lay across the rims; walked closer (~5 cm), hit the table edge from below once (tilt 5.5, freed by HOME),
-  push 2 via waypoint (.20,-.28,.16) -> (.36,-.20,.16) -> (.52,-.20,.16): puppy UPRIGHT INSIDE the box (tail end on
-  the floor, head/front paws over the rim). Retreat, walk back: frame 20261105203524734959.
+### st1 (stance, box behind) 04:43: inherited chain.py unchanged: grasp .0397, lift to z .40 (.031), 2 walks .047+.067
+  held (.0285) but only .114 of .195 needed -> released: puppy on the TABLE in front of the box's right corner.
+### box-beside request: operator moved the box 44 cm LEFT of the puppy centre (same depth) but did NOT reset the puppy;
+  a following "overhang" request said "18.5 cm past the edge" -> puppy fell OFF the table. Geometry: box-left is
+  worse for the right-hand front-paw grasp (box centre ~.45 m left of the hand). Dropped.
+### st2 (stance) 04:50: grasp .0397, lift_only -> width .0306, hand (.454,-.237,.426). HEAD-UP LOOK (pitch .1) shows
+  the hanging body: centroid (.534,-.146,.39), x .48-.65, zmin .125 vs box front wall .59 -> 5-6 cm short.
+  Outward yaw rotation needs an arm branch change past ~-10 deg (joint jumps > 1 rad). Yaw -10 at the real hand
+  position: servo-off move jumped the hand 6 cm -> SLIP (.004). Puppy off the table. LESSON: no arm moves under load
+  after the lift except tested ones.
+### NEW PLAN (close stance): measure the paw at the stance (x .31), walk ~.1 closer EMPTY-HANDED, re-localize the
+  invisible paw from the static box rim (chain.box_pose / box_transform), grasp+lift as usual -> body should already
+  hang over the opening; head-up look; release. IK preview OK for paw x .21-.27 (ik < .003).
+### st3 (stance) 04:54-04:58: close-stance trial. look (paw .317,-.208), closer .1 -> walked .04 (box_pose bug:
+  back wall at rim height -> gated by prior), closer .08 -> walked .083: paw (.197,-.19) arm home. pre: the reach
+  moved the scene 3.2 cm closer + 4.2 deg yaw + 6.7 cm in y (box-measured) -> paw (.158,-.236): waypoint/pregrasp IK
+  .02-.04 = too close. Walk back -.05 -> -.135 (overshoot) + 5 cm right drift. Abandoned (no contact).
+  LESSON [param]: target paw at x ~.24-.26 with the arm home (the reach brings it ~3 cm closer); walk total ~.06.
+### st4 (stance) 04:58-05:02: closer walks: .06 -> .044-.048, .04 -> -.061 (BACKWARD), .08 -> .053; each drifted the paw
+  +1.5..4 cm left (y -.208 -> -.155). box re-localization accurate (ref paw predicted within 3-5 mm). pre/go at paw
+  (.27,-.185): grasp .039, lift refused at z .33 (y -.17: IK), width .048 -> .056 twisting; head-up: body held level in
+  front of the camera (x .28-.52) far from the box -> released on the table: puppy SAT UP leaning on the box front rim.
+  Push on its back (approach yaw 30 needed for reach) yawed the waist ~30 deg; puppy ended off the table (not seen).
+  LESSONS: [param] small walk cmds (< .06) are random (even backward); closer-stance gains ~3-5 cm only at the cost of
+  y drift; keep the grasp at y <= -.19 or the lift stops at z .33. Close-stance idea SHELVED.
+### st5 (stance) 05:03-05:06: grasp .0395, lift_only .0297 hand (.453,-.245,.429); head-up: body x .46-.60 (front .59).
+  walk .07 -> .095, w .0286; hand sagged to (.434,-.320,.380); body moved RIGHT: x .64-.79, y -.25..-.40 (box right
+  wall ~-.26) = beside the box's right wall, deep enough in x. r1_place_in_box(side right) -> in_box FALSE: dog world
+  (.885,-.186,.807), box (.875,.088,.703) (27 cm right of the box centre). ONE walk is enough in x; y is the problem.
+  NOTE: st2's slip was MY error (re-based hold_pos 8 cm from the real command -> 7 cm jump). Relative moves are OK.
+  NEXT: after walk 1, correct y with a slow waist yaw (+.1..+.2 rad) or a relative hand move, then release.
+### st6 (stance) 05:07-05:09: grasp .0384 lift .0297; walk .098 (.0285): body hung LOW in front of the box right part
+  (front wall blocked it; hand sagged to z .38); waist yaw +.25 while holding: width unchanged (.0282), hand moved
+  (+.05,+.06,-.03) -> released: puppy on the table right of the box front corner.
+### st7 (stance) 05:10-05:12: grasp WIDE .0436 -> .049; waist +.3 right after the lift: body HIGH (z .37+), left
+  (y -.07..+.22), centroid x .42 (behind the hand!); walk .07 -> SLIP; puppy fell against the box front-left wall
+  (depth: x .38-.44, z .14-.25, in FRONT of the wall .50; the image looks "inside" through the clear wall!).
+  Push from the front at y -.05..0 not reachable (ik .04-.15).
+  TALLY: lift 7/7; walk-1 survival 3/4 (st5, st6 held; st7 wide grip slipped; st1 2/2); placement 0/5.
+### R1 = reset 2/10 (operator counts the mis-routed request as reset 1) 05:15-05:18: walk-in .136 + .11 (edge .372);
+  target paw out of view at the bottom-right -> waist -.3 look, leg axis 12 deg measured manually, waist 0, pre/go:
+  grasp .039, lift .034 (clean) z .44; head-up: body hung LOW (legs up, bottom z .04) against the box front wall;
+  waist +.3 kept the grip but did not lift the body; released -> on its back in front of the box. FAIL.
+  NOTE: a reset request containing "overhang" is routed as an overhang request: ask "reset the scene" plainly.
+### st8 05:20-05:23: HIGH RAISE (chain go ... 1 1: after the LIFT 4 steps to cmd z .505, approach z 1.0, ik <= .006):
+  hand actual z .464 (4 cm sag); body lay ON THE FOREARM (z .47-.55, x .25-.52) - supported, not hanging; grip wide
+  .053 -> walk .07 -> SLIP; puppy sat up in front of the box (head over the rim). Push at y -.17 z .16 to x .536
+  (approach (1,.15,-.2) start, ik .017): no tip-over.
+  TALLY (session): lift 9/9; walk-1 held 2/4 (clean .03 grips 2/2, wide .05 grips 0/2); placement 0/10.
+### R3 = reset 3/10 05:24-05:27: walk .2 -> .121 (8 cm LEFT drift: paw off-image right), turn -10 -> 10 deg (+5 deg
+  over relative to the table) and -.024, walk .15 -> .118, walk .08 -> .121 (overshoot: paws below the view); box-rim
+  re-localization gave y errors of 5-12 cm here (puppy at rim height in front of the box contaminates the right rim);
+  back -.06 -> -.07 -> paw (.341,-.195) visible, leg yaw 24 (robust slice fit). grasp .0425 -> SLIP at lift step 9 ->
+  puppy sat up against the box front rim. FAIL.
+### st9 05:29-05:30: high raise again: closed .0384 -> .053 after the raise (approach rotation twists the leg);
+  body on the forearm z .50-.54; walk .07 -> SLIP. High raise + walk: 0/2. Robot stepped back .1, arms home.
+### st10 box-right request: box centre 60 cm right of the puppy (y -.5..-.8): out of reach -> dropped.
+### st11 05:35-05:38: close .036 (clean) but lost at the end of the lift (hold step, now checked: exit 3); puppy sat
+  up against the box front rim (4th time). Hind-leg tip-in: the two hind legs lie stacked (z .05/.01 along y at x .39);
+  vertical jaws hit the lower leg (miss); top-down unreachable. Robot retreated .12, arms home.
 
-## FINAL STATE (20:35, ~70 min used)
-- Puppy body inside the box (upright, head + front paws above the rim) - judged from the image of frame
-  20261105203524734959 (depth sees the front wall, not through it). Box upright, nothing on the floor. Robot standing
-  ~.45 m from the edge, arms home, grippers open, tilt 1.7. => success conditions appear met, ASSISTED by 2 pushes.
-- Resets 1/10, stance placements 14/20, falls 0.
-- Library: r1-leg-axis-grasp-short-carry (draft) merged -> main 41105ce.
-- Controller: code/puppy_box/chain.py (look | pre | go 0 <past> <dz> | retreat <back>).
+## FINAL STATE (05:39, ~68 min used)
+- Task NOT achieved this session: 0/10 placements. Puppy on the table sitting against the box front (last scene), box
+  upright, nothing on the floor in the final view; robot standing ~.5 m from the edge, arms home, grippers open,
+  tilt 0.9 deg, not touching anything.
+- Resets used 3/10 (2 full walk-in chains), stance placements 11/25, falls 0.
+- Library: r1-leg-axis-grasp-short-carry v2 (draft) merged -> main 877b319 (evidence + code + findings).
+- Controller: code/puppy_box/chain.py (look | closer <cmd> | reloc | pre | go 0 .06 -.004 [1 [1]] | retreat) and
+  code/puppy_box/carry.py (look | yaw | move | waist | walk | release | push | out), code/puppy_box/home.py.
+- Handoff: handoff/README.md (previous: README_7c03aa.md). Tips: memory/TIPS.md (cf6e88 rows). PARAMS: 5 sim rows.
+- NEXT: the carry. Most promising untested: waist yaw +.15..+.2 BEFORE the single walk with a clean grip, then a
+  RELATIVE raise (+.03..+.05) to undo the sag, head-up look, release only when depth shows the body beyond the wall.
+### st12 05:40-05:42 (v3: code/puppy_box/v3.sh): grasp .0403, lift .0468; waist +.15 moved the hand 1.6 cm RIGHT
+  (measured .096); walk .073 held; relative raise refused (z .46 IK; steep approach = .8 rad jump); body low beside the
+  right wall -> released beside the box. Robot stepped back .14, arms home, grippers open (final).
+FINAL TALLY: 11 attempts (9 stance + 2 walk-in resets): grasp 11/11 closed on the leg, lift >= .40 9/11, walk-1 held
+  3/7, placement 0/11. Resets 3/10, stance placements 12/25, falls 0. Session time used ~66 of 120 min.

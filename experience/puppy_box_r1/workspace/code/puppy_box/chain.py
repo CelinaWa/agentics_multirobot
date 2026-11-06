@@ -38,6 +38,8 @@ REACH_X = 0.50          # holding reach at z .44 with use_waist (preview ik .008
 BODY_IN = 0.08          # body centroid this far behind the box front wall
 BODY_OFF = (0.05, 0.13) # hanging body centroid - hand (x, y), front-right paw grasp (stances 2, 4)
 HANG = 0.27             # lowest point of the hanging puppy below the hand
+RAISE = [(0.0, 0.0, 0.025, 0.7), (-0.005, -0.005, 0.03, 0.9), (-0.01, -0.005, 0.03, 1.0), (-0.01, -0.005, 0.03, 1.0)]
+# (dx, dy, dz, approach z) after the LIFT: steeper approach lets the hand reach z .50-.55 (preview ik <= .006, cf6e88)
 ctx = Context()
 T0 = time.time()
 
@@ -241,12 +243,85 @@ def leg_axis(fid, c, r_leg=0.016):
         return None
     xs = np.array(xs); ys = np.array(ys)
     b, a = np.polyfit(xs, ys, 1)
+    for _ in range(2):                       # drop single-slice outliers (gaps between legs), refit (cf6e88)
+        r_ = np.abs(a + b * xs - ys)
+        if r_.max() > 0.006 and len(xs) > 5:
+            keep = r_ < r_.max(); xs, ys = xs[keep], ys[keep]
+            b, a = np.polyfit(xs, ys, 1)
     res = float(np.sqrt(np.mean((a + b * xs - ys) ** 2)))
     yaw = math.degrees(math.atan(b))
     lat0 = a + r_leg / math.cos(math.radians(yaw))     # axis y offset at dx = 0
     return {'yaw': round(yaw, 1), 'axis_at_paw': [float(c[0]), float(c[1] + lat0), float(c[2])], 'lat0': round(lat0, 4),
             'res': round(res, 4), 'n': int(len(xs)), 'top_z': round(float(np.median(zt)), 3),
             'edge': [[round(float(x), 3), round(float(y), 4)] for x, y in zip(xs, ys)]}
+
+
+def box_pose(fid, zt, prior=None):
+    """box rim at table+RIM_H: front rim line (min x per 1 cm y-bin, robust line) -> origin x at the box middle y,
+    normal yaw (deg), y extents. Static reference to re-localize targets the camera cannot see (close stance)."""
+    meta, rgb, dep = load_frame(fid)
+    hsv = cv2.cvtColor(rgb, cv2.COLOR_BGR2HSV)
+    P, ok = cloud(meta, dep, stride=1)
+    m = ok & (np.abs(P[..., 2] - (zt + RIM_H)) < 0.016) & (P[..., 0] > 0.3) & (P[..., 0] < 1.2) & (hsv[..., 1] < 40)
+    p = P[m]
+    if prior is not None:      # gate around the previous pose (the back wall of the room is also bright at rim height)
+        p = p[(p[:, 0] > prior['x0'] - 0.20) & (p[:, 0] < prior['x0'] + 0.33) &
+              (p[:, 1] > prior['ylo'] - 0.12) & (p[:, 1] < prior['ylo'] + 0.395 + 0.12)]
+    else:
+        p = p[p[:, 0] < 0.95]
+    if len(p) < 300:
+        return None
+    ylo, yhi = (float(v) for v in np.percentile(p[:, 1], [1, 99]))
+    ys, xs = [], []
+    for y in np.arange(ylo + 0.03, yhi - 0.03, 0.01):
+        b = p[(p[:, 1] >= y) & (p[:, 1] < y + 0.01)]
+        if len(b) > 8:
+            ys.append(y + 0.005); xs.append(float(np.percentile(b[:, 0], 2)))
+    if len(ys) < 8:
+        return None
+    ys = np.array(ys); xs = np.array(xs)
+    best = None
+    for i in range(len(ys)):
+        for j in range(i + 1, len(ys)):
+            if abs(ys[j] - ys[i]) < 0.08:
+                continue
+            b_ = (xs[j] - xs[i]) / (ys[j] - ys[i]); a_ = xs[i] - b_ * ys[i]
+            inl = np.abs(a_ + b_ * ys - xs) < 0.005
+            if best is None or inl.sum() > best[0]:
+                best = (inl.sum(), inl)
+    inl = best[1]
+    b_, a_ = np.polyfit(ys[inl], xs[inl], 1)
+    ym = (ylo + yhi) / 2 if abs((yhi - ylo) - 0.395) < 0.02 else ylo + 0.1975   # left side often contaminated
+    return {'x0': round(float(a_ + b_ * ym), 4), 'ym': round(ym, 4), 'yaw': round(-math.degrees(math.atan(b_)), 2),
+            'ylo': round(ylo, 3), 'yhi': round(yhi, 3), 'n_in': int(inl.sum()), 'n': int(len(ys))}
+
+
+def box_transform(b0, b1):
+    """map a pelvis-frame point measured with box pose b0 to the frame where the box pose is b1 (2-D + yaw)."""
+    t0, t1 = math.radians(b0['yaw']), math.radians(b1['yaw'])
+    o0 = np.array([b0['x0'], b0['ym']]); o1 = np.array([b1['x0'], b1['ym']])
+    def R(t):
+        return np.array([[math.cos(t), -math.sin(t)], [math.sin(t), math.cos(t)]])
+    def f(p):
+        q = R(-t0) @ (np.array(p[:2]) - o0)
+        xy = o1 + R(t1) @ q
+        return [float(xy[0]), float(xy[1])] + [float(v) for v in p[2:]]
+    return f, t1 - t0
+
+
+def reloc_box(o, s):
+    """close stance: re-localize target/ref/leg from the static box (the reach moves/rotates the pelvis 3-7 cm, 4-5 deg)
+    and store them in the current frame. Returns (state, how) or (None, why)."""
+    b1 = box_pose(o['frame'], o['table_z'] or s['table_z'], s['box_pose'])
+    if b1 is None or abs(b1['x0'] - s['box_pose']['x0']) > 0.15:     # width off -> ym already from the right rim
+        return None, 'box pose not measured (%s)' % b1
+    f_, dth = box_transform(s['box_pose'], b1)
+    c, sn = math.cos(dth), math.sin(dth)
+    ld = np.array(s['leg']); ld = [c * ld[0] - sn * ld[1], sn * ld[0] + c * ld[1]]
+    how = 'box moved %.3f %.3f yaw %.2f' % (b1['x0'] - s['box_pose']['x0'], b1['ym'] - s['box_pose']['ym'], math.degrees(dth))
+    save(target=f_(s['target']), paw_fit=f_(s['paw_fit']), ref=s['ref'] and f_(s['ref']), leg=ld,
+         fing=[-ld[1], ld[0], 0.0], box_pose=b1)
+    return load(), how
 
 
 def choose_approach(pos, leg_yaw_deg, fing):
@@ -288,10 +363,43 @@ def main():
         a_ = math.radians(ax['yaw'])
         ld = np.array([math.cos(a_), math.sin(a_)]); f = np.array([-math.sin(a_), math.cos(a_), 0.0])
         save(target=ax['axis_at_paw'], paw_fit=T['c'], ref=R and R['c'], edge=o['edge'], table_z=o['table_z'],
-             box=o['box'], leg=ld.tolist(), fing=f.tolist(), axis=ax)
+             box=o['box'], leg=ld.tolist(), fing=f.tolist(), axis=ax, box_pose=box_pose(o['frame'], o['table_z']),
+             close=False)
         log(step='selected', target=T, ref=R, axis=ax)
+    elif step == 'closer':
+        # walk closer with nothing in hand; re-localize the (now invisible) target from the static box
+        s = load()
+        wr = ctx.value('r1_walk', forward_m=a[0])
+        o = perceive('closer')
+        b1 = box_pose(o['frame'], o['table_z'] or s['table_z'], s.get('box_pose'))
+        if b1 is None or s.get('box_pose') is None or abs(b1['x0'] - s['box_pose']['x0'] + (wr.get('walked_m') or 0)) > 0.06:
+            log(step='STOP', why='box pose not measured', b1=b1); sys.exit(2)
+        f, dth = box_transform(s['box_pose'], b1)
+        c, sn = math.cos(dth), math.sin(dth)
+        ld = np.array(s['leg']); ld = [c * ld[0] - sn * ld[1], sn * ld[0] + c * ld[1]]
+        fi = [-ld[1], ld[0], 0.0]
+        save(target=f(s['target']), paw_fit=f(s['paw_fit']), ref=s['ref'] and f(s['ref']), leg=ld, fing=fi,
+             box_pose=b1, close=True, box=o['box'], walked_closer=wr.get('walked_m'))
+        s2 = load()
+        log(step='closer', walked=wr.get('walked_m'), pelvis=wr.get('pelvis'), tilt=wr.get('tilt_deg'), box_pose=b1,
+            dyaw_deg=round(math.degrees(dth), 2), target=[round(v, 3) for v in s2['target']],
+            edge_est=round(s['edge']['dist'] - (s['box_pose']['x0'] - b1['x0']), 3))
+    elif step == 'reloc':
+        s = load(); save(close=True); s = load()
+        o = perceive('reloc')
+        s, how = reloc_box(o, s)
+        if s is None:
+            log(step='STOP', why=how); sys.exit(2)
+        log(step='reloc', how=how, target=[round(v, 3) for v in s['target']], ref=s['ref'] and [round(v, 3) for v in s['ref']],
+            leg_yaw=round(math.degrees(math.atan2(s['leg'][1], s['leg'][0])), 1))
     elif step == 'pre':
         s = load()
+        if s.get('close'):
+            o = perceive('pre0')
+            s, how = reloc_box(o, s)
+            if s is None:
+                log(step='STOP', why=how); sys.exit(2)
+            log(step='reloc', how=how, target=[round(v, 3) for v in s['target']])
         P = np.array(s['target']); ld = np.array(s['leg']); f = s['fing']
         appr = [ld[0], ld[1], 0.0]
         G = P[:2] + 0.05 * ld
@@ -308,10 +416,17 @@ def main():
         walk_m = a[0] if a else 0.15
         past = a[1] if len(a) > 1 else 0.05
         dzg = a[2] if len(a) > 2 else 0.008
+        lift_only = len(a) > 3 and a[3] > 0
         s = load()
         ld = np.array(s['leg']); f = s['fing']
         o = perceive('grasp0')
-        P, how = relocalize(o, s)
+        if s.get('close'):
+            s, how = reloc_box(o, s)
+            if s is None:
+                log(step='STOP', why=how); sys.exit(2)
+            P = s['target']; ld = np.array(s['leg']); f = s['fing']
+        else:
+            P, how = relocalize(o, s)
         if P is None:
             log(step='STOP', why=how); sys.exit(2)
         P = np.array(P)
@@ -332,6 +447,7 @@ def main():
         # lift (servo off), no pauses
         x, y, z = g['grasp_points_pelvis_m']['right']
         yaw0 = math.atan2(ld[1], ld[0]); yaw1 = math.radians(YAW_END)
+        last_ok = (x, y, z)
         for i, (da, dz, az) in enumerate(LIFT):
             x, y, z = x + da * ld[0], y + da * ld[1], z + dz
             if i == len(LIFT) - 1:
@@ -341,7 +457,9 @@ def main():
             ap = (math.cos(yw), math.sin(yw), az); fi = (-math.sin(yw), math.cos(yw), 0.0)
             r = guarded((x, y, z), ap, fi, w=0.0, secs=1.2, max_jump=0.45, servo=False)
             if r is None:
+                x, y, z = last_ok
                 break
+            last_ok = (x, y, z)
             if r['gripper_width_m']['right'] < HELD_MIN:
                 log(step='SLIP', at=i); sys.exit(3)
         o2 = ctx.value('r1_observe')
@@ -360,8 +478,30 @@ def main():
         def hold_at(x, y, z, waist=False, secs=1.5):
             return guarded((x, y, z), appr, f, w=0.0, secs=secs, max_jump=0.6, servo=False, use_waist=waist)
 
-        if hz < 0.40:
-            hold_at(hx, hy, 0.43)
+        cmd_pos = [x, y, z]
+        apz_end = 0.5
+        if len(a) > 4 and a[4] > 0:          # high raise (cf6e88): body bottom clears the rim with margin
+            yw = math.radians(YAW_END)
+            for dxr, dyr, dzr, azr in RAISE:
+                nx, ny, nz = cmd_pos[0] + dxr, cmd_pos[1] + dyr, cmd_pos[2] + dzr
+                r = guarded((nx, ny, nz), (math.cos(yw), math.sin(yw), azr), (-math.sin(yw), math.cos(yw), 0.0), w=0.0,
+                            secs=1.5, max_jump=0.45, servo=False)
+                if r is None:
+                    break
+                cmd_pos = [nx, ny, nz]; apz_end = azr
+                if r['gripper_width_m']['right'] < HELD_MIN:
+                    log(step='SLIP', at='raise'); sys.exit(3)
+        elif hz < 0.40:
+            if hold_at(hx, hy, 0.43) is not None:
+                cmd_pos = [hx, hy, 0.43]
+        if lift_only:
+            save(hold_pos=[float(v) for v in cmd_pos], hold_yaw=YAW_END, hold_apz=apz_end)
+            o3 = ctx.value('r1_observe')
+            if o3['proprio']['gripper_width_m']['right'] < HELD_MIN:     # slip at the hold/raise step (st11)
+                log(step='SLIP', at='end of lift', frame=o3['camera']['frame_id']); sys.exit(3)
+            log(step='lift_only_done', frame=o3['camera']['frame_id'], cmd_pos=cmd_pos,
+                hand=o3['proprio']['grasp_points_pelvis_m']['right'], width=o3['proprio']['gripper_width_m']['right'])
+            sys.exit(0)
         o3 = ctx.value('r1_observe'); fid3 = o3['camera']['frame_id']
         hand3 = o3['proprio']['grasp_points_pelvis_m']['right']
         bp3 = body_points(fid3, zt, hand3) or {'zmin': hand3[2] - HANG}

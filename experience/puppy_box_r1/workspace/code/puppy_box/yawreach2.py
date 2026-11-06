@@ -1,5 +1,5 @@
 import sys, json, math
-WS = '/home/junjieye/rax-runtime-r1/sessions/20261106T033337Z_puppy_box_r1_7c03aa/agent-workspace'
+WS = '/home/junjieye/rax-runtime-r1/sessions/20261106T043952Z_puppy_box_r1_cf6e88/agent-workspace'
 sys.path.insert(0, WS)
 from api.runtime import Context
 ctx = Context()

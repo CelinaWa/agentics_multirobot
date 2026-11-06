@@ -1,7 +1,7 @@
 """Preview a sequence of right-hand waypoints with a fixed approach/fingers; report ik error and joint jumps.
 python pathcheck.py '<json list of [x,y,z]>' '[ax,ay,az]' '[fx,fy,fz]'"""
 import sys, json
-sys.path.insert(0, '/home/junjieye/rax-runtime-r1/sessions/20261106T033337Z_puppy_box_r1_7c03aa/agent-workspace')
+sys.path.insert(0, '/home/junjieye/rax-runtime-r1/sessions/20261106T043952Z_puppy_box_r1_cf6e88/agent-workspace')
 from api.runtime import Context
 pts = json.loads(sys.argv[1]); appr = json.loads(sys.argv[2]); fing = json.loads(sys.argv[3])
 prev = None

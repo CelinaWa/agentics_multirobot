@@ -28,6 +28,25 @@
   "camera_z_bias_waist_yawed_m": {
     "sim": 0.02
   },
+  "carry.high_raise_walk_survival": {
+    "sim": {
+      "how": "cf6e88 st8, st9: approach z 1.0 cmd z .50-.54, width .053",
+      "measured": "2026-11-05",
+      "value": "0/2"
+    }
+  },
+  "carry.hold_sag_m": {
+    "sim": {
+      "how": "cf6e88: actual - commanded hand under load, servo off",
+      "measured": "2026-11-05",
+      "value": [
+        0.015,
+        -0.06,
+        -0.03
+      ]
+    },
+    "unit": "m"
+  },
   "carry.max_walks_holding": {
     "sim": {
       "how": "3rd walk 0/3; 2 walks held 6/12 (7c03aa)",
@@ -35,6 +54,13 @@
       "value": 2
     },
     "unit": "calls"
+  },
+  "carry.walk1_survival": {
+    "sim": {
+      "how": "cf6e88 stance runs",
+      "measured": "2026-11-05",
+      "value": "2/4 (clean .03 grips 2/2, wide .05 grips 0/2)"
+    }
   },
   "carry.walk_cmd_m": {
     "sim": {
@@ -89,6 +115,14 @@
         0.0279
       ]
     }
+  },
+  "lift.end_hand_z_m": {
+    "sim": {
+      "how": "cf6e88: 8 lifts, servo off, approach z .5; cmd z .41-.43, actual .41-.44",
+      "measured": "2026-11-05",
+      "value": 0.43
+    },
+    "unit": "m"
   },
   "lift.max_hand_z_waist_m": {
     "note": "hand height reached holding the puppy with waist help, x ~.39",
@@ -382,6 +416,14 @@
         0.003,
         0.1
       ]
+    },
+    "unit": "m"
+  },
+  "walk.min_reliable_cmd_m": {
+    "sim": {
+      "how": "cf6e88: .04 walked -.061; .06 -> .044; .08 -> .053-.121",
+      "measured": "2026-11-05",
+      "value": 0.08
     },
     "unit": "m"
   },

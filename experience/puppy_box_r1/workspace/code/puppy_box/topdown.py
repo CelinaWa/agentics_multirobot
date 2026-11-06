@@ -2,9 +2,9 @@
 python topdown.py <frame> [x0 x1 y0 y1] [zmin]  -> output/td_<frame>.png ; scale 1 px = 2 mm"""
 import sys
 import numpy as np, cv2
-sys.path.insert(0, '/home/junjieye/rax-runtime-r1/sessions/20261106T033337Z_puppy_box_r1_7c03aa/agent-workspace/code/puppy_box')
+sys.path.insert(0, '/home/junjieye/rax-runtime-r1/sessions/20261106T043952Z_puppy_box_r1_cf6e88/agent-workspace/code/puppy_box')
 from percep import load_frame, cloud
-WS = '/home/junjieye/rax-runtime-r1/sessions/20261106T033337Z_puppy_box_r1_7c03aa/agent-workspace'
+WS = '/home/junjieye/rax-runtime-r1/sessions/20261106T043952Z_puppy_box_r1_cf6e88/agent-workspace'
 
 
 def render(fid, x0=0.1, x1=0.7, y0=-0.5, y1=0.1, zmin=-0.03, res=0.002):

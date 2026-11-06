@@ -1,7 +1,7 @@
 """Smooth arc lift of a held paw/leg with horizontal fingers, servo OFF (no correction jumps).
 python lift_h2.py <leg_yaw_deg_pelvis> [n_steps]. Steps relative to the commanded (not measured) previous goal."""
 import sys, json, math
-WS = '/home/junjieye/rax-runtime-r1/sessions/20261106T033337Z_puppy_box_r1_7c03aa/agent-workspace'
+WS = '/home/junjieye/rax-runtime-r1/sessions/20261106T043952Z_puppy_box_r1_cf6e88/agent-workspace'
 sys.path.insert(0, WS)
 from api.runtime import Context
 ARM = ['right_shoulder_pitch_joint', 'right_shoulder_roll_joint', 'right_shoulder_yaw_joint', 'right_elbow_joint',

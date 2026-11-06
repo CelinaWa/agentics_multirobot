@@ -1,7 +1,7 @@
 """Previewed right-hand move with joint-jump guard. python safe_move.py x y z ax ay az fx fy fz width secs max_jump [go]
 Prints the preview; moves only if 'go' is given and ik <= .03 and max arm-joint jump <= max_jump."""
 import sys, json
-WS = '/home/junjieye/rax-runtime-r1/sessions/20261106T033337Z_puppy_box_r1_7c03aa/agent-workspace'
+WS = '/home/junjieye/rax-runtime-r1/sessions/20261106T043952Z_puppy_box_r1_cf6e88/agent-workspace'
 sys.path.insert(0, WS)
 from api.runtime import Context
 ARM = ['right_shoulder_pitch_joint', 'right_shoulder_roll_joint', 'right_shoulder_yaw_joint', 'right_elbow_joint',
