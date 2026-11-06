@@ -328,7 +328,10 @@ class RealStack:
             self.heading0 = _yaw_wxyz(base)
         R = _rot_wxyz(_quat_mul_wxyz(_yaw_quat_wxyz(-self.heading0), base))
         self.okin.set(dict(zip(self.joint_names, np.asarray(t.get('body_q_measured', t['body_q']), dtype=float))))
-        feet = {side: R @ self.okin.body(f'{side}_ankle_roll_link')[0] for side in ('left', 'right')}
+        feet = {}
+        for side in ('left', 'right'):                                   # a sole point 6 cm below the ankle (best of a sweep
+            pa, Ra = self.okin.body(f'{side}_ankle_roll_link')           # against sim truth: rms 0.16 m vs 0.22 m at the ankle)
+            feet[side] = R @ (pa + Ra @ np.array([0.0, 0.0, -0.06]))
         low = min(feet, key=lambda k: feet[k][2])
         stance = self.odo_stance if (self.odo_stance and feet[self.odo_stance][2] < feet[low][2] + 0.01) else low
         if stance == self.odo_stance and self.odo_foot is not None:
