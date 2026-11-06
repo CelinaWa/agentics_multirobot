@@ -758,6 +758,18 @@ def serve(sim, port, stop):
                                      float(req.get("liftz", 0.22)), req.get("reach_ahead"), bool(req.get("do_overhang", False)), int(req.get("lean", 0)))
                 sock.send(json.dumps({"ok": True, **out}).encode()); continue
             with sim.lock:
+                if op == "snapshot":            # third-person view (the scene's overview camera) as a JPEG, for recordings
+                    if sim.renderer is None:
+                        sim.renderer = mujoco.Renderer(sim.m, CAM_H, CAM_W)
+                    opt = mujoco.MjvOption(); opt.geomgroup[:] = [1, 1, 1, 0, 1, 0]
+                    cam = mujoco.MjvCamera(); cam.type = mujoco.mjtCamera.mjCAMERA_FREE
+                    cam.lookat[:] = sim.d.xpos[sim.m.body("pelvis").id] * 0.4 + sim.d.xpos[sim.m.body("box").id] * 0.6
+                    cam.distance = float(req.get("distance", 1.9)); cam.azimuth = float(req.get("azimuth", -35)); cam.elevation = float(req.get("elevation", -25))
+                    sim.renderer.update_scene(sim.d, camera=cam, scene_option=opt)
+                    import io as _io; from PIL import Image as _Image
+                    buf = _io.BytesIO(); _Image.fromarray(sim.renderer.render()).save(buf, format="JPEG", quality=85)
+                    sock.send_multipart([json.dumps({"ok": True, "t": round(float(sim.d.time), 3)}).encode(), buf.getvalue()])
+                    continue
                 if op == "camera":
                     meta, rgb, depth = sim.camera()
                     sock.send_multipart([json.dumps({"ok": True, **meta}).encode(), rgb.tobytes(), depth.tobytes()])
