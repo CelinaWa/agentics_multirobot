@@ -3,6 +3,15 @@
 这是从 DGX 上 sim2sim 验证过的那套东西打出来的包（2026-10）。**这里的代码还没有在真机上跑过一次**，sim 里跑过
 900 多个 session。按下面的顺序走，哪一步没过就停在哪一步，不要跳。
 
+**两台机器人从 sim 迁到真机，分别看这里：**
+
+| 机器人 | 任务 | 现状（2026-11-06） | 怎么跑 |
+|---|---|---|---|
+| G1 + Dex3 | `tasks/puppy_box.md`：站着不走，右手把小狗放进箱子 | sim 最后一次不改代码评测 7/8，可以上真机 | 第 1–4 节装机和标定，然后第 5.5 节带 sim 经验跑 |
+| R1 + PiPER 两指夹爪 | `tasks/puppy_box_r1.md`：夹小狗的腿，走两三小步，放进箱子 | sim 里还不可靠；连接真机控制栈的 bridge 有几处必须先改 | 第 8 节 |
+
+两台都用同一个 RAX：同一个 launcher、同一套 operator 请求和上锁、同一种经验导出导入（`experience/<任务>/`）。
+
 布局：**一台本地主机同时跑 SONIC（全身控制器）和 RAX（robot service + agent）**，G1 头上的 Jetson 只负责发相机画面。
 
 ```
@@ -12,6 +21,8 @@ rax/scripts/         g1_up.sh（一个 tmux 开齐 camera/sonic/console/dashboar
 jetson_camera/       Jetson 上跑的相机服务：RealSense（--camera realsense）或 ZED（--camera zedsdk|zed），TCP 7790
 sonic/               SONIC 的 commit 号、v1.1 模型下载 + 哈希校验、站立参考动作、sim 专用 patch、手动安装说明
 tasks/               agent 任务描述：trash.md（桌上的罐子扔进垃圾桶）；文件名就是 session 的任务 id
+r1/                  R1 的迁移计划（TRANSFER_PLAN.md）、sim 和诊断脚本（只在 sim 用）；R1 的 robot service 在 rax/services/r1sonic/
+experience/          sim 导出的经验：puppy_box（G1）、puppy_box_r1（R1）
 docs/                REAL_ROBOT_WORKFLOW.md（开机→标定→agent 全流程）、REAL_ROBOT_DEPLOY*.md、AGENT_WORKFLOW.md、RAX_INSIDE.md（打开黑盒：进程、说明书、安检关卡、真实 session 逐步）、
                      g1_real_options.example.json
 setup_rax_host.sh    主机一次性安装：两个 venv、设置模板，--with-sonic 顺带装 SONIC
@@ -335,3 +346,129 @@ agent 被卡死；而 robot service 退出时 planner keepalive 一停，deploy 
 - 不要把 `~/.g1_up.env`、`~/g1_real_options.json`、任何 token 提交进来。`.gitignore` 挡了常见的几个。
 
 遇到对不上的地方，先看 `docs/REAL_ROBOT_WORKFLOW.md`（更细、带"系统此时在做什么"的表），再把 `work` 和 `sonic` 窗格的输出发过来。
+
+---
+
+## 8. R1（Unitree R1 + PiPER 两指夹爪）：从 sim 迁到真机
+
+**现状（2026-11-06）：还不能直接上真机。** sim 里跑了 13 个 RAX session：agent 一共把小狗放进箱子约 21 次，0 次摔倒；
+从远处走过来完成全程是 2/10。经验已导出到 `experience/puppy_box_r1/`。但连接真机控制栈的 bridge 是照 G1 的接口写的，
+R1 的接口不一样，8.2 里的几项要先改完。RAX 那一半（launcher、上锁、operator 请求、经验导入导出）和 G1 相同，不同的地方都写在下面。
+
+### 8.1 带过去的和不带的
+
+| 路径 | 是什么 |
+|---|---|
+| `experience/puppy_box_r1/` | sim 经验：技能库 `skill-library-r1sonic.bundle`、`workspace/memory/`（TIPS 带 `[strategy]`/`[param]`/`[sim-only]` 标签，PARAMS 是 sim 测的数，到真机要重测）、`workspace/handoff/README.md` |
+| `tasks/puppy_box_r1.md` | 真机任务文件：人当 operator，5 次 reset |
+| `rax/services/r1sonic/` | R1 的 robot service：backend、给 agent 的工具（含 `r1_leg_lift`、`r1_carry_release` 两个原语）、`bridge_real.py` |
+| `r1/TRANSFER_PLAN.md` | 迁移计划：什么带过去、真机第一天的顺序、成功标准 |
+
+**只在 sim 用，不要带到真机：** `r1/sim/`、`rax/scripts/r1_sim_operator.py`、`rax/scripts/r1_sim_options.json`、
+`tasks/puppy_box_r1_sim.md`、`r1/tools/diag/carry_chain_test.py`。最后这个脚本用 sim 的上帝视角指令摆场景，真机上跑不了。
+
+### 8.2 上真机前必须先改完的（大部分没有机器人也能做）
+
+R1 的 SONIC 策略**没有 locomotion planner**：`deploy.sh --robot r1` 默认 `--no-planner`，部署栈只吃 `pose` topic 上的流式参考动作，
+`planner` topic 会被忽略（`gear_sonic_deploy/src/g1/g1_deploy_onnx_ref/include/input_interface/zmq_manager.hpp`）。
+现在的 `rax/services/r1sonic/bridge_real.py` 是按 G1 的 planner 接口写的，下面几处要改：
+
+| 项 | 现在 | 要改成 |
+|---|---|---|
+| 手臂指令 | 在 `planner` topic 上发三点 VR 参考 | 在 `pose` topic 上发。可用字段见 `zmq_endpoint_interface.hpp`：`joint_pos`、`body_quat`，可选 `vr_position`、`vr_orientation` |
+| 走路（`r1_walk`，搬运时那两三小步） | 给 planner 发 SLOW_WALK | R1 上没有 planner。要流式发一段走路的参考动作，例如 `reference/r1_example/` 里的步态，并估计实际走了多远 |
+| 相机（`r1_observe`） | bridge 没有 `camera` 指令，agent 看不到东西 | 接头部相机，按 backend 要的格式回 RGB-D 和内参。SONIC_R1 的测试指南也写了 R1 的相机方案还没定 |
+| 夹爪 | 没接 | 用 PiPER SDK 控制开合，并回报实测宽度 |
+| 里程计 | 按指令速度推算 | 换成更可靠的来源 |
+| 端口 | 默认 5556/5557 | 实验室配置是 6556/6557，启动 bridge 时传 `--stack-in 6556 --stack-out 6557` |
+
+验证 bridge 最好的办法：在 sim 里跑**真正的 R1 部署栈**（`deploy.sh --robot r1 sim`，配 SONIC_R1 测试指南里的 R1 模拟器），
+把 bridge 接上去测完再上真机。不要用 `r1/sim/` 里我们自己写的 R1 sim 来验证 bridge。
+
+### 8.3 主机安装（只做一次）
+
+1. RAX 部分和 G1 一样：第 1 节的 `bash setup_rax_host.sh`（建 `~/envs/rax-g1` 和 `~/envs/rax-agent`），第 1.5 节 c 装 Claude Code 并登录。
+   不需要 `--with-sonic`，那是 G1 的 SONIC。
+2. R1 的 SONIC 部署栈：按 Hugging Face 仓库 `Jay-Ye/SONIC_R1` 里的 `TESTING.md` 第 1–6 节做：下载并校验模型、
+   MA-Teleop 和部署子模块切到固定版本、编译、sim 里测、目标工作站的 50 Hz 时序检查。
+3. robot service 的设置文件 `~/r1_real_options.json`（bridge 的地址和端口，头部俯仰）：
+   ```json
+   {"stack_host": "127.0.0.1", "stack_port": 5591, "head_pitch": 0.5}
+   ```
+4. session 目录放到 `rax/` 外面。launcher 会把自己的 `rax/` 目录设成 agent 不可读，默认的 `rax/runtime/` 在里面，
+   agent 的工作目录会变成只读（R1 在 sim 里前 4 个 session 就是这样坏的）。每个终端先设：
+   ```bash
+   export RAX_ARTIFACT_ROOT=$HOME/rax-runtime
+   ```
+   G1 用的是同一个 launcher，跑 G1 时也建议这样设。
+
+### 8.4 真机第一天：不开 agent，逐项检查
+
+前提：8.2 改完；`TESTING.md` 第 7 节的分阶段真机测试通过（吊架上中立站姿、小幅手臂动作）。
+
+```bash
+# 终端 A：R1 部署栈（TESTING.md 第 7 节的命令；enp2s0 换成实际接机器人的网卡）
+cd "$MA_TELEOP/submodules/GR00T-WholeBodyControl/gear_sonic_deploy"
+SONIC_DDS_DOMAIN=0 ./deploy.sh enp2s0 --robot r1 --input-type zmq_manager \
+  --cp policy/r1/50k/model_step_050000 --obs-config policy/r1/50k/observation_config.yaml \
+  --motion-data reference/r1_example/ --zmq-port 6556 --zmq-out-port 6557
+
+# 终端 B：bridge，RAX 和部署栈之间的翻译层
+cd ~/agentics_multirobot/rax
+PYTHONPATH=. ~/envs/rax-g1/bin/python -m services.r1sonic.bridge_real --port 5591 --stack-in 6556 --stack-out 6557
+```
+
+PICO 的 manager 和 bridge 不要同时开：两个都往部署栈的同一个端口发指令（和第 7 节 MA-Teleop `g1_client` 那条一样）。
+
+然后按 `r1/TRANSFER_PLAN.md` 第 4 节的第一天清单走：
+1. 读状态、看相机；用 `r1_move_hand` 把右手移到桌面上方几个点，量出够得到的范围。
+2. **夹爪能不能夹住**，这是 sim 里最不可信的假设：夹住伸出桌沿的那条腿，抬 10 cm，停 60 s，再走两步 0.07 m，看宽度变不变。
+   夹不住就先换夹法（双手，或夹在爪子后面），别的都往后放。
+3. 走路精度：0.07 m 和 0.15 m 各走 10 次，量偏差和侧移。
+4. 相机：在 0.3–0.4 m 处用卷尺核对算出来的爪子位置。
+5. 手工调 `r1_leg_lift`（抬多高）和 `r1_carry_release`（步长、前伸、放低）的参数，记成真机值。
+
+### 8.5 真机第二天：带 sim 经验开 RAX session
+
+终端 A、B 照 8.4 开着，机器人站着。
+
+```bash
+cd ~/agentics_multirobot && git pull
+export RAX_ARTIFACT_ROOT=$HOME/rax-runtime PYTHONPATH=$PWD/rax
+bash rax/scripts/import_experience.sh experience/puppy_box_r1          # 装 R1 技能库（第一次是 clone，以后是合并）
+CFG=$(~/envs/rax-g1/bin/python rax/scripts/configure_session.py --task puppy_box_r1 \
+  --task-file tasks/puppy_box_r1.md --robot r1sonic --backend-options ~/r1_real_options.json \
+  --agent-python ~/envs/rax-agent/bin/python --experience experience/puppy_box_r1/workspace \
+  --environment real --session-hours 2 | tail -1)
+~/envs/rax-g1/bin/python rax/harness/claude_cli/launcher.py --config "$CFG" --no-gemini
+```
+
+- `--experience` 必须指向导出目录里的 `workspace/`，指向上一层会什么都不拷。开 session 时 `[sim-only]` 的行会被移走，
+  并生成 `memory/TRANSFER.md`，列出要在真机上重测的参数。
+- 上面的 launcher 是交互式的，可以直接打字提示 agent。sim 里用的是 `--non-interactive`（无人值守），真机上不建议。
+
+**operator 怎么回 agent：**
+- 给钥匙、暂停：另开终端 `cd ~/agentics_multirobot/rax && RAX_ARTIFACT_ROOT=$HOME/rax-runtime ~/envs/rax-g1/bin/python scripts/g1_console.py`，
+  只用 `SPACE`（给钥匙/暂停）和 `r`（回复 "done"，reset 完用）。**不要按 `s` 和 `o`**：这两个是给 G1 robot service 的，R1 的不读。
+  R1 要停机用终端 A 的部署栈或遥控器、急停。
+- 要文字回答的请求（例如"小狗在箱子里吗"）：
+  ```bash
+  cd ~/agentics_multirobot/rax
+  S=$(ls -td $HOME/rax-runtime/sessions/*_puppy_box_r1_* | head -1)
+  ~/envs/rax-g1/bin/python -c "import sys; from services.controller import operator as o; [print(r['id'], r['kind'], r['message']) for r in o.pending(sys.argv[1])]" "$S"
+  ~/envs/rax-g1/bin/python -c "import sys; from services.controller import operator as o; o.reply(sys.argv[1], sys.argv[2], sys.argv[3])" "$S" <请求id> "在箱子里，靠前壁"
+  ```
+  请求大约 4–5 分钟后过期，尽量一分钟内回。像人一样说看到了什么，不要报坐标。
+- 任务文件里 operator 要做的事：摆场景（小狗侧躺，一条腿伸出桌沿约 6 cm）、reset（最多 5 次）、回答问题。
+
+### 8.6 跑完：把真机经验导出来
+
+```bash
+cd ~/agentics_multirobot
+S=$(ls -td $HOME/rax-runtime/sessions/*_puppy_box_r1_* | head -1)
+bash rax/scripts/export_experience.sh "$S" experience/puppy_box_r1_real
+git add experience/puppy_box_r1_real && git commit -m "experience: first real R1 puppy_box session" && git push
+```
+
+**算迁移成功**（`r1/TRANSFER_PLAN.md` 第 5 节）：一个真机 session 里 5 次 reset 至少 3 次从远处走过来把小狗放进箱子，
+不摔倒，导出的 PARAMS 里抬起和搬运的参数是真机值。

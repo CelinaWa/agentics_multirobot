@@ -36,25 +36,34 @@ the form the real session reads, and the operator loop is the same loop a human 
 2. **Prune at transfer time, do not ship raw history.** 11 sessions of notes contain many sim-flavoured conclusions; the
    tags make dropping them mechanical, but someone has to retag rows that turned out to be artifacts (done here).
 
-## 3. The one new component: the stack bridge
+## 3. The new component: the stack bridge (needs rework before any robot day)
 
-The backend expects `stack.py`'s JSON-over-ZMQ protocol (`state`, `stream`, `hold`, `walk`). The real deployment speaks
-zmq_manager (topic + 1280-byte JSON header + packed little-endian payload). `rax/services/r1sonic/bridge_real.py` is the
-protocol server with the adapter stubbed; the TODOs are the robot-day work:
+The backend expects `stack.py`'s JSON-over-ZMQ protocol (`state`, `stream`, `hold`, `walk`, `camera`). The real
+deployment speaks zmq_manager (topic + 1280-byte JSON header + packed little-endian payload).
+`rax/services/r1sonic/bridge_real.py` is the protocol server; its adapter was written against the G1 planner interface.
 
-1. `state` at >= 50 Hz from telemetry, in the backend's field names (joint order from the deployment contract).
-2. `stream`: 24-float rows (L wrist, R wrist, chest pose in the reference frame; 2 gripper widths; head pitch) ->
-   the stack's 3-point teleop reference at 50 Hz. Reference frame = heading at session start.
-3. `walk(forward_m, turn_deg)`: the stack's locomotion command; block until still; odometry in the reply.
-4. `hold`: freeze the reference. `grasp_paw` / `place_in_box` answer `refused`.
+**Correction 2026-11-06.** The R1 deployment has NO locomotion planner (`deploy.sh --robot r1` defaults to
+`--no-planner`; SONIC_R1 `TESTING.md`: "The released G1 locomotion planner is incompatible with R1"). Without a
+planner, `zmq_manager.hpp` falls back to STREAMED_MOTION and reads only the `pose` topic, so the bridge's `planner`
+messages are ignored. Before any robot day:
 
-Validate with `r1/tools/diag/carry_chain_test.py` pointed at the bridge port (it drives the backend exactly as the agent
-does) before any RAX session.
+1. `stream`: send the reference on the `pose` topic (`zmq_endpoint_interface.hpp` accepts `joint_pos`, `body_quat`,
+   optional `vr_position`, `vr_orientation`), not on `planner`.
+2. `walk(forward_m, turn_deg)`: there is no planner to command. Stream a walking reference (e.g. from
+   `reference/r1_example/`), block until still, estimate the displacement for the reply.
+3. `camera`: missing in the bridge, so `r1_observe` fails. Wire the head camera (RGB-D + intrinsics in the backend's
+   format); the SONIC_R1 guide notes the R1 camera rig is not established.
+4. Grippers through the PiPER SDK; odometry from a better source than dead reckoning.
+5. Lab ports are 6556/6557 (`--stack-in 6556 --stack-out 6557`), not the defaults 5556/5557.
+
+Validate the bridge against the real R1 deployment running in simulation (`deploy.sh --robot r1 sim` with the
+SONIC_R1 simulator), not against `r1/sim/r1_sim_server.py`. `r1/tools/diag/carry_chain_test.py` cannot validate it:
+it sets scenes with sim-only ground-truth ops. Step-by-step commands: root `README.md`, section 8.
 
 ## 4. Robot days, in order
 
 Day 1 (no agent):
-1. Bridge: `state`, `r1_observe`, `r1_move_hand` to points above the table, reach window of the right hand.
+1. Bridge (after the section 3 rework): `state`, `r1_observe`, `r1_move_hand` to points above the table, reach window of the right hand.
 2. **Pads**: pinch the overhanging leg (`r1_move_hand` + `r1_gripper 0`), lift 10 cm, hold 60 s, two `r1_walk 0.07`
    steps: does the width stay? Sim's least trusted assumption. If it fails, the carry strategy changes (two-handed,
    or the stopper grasp behind the paw bulge) before anything else.
