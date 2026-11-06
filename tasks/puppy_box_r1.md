@@ -63,6 +63,14 @@ ahead, arms home, grippers open. Up to 20 stance placements per session; they ar
 freely to iterate on grasp placement, lift, the carry walk and the release into the box. Your FIRST FIVE resets (the
 transferable ones) should still show the whole chain including walking in; record which strategies worked there.
 
+## RELIABILITY GOAL (this session)
+The full chain has succeeded once in simulation (session 7c03aa: leg-axis shaft grasp, servo-off lift, two short
+carry steps, rim release, push-in with the closed gripper - see skill `r1-leg-axis-grasp-short-carry`). The goal now
+is REPEATABILITY: run that chain end to end as many times as the budget allows, count successes and failures per
+stage in memory/RUNS.md, and fix the weakest stage. Use the grasp-stance request for repeats; use at least two of
+the first five resets for the complete chain including walking in. If the carry is the weak stage, also try the
+box-beside layout (ask: "please put the box beside the puppy on my left"), which the task allows.
+
 ## SIMULATION RESET BUDGET (this session)
 This is a simulation exploration session: the operator will grant up to 10 scene resets (the real robot allows 5).
 Use the extra resets to test different approaches, and record in memory/ which strategies succeed within the
