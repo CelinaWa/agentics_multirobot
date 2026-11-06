@@ -491,7 +491,7 @@ class R1SonicBackend:
                 'tilt_deg': s['tilt_deg']}
 
     def _carry_release(self, target_forward_m=None, step_m=0.07, max_steps=5, lower_m=0.0, release=True, advance_m=0.0):
-        steps = []; total = 0.0; dropped = False
+        steps = []; total = 0.0; dropped = False; tiny = 0
         if advance_m > 0:    # move the loaded hand forward first (servo off): fewer walk steps are needed (agent finding, session 11)
             h = np.asarray(self._grasp_points(self._state()['qd'])['right'])
             try:
@@ -512,6 +512,11 @@ class R1SonicBackend:
                 dropped = True; break
             if target_forward_m is not None and total >= float(target_forward_m) - 0.01:
                 break
+            tiny = tiny + 1 if abs(float(out.get('walked_m', 0.0) or 0.0)) < 0.02 else 0
+            if tiny >= 2:        # the gait is stalling (arm fully extended under load): more steps only jolt the puppy out
+                return {'steps': steps, 'walked_total_m': round(total, 3), 'dropped': False, 'released': False, 'stalled': True,
+                        'reason': 'two consecutive steps under 2 cm: the stance is too far for a carry; release here only if the '
+                                  'body is over the box, otherwise put the puppy down and walk in closer (paw <= 0.34 m)', **self._hand_report()}
         result = {'steps': steps, 'walked_total_m': round(total, 3), 'dropped': dropped, 'released': False}
         if target_forward_m is not None and not dropped and total < float(target_forward_m) - 0.03:
             result['short_by_m'] = round(float(target_forward_m) - total, 3)   # still held: call again for the rest, or release explicitly

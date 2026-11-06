@@ -235,3 +235,8 @@ reference. `grasp_paw` / `place_in_box` may return `refused` (the agent no longe
   stride). Short-step precision in this reimplementation cannot be fixed cheaply; use the real deploy stack in sim.
 - Totals for 12 sessions: 18 confirmed agent placements, 0 falls; from a good stance every completed lift of the
   agent's skill went in; the walk-in is the only unreliable stage and it is simulator-specific.
+- Stance window (03:20): with the primitives, paw x 0.29-0.34 m is the only window where grasp, lift AND carry work in
+  this sim (12 of 12 lifts held at 0.34-0.37 but every carry from >= 0.36 stalled: the loaded, fully extended arm leaves
+  the scripted gait 0-5 cm per step and the jolts shake the puppy out). The sim walk-in's +-5 cm scatter therefore
+  caps the full chain near 50 % here. `r1_carry_release` now stops with stalled=true instead of jolting to a drop.
+  On the real robot measure the same window first: a real gait with an extended arm need not stall.

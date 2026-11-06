@@ -54,6 +54,11 @@ Keep the gripper commanded fully closed (width 0) from the grip until the releas
 - Use only the right gripper for the puppy; keep the left arm away from it.
 - This is simulation, so exploration is cheap: a `reset` request is allowed five times. If the same grasp has failed twice, change the approach rather than repeating it.
 
+## STANCE WINDOW (measured 2026-11-06 03:20): the carry works only from paw x 0.29-0.34 m
+From paw x 0.36-0.37 the lift still holds (6/6) but every carry stalled (steps of 0-5 cm) and the puppy was shaken out.
+So the walk-in must END with the paw at 0.29-0.34 m ahead (0.31 ideal): walk in to ~0.45 m, then one measured step;
+if you land beyond 0.34, step back (you can afford a 0.1 m backward walk) rather than grasping from there.
+
 ## THIS SESSION: the practice stance is JITTERED (+-3 cm) on purpose
 Your library skill places the puppy from the exact practice stance but failed from every walk-in stance (2-4 cm off).
 From now on each "grasp stance" placement lands you at a random offset of up to 3 cm in x and y, like a real walk-in.
