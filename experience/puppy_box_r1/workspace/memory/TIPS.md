@@ -3,8 +3,8 @@
 - [strategy] Never send request_operator kind=help: no reply (240-300 s timeouts); the scene appeared to shift
   ~0.12 m (operator later said it was the robot drifting, not a slide). kind=reset is answered in 150-200 s and the
   reset pre-positions the puppy with a hind paw 6 cm over the edge (stated by the operator).
-- [strategy] Backward r1_walk does not work (0, -0.11, +0.09 fwd, +0.05 fwd for -0.25..-0.6). Never overshoot the
-  approach; approach in 0.15-0.2 m commands and re-measure. If too close, the only fix is a reset.
+- [sim-only] Backward r1_walk does not work (0, -0.11, +0.09 fwd, +0.05 fwd for -0.25..-0.6). Never overshoot the
+  approach; approach in 0.15-0.2 m commands and re-measure. If too close, the only fix is a reset. (retagged for transfer: sim artifact, fixed 2026-11-05 (backward walking works now))
 - [param] forward cmd 0.2 -> 0.02-0.10 m near the table, 0.25 -> 0.15-0.35 m; turns: 10deg cmd ~ deadband (1.5deg),
   15 -> 14, 17 -> 11.5, 25 -> ~15-20; 90deg turns drift 0.25-0.3 m along an arc. Walk resets head pitch to 0.
 - [strategy] Square stance straight in front of the start layout is best: hind paws were already right of centre.
@@ -100,9 +100,9 @@
   then (1,0,0.3)..(1,0,0.4), x drifting back .38-.40, y moving right -.10 -> -.15: width stayed .031 the whole way.
   1/3 lifts reached >= .20 (others: slipped at .06-.08 when the neighbour paw sat only 2.5 cm behind; lost to my IK
   flip at .09). The puppy rolls onto its back while its body stays on the table.
-- [strategy] where: sim. Carrying by walking with the pivot pinch FAILED 1/1 (dropped during a 0.19 m walk with the
+- [sim-only] where: sim. Carrying by walking with the pivot pinch FAILED 1/1 (dropped during a 0.19 m walk with the
   hand at z .27; the body was dragged on the table). Next: shorter walks (<= 0.1) with re-checks, or lower the hand
-  to ~.15 before walking, or grasp from a stance already close enough for the box (box front wall = edge + .21).
+  to ~.15 before walking, or grasp from a stance already close enough for the box (box front wall = edge + .21). (retagged for transfer: superseded: pivot-pinch carries later held with the low lift + short steps)
 - [strategy] where: sim. Splaying the pair: an OPEN gripper advanced onto the right paw of the pair (wedge) pushed it
   ~3.5 cm back and it stayed; closed-gripper pushes gave only ~2.5 cm (sprang back). Need >= 3 cm of x offset
   between the pair before the pivot pinch on the nearer paw.
@@ -121,7 +121,7 @@
   0.06-0.15. Every call drifts 0-0.06 m right. NEVER combine forward_m and turn_deg (-0.25/-45 moved 0.96 m).
 - [strategy] where: sim. Use r1_walk reply 'pelvis' odometry as the world frame (x = table normal from a square start)
   + the edge heading (code/puppy_box/edges.py or skill r1-walk-approach) and re-plan after every call (walkplan.py).
-- [strategy] where: sim. Do the big lateral shifts with turn pairs (+60/-50) from >= 0.8 m; plan for the turn arc.
+- [sim-only] where: sim. Do the big lateral shifts with turn pairs (+60/-50) from >= 0.8 m; plan for the turn arc. (retagged for transfer: sim locomotion artifact (scripted gait turn arcs))
 - [strategy] where: sim. Paw at x < 0.34 is invisible at head 0.6: r1_move_joints waist_yaw -0.35 -> visible; the
   pelvis counter-rotates (IMU yaw +3..6 deg) so MEASURE AND GRASP IN THE SAME waist configuration.
 - [param] where: sim. Pivot pinch at low z (-0.03..0.0): IK err .019-.027 at x .30-.38, y -.17..-.25 (approach (1,0,0));
@@ -144,8 +144,8 @@
   r1-leg-shaft-grasp-lift.
 - [strategy] where: sim. Arc lift (6 x (+1 cm toward hip, +4 cm up), approach z .1 -> .5) then 3 waist-assisted
   (use_waist) raise steps keeps the width flat (.031) to hand z .365 (2/2). Hanging puppy ~22 cm below the hand.
-- [strategy] where: sim. The shaft grip CREEPS: let go after ~2 min held still (z .275) and at a waist-moving forward
-  extension (z .36). Chain lift -> carry without pauses; avoid waist changes while holding.
+- [sim-only] where: sim. The shaft grip CREEPS: let go after ~2 min held still (z .275) and at a waist-moving forward
+  extension (z .36). Chain lift -> carry without pauses; avoid waist changes while holding. (retagged for transfer: sim contact artifact, fixed 2026-11-05 (no-slip solver); real pads must be measured)
 - [strategy] where: sim. Reaching the right hand to y > -0.17 (left of the shoulder) yaws the waist +.06..+.23 rad
   (cmd 0 or -.35) and the paw moves +1..+10 cm left in the pelvis frame. Keep the paw at y -.20..-.29 at pregrasp.
 - [strategy] where: sim. The pelvis-frame scene does NOT shift after walks (2 frames 6 s apart: .5 cm) nor when the
@@ -170,14 +170,14 @@
 - [sim-only] where: sim. A `reset` request now also puts the ROBOT back at its start pose (edge .62 ahead, square, head
   pitch 0 -> set .5 again). Resets 2-4 gave the same layout: lower FRONT paw F (.55,-.25) overhangs 7.4 cm with no paw
   within 12 cm (the first, pre-reset layout differed: hind paw (.546,-.01) + crowded front pair).
-- [strategy] where: sim. From the reset start ONE straight walk of .15-.2 (walked .146-.257, nearly straight) puts F in
-  reach at (.32-.40,-.15..-.25). No turns needed. Never use big turns: +90 moved 1.34 m, -90 .99 m, +45 .42 m.
+- [sim-only] where: sim. From the reset start ONE straight walk of .15-.2 (walked .146-.257, nearly straight) puts F in
+  reach at (.32-.40,-.15..-.25). No turns needed. Never use big turns: +90 moved 1.34 m, -90 .99 m, +45 .42 m. (retagged for transfer: sim walk statistics)
 - [strategy] where: sim. Grip a clean overhanging paw with HORIZONTAL fingers along its leg (approach yaw = leg yaw,
   here +7..+17 deg = inward, easy for the right arm; IK .005-.02) and lift with r1_move_hand servo=False in 9 small arc
   steps: 3/3 whole-puppy lifts to hand z .36-.40. Servo ON jumped the hand 3.3 cm sideways mid-lift -> slip.
   Vertical fingers clamp the leg's pitch -> slip at z +.10 (1/1). Library: r1-paw-pivot-pinch-servo-off-lift.
-- [strategy] where: sim. r1_walk while holding the pinched puppy DROPPED it 3/3 (.1, .05, .05 commands; .05 overshot
-  to .141). With the box behind the puppy the carry needs ~.3 m: do not plan it as a walk while holding.
+- [sim-only] where: sim. r1_walk while holding the pinched puppy DROPPED it 3/3 (.1, .05, .05 commands; .05 overshot
+  to .141). With the box behind the puppy the carry needs ~.3 m: do not plan it as a walk while holding. (retagged for transfer: superseded: short-step carries later held 7/7 after completed lifts)
 - [param] where: sim. Holding the puppy, right-hand reach at z .36 is x <= .50 (ik .027); x .55 -> .064.
 - [param] where: sim. Hanging puppy (held by front paw F) sits ~9 cm BEHIND and ~16 cm LEFT of the hand, lowest
   point ~10 cm below it (stiff, does not hang straight down).
@@ -213,14 +213,14 @@
   ~5-7 cm AHEAD (IK fine at the hold pose).
 - [param] where: sim. Holding the puppy, hand z .40-.43: x <= .46 without waist; the waist solution needs waist yaw
   ~.87 rad. Lowest hanging point ~.27 below the hand (rim needs hand z >= .41).
-- [strategy] where: sim. Walking while holding: the grip loses ~1-2 mm of width per r1_walk; 2 walks of cmd .05-.10
+- [sim-only] where: sim. Walking while holding: the grip loses ~1-2 mm of width per r1_walk; 2 walks of cmd .05-.10
   held 6/12 runs, a 3rd walk 0/3, cmd .12-.18 dropped at once 2/2; end-of-lift width < .028 dropped on walk 1 2/2.
-  Arm moves under load after walking (re-raise, reach) also dropped it 2x.
+  Arm moves under load after walking (re-raise, reach) also dropped it 2x. (retagged for transfer: sim contact artifact (per-step width loss); re-measure on hardware)
 - [strategy] where: sim. PUSH-IN works: a puppy left lying on the box front rim was tipped inside by two slow forward
   pushes of the closed gripper (approach (1,0,0), fingers (0,0,1), z rim+.04, near surface x .43-.53 by depth,
   push to x .52). Route the hand to (.20,-.28,.16) behind the edge before moving forward.
-- [strategy] where: sim. After any operator stance placement/reset, send HOME joints + gripper open FIRST: r1_head
-  re-sent a stale raised-arm command once.
+- [sim-only] where: sim. After any operator stance placement/reset, send HOME joints + gripper open FIRST: r1_head
+  re-sent a stale raised-arm command once. (retagged for transfer: harness bug, fixed 2026-11-05 (backend re-syncs its command after a reset))
 - [param] where: sim. Walk-in from the reset start (edge .62): .135, .061, .069 (paws then below the view at edge
   .351), back -.05 -> -.129, fwd .07 -> .088 -> edge .381. Head .6 sees table-height paws only at x >= ~.33.
 - [sim-only] where: sim. Depth sees the box FRONT wall surface at most pixels (not through it): judge "inside the box"
@@ -248,9 +248,9 @@
 - [param] where: sim. Box-rim pose (chain.box_pose: RANSAC front-rim line at table+.145, gated by the previous pose):
   x0 and yaw consistent to ~5 mm when nothing else is at rim height; y (right rim) wrong by 5-12 cm when the puppy
   lies in front of the box. Use the table z of the SAME frame (camera z varies 1 cm).
-- [strategy] where: sim. Walking closer empty-handed (to need no carry walk) gained only 3-5 cm net: walks are noisy,
+- [sim-only] where: sim. Walking closer empty-handed (to need no carry walk) gained only 3-5 cm net: walks are noisy,
   each drifted the paw 1.5-4 cm left, and the arm reach itself pulls the pelvis ~3 cm forward and yaws it 4 deg.
-  A paw at y > -.17 caps the lift at z .33 (IK). Shelved.
+  A paw at y > -.17 caps the lift at z .33 (IK). Shelved. (retagged for transfer: sim locomotion artifact (random sub-6-cm steps))
 - [strategy] where: sim. A reset request containing "overhang" is routed as an overhang request (no reset). Ask
   "Please reset the scene and the robot to the start pose." The "box beside the puppy on my left" request moved ONLY
   the box (44 cm left of the puppy centre); a following overhang request pushed the puppy off the table.
@@ -266,9 +266,9 @@
   open, v4.py out. code/puppy_box/attempt.sh.
 - [strategy] where: sim. Watch the gripper width DURING the lift: rising (.038 -> .047-.054) = held through walks;
   falling (.034 -> .026) = the leg slides out -> abort at low z and re-grasp (v4 exit 4).
-- [strategy] where: sim. The engineering low lift (cmd z .265, leg yaw kept, walk at once) slipped on walk 1 4/4 here,
+- [sim-only] where: sim. The engineering low lift (cmd z .265, leg yaw kept, walk at once) slipped on walk 1 4/4 here,
   even from a clean .034 grasp; raising the hanging body afterwards slipped (1/1); a 3 s look while holding let the
-  grip creep (.044 -> .051).
+  grip creep (.044 -> .051). (retagged for transfer: sim-specific parameter result; re-tune the lift height on hardware)
 - [strategy] where: sim. Re-grasping "2 cm further up the shaft" when the width is >= .040 made it worse 2/2 (hip,
   .048/.056). Disabled.
 - [sim-only] where: sim. The operator answers "Question only, please do not move anything: is the puppy inside the
@@ -296,15 +296,15 @@
   cmd z < .08 - a direct put-back from the top was refused and opening at z .22 threw the puppy off the table (s12).
 - [param] where: sim. My paw sphere fit reads (.321,-.200,.032) where the operator states (.31,-.21,.03) (ball cut by
   the image border at v ~473): grasp depth .02 with my fit ~= engineering depth .03 (close .034-.0365).
-- [strategy] where: sim. Walk-in stances (paw x .34-.37, y -.17..-.20, 4-6 deg off square) gave 0/3 lifts vs 5/8 at
-  the operator stance: match the operator stance geometry before grasping.
+- [sim-only] where: sim. Walk-in stances (paw x .34-.37, y -.17..-.20, 4-6 deg off square) gave 0/3 lifts vs 5/8 at
+  the operator stance: match the operator stance geometry before grasping. (retagged for transfer: sim locomotion artifact (walk-in scatter); measure the real walk-in scatter)
 - [param] where: sim. Walks this session: fwd .15 -> .089, .117 -> .061, .07 -> .073/.076, .09 -> .11, .12 -> .08,
   .1 -> .092/.048, .195 -> .158; back -.06 -> -.217, -.05 -> -.13, -.2 -> -.258/-.192/-.309/-.196..-.285 (retreats);
   turn +45 -> .215 fwd; turn -45 reported -6.8 but walked .356 (+.17 left); turn +20 -> ~15 deg + .12 fwd;
   turn -15 -> -15 + .076 fwd; turn -5.8 -> ok. Straight walks drift the paw +2..+4 cm in y (once -3.6).
-- [strategy] where: sim. Lateral repositioning by turn pairs FAILED (W0: +45/-45 = .56 fwd, .044 left): the paw that
+- [sim-only] where: sim. Lateral repositioning by turn pairs FAILED (W0: +45/-45 = .56 fwd, .044 left): the paw that
   overhangs after the operator's overhang request in the INITIAL scene was at y -.02 (needs .19 m left) - prefer
-  a reset (reset layout: paw (.56,-.25)) over trying to shift sideways.
+  a reset (reset layout: paw (.56,-.25)) over trying to shift sideways. (retagged for transfer: sim locomotion artifact (turn-pair drift))
 - [strategy] where: sim. A help message containing "do not move" is routed as the inside-the-box QUESTION; ask for the
   overhang with exactly "Please position the puppy so a hind leg overhangs the front edge." The engineering
   suggestion "question only: where is the paw" was also answered as the inside-the-box question (no paw position).
