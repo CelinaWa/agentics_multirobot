@@ -455,7 +455,7 @@ class R1SonicBackend:
             w = self._width(); widths.append(round(w, 4)); peak = max(peak, w)
             if w < 0.012:
                 return {**log, 'held': False, 'stage': 'lift', 'lift_steps': i + 1, 'widths_m': widths, 'reason': 'the leg slid out during the lift', **self._hand_report()}
-            if peak - w > (0.004 if i < 4 else 0.006):      # sliding out: a steadily falling width predicted every carry drop
+            if w < widths[0] - 0.004 or peak - w > 0.008:    # sliding out (below the closing width, or well off the peak) predicted every carry drop
                 return {**log, 'held': True, 'width_falling': True, 'stage': 'lift', 'lift_steps': i + 1, 'widths_m': widths,
                         'reason': 'width falling: the leg is sliding out; open, re-measure and re-grasp', **self._hand_report()}
             if z >= float(lift_z_m) - 1e-6:
