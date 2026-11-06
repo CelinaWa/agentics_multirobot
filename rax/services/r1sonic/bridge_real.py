@@ -23,8 +23,12 @@ What the R1 deploy stack expects (src/g1/g1_deploy_onnx_ref, include/input_inter
   * telemetry: ZMQOutputHandler BINDS a PUB on zmq_out_port (lab: 6557), topic "g1_debug", msgpack map every tick.
     body_q / body_q_measured are in MuJoCo joint order (MUJOCO_JOINTS below; verified against the deploy's own
     target), base_quat is wxyz.
-  * Grippers: the PiPER grippers are not part of the policy I/O. MA-Teleop's tools/r1/piper_can_bridge.py (--serve,
-    JSON lines, enable only after a start event and fresh triggers) is the lab's verified path: TODO wire it in.
+  * Grippers: the PiPER grippers are not part of the policy I/O. --piper-right runs MA-Teleop's
+    tools/r1/piper_can_bridge.py --serve (the lab's verified right-gripper path, locally or over ssh) and speaks its
+    JSON-lines protocol: 'start' only while the trigger is released, then a fresh 'pose' every tick; the commanded
+    right width maps to its binary trigger (< 0.035 m closes to 2 mm, otherwise opens to 70 mm) and its feedback
+    is the measured width. Any PiPER error stops the session (state() raises). Without --piper-right the gripper
+    is not driven and its width reads 0.07. Left gripper: no verified adapter serial yet.
   * Head: this deploy build starts with head tracking disabled (pitch limit +/-0.35 rad), the RAX task assumes 0.5.
   * Odometry: the telemetry carries no base position (TODO, only needed once walking works).
 
@@ -35,7 +39,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import queue
+import shlex
 import struct
+import subprocess
 import threading
 import time
 
@@ -83,10 +90,60 @@ def f32(values) -> bytes:
     return struct.pack('<%df' % len(values), *[float(v) for v in values])
 
 
+class PiperClient:
+    """One PiPER gripper through MA-Teleop's piper_can_bridge.py --serve (JSON lines on stdin/stdout)."""
+    CLOSE_BELOW_M = 0.035
+
+    def __init__(self, command: str):
+        self.proc = subprocess.Popen(shlex.split(command), stdin=subprocess.PIPE, stdout=subprocess.PIPE, bufsize=0)
+        self.events: queue.SimpleQueue = queue.SimpleQueue()
+        self.ready = self.started = False
+        self.error = None
+        self.width_m = None                     # measured width from the gripper feedback
+        threading.Thread(target=self._read, daemon=True).start()
+
+    def _read(self) -> None:
+        for line in self.proc.stdout:
+            try:
+                self.events.put(json.loads(line))
+            except ValueError:
+                pass
+        self.events.put({'event': 'error', 'reason': 'PiPER bridge process ended'})
+
+    def _send(self, event: dict) -> None:
+        try:
+            self.proc.stdin.write((json.dumps(event) + '\n').encode())
+        except (BrokenPipeError, OSError) as exc:
+            self.error = self.error or f'PiPER bridge pipe: {exc}'
+
+    def tick(self, width_m: float) -> None:
+        while not self.events.empty():
+            ev = self.events.get()
+            kind = ev.get('event')
+            if kind == 'ready':
+                self.ready = True
+            elif kind == 'error':
+                self.error = self.error or ev.get('reason', 'PiPER error')
+            if isinstance(ev.get('feedback'), dict) and 'position_mm' in ev['feedback']:
+                self.width_m = float(ev['feedback']['position_mm']) / 1000.0
+        if not self.ready or self.error:
+            return
+        trigger = 1.0 if width_m < self.CLOSE_BELOW_M else 0.0
+        if not self.started:
+            if trigger > 0.0:
+                return                          # the bridge enables only with the trigger released
+            self._send({'event': 'start'}); self.started = True
+        self._send({'event': 'pose', 'trigger': trigger, 'age_s': 0.0})
+
+    def stop(self) -> None:
+        self._send({'event': 'stop'})
+
+
 class RealStack:
     """Adapter onto the deploy stack over its two ZMQ ports."""
 
-    def __init__(self, stack_in_port: int, stack_out_port: int, out_topic: str, bind_host: str = '*'):
+    def __init__(self, stack_in_port: int, stack_out_port: int, out_topic: str, bind_host: str = '*',
+                 piper_right: str | None = None):
         self.ctx = zmq.Context.instance()
         self.pub = self.ctx.socket(zmq.PUB)
         self.pub.bind(f'tcp://{bind_host}:{stack_in_port}')
@@ -105,6 +162,7 @@ class RealStack:
         self.joint_names = MUJOCO_JOINTS        # telemetry order
         self.started = False
         self.frame = 0                          # pose-topic frame_index
+        self.piper_right = PiperClient(piper_right) if piper_right else None
         from services.r1sonic.kin import Kinematics
         from services.r1sonic.backend import MODEL
         self.kin = Kinematics(MODEL)
@@ -165,10 +223,19 @@ class RealStack:
         return {'t': time.time(), 'tick': int(t.get('index', 0)), 'joint_names': names,
                 'q': q.tolist(), 'dq': dq.tolist(), 'base_quat_wxyz': rel.tolist(),
                 'gyro': list(t.get('base_ang_vel', [0, 0, 0])),
-                'gripper_width_m': {'left': _gripper_width(t.get('left_hand_q')), 'right': _gripper_width(t.get('right_hand_q'))},
+                'gripper_width_m': {'left': 0.07, 'right': self._right_width()},
                 'command_row': np.round(self.row if self.row is not None else np.zeros(24), 5).tolist(),
                 'queued': len(self.queue), 'measured_points_row': np.round(self.measured_row()[:21], 5).tolist(),
                 'fallen': bool(_tilt_deg(rel) > 60.0), 'tilt_deg': round(_tilt_deg(rel), 2)}
+
+    def _right_width(self) -> float:
+        if self.piper_right is None:
+            return 0.07
+        if self.piper_right.error:
+            raise RuntimeError(f'right PiPER gripper stopped: {self.piper_right.error}')
+        if self.piper_right.width_m is None:
+            raise RuntimeError('no feedback from the right PiPER gripper yet')
+        return self.piper_right.width_m
 
     # ---- reference streaming at 50 Hz ----
     def stream(self, rows: list[np.ndarray]) -> None:
@@ -192,7 +259,9 @@ class RealStack:
         if not self.started or self.frame % 50 == 0:
             self.send_command(start=True, stop=False); self.started = True
         self.send_pose(row)
-        # TODO: PiPER grippers from row[21] (left width) and row[22] (right width); head pitch from row[23]
+        if self.piper_right is not None:
+            self.piper_right.tick(float(row[22]))
+        # TODO: left gripper (no verified adapter); head pitch from row[23]
 
     # ---- locomotion ----
     def walk(self, forward_m: float, turn_deg: float) -> dict:
@@ -224,13 +293,6 @@ def _tilt_deg(q):
     w, x, y, z = q
     zz = 1 - 2 * (x * x + y * y)                 # third row, third column of the rotation matrix
     return float(np.degrees(np.arccos(np.clip(zz, -1, 1))))
-
-
-def _gripper_width(hand_q):
-    """PiPER: width = 2 * finger slide + 0.004 in the sim model. TODO: the real SDK reports the width directly."""
-    if not hand_q:
-        return 0.07
-    return float(2 * abs(hand_q[0]) + 0.004)
 
 
 def serve(stack: RealStack, port: int) -> None:
@@ -270,6 +332,8 @@ def serve(stack: RealStack, port: int) -> None:
                 out = {'refused': 'not available on the real robot: use r1_leg_lift / r1_carry_release', 'held': False, 'in_box': False}
             elif op == 'shutdown':
                 stack.send_command(start=False, stop=True); stop.set(); out = {}
+                if stack.piper_right is not None:
+                    stack.piper_right.stop()
             elif op == 'camera':
                 raise NotImplementedError('the R1 head camera is not wired into the real bridge yet')
             else:
@@ -285,8 +349,11 @@ def main():
     ap.add_argument('--stack-in', type=int, default=6556, help='the deploy stack\'s zmq_port (it connects here; lab 6556)')
     ap.add_argument('--stack-out', type=int, default=6557, help='the deploy stack\'s zmq_out_port (telemetry PUB; lab 6557)')
     ap.add_argument('--out-topic', default='g1_debug', help='the deploy stack\'s zmq_out_topic')
+    ap.add_argument('--piper-right', default=None,
+                    help='command that runs MA-Teleop tools/r1/piper_can_bridge.py --serve for the right gripper, e.g. '
+                         '"ssh -o BatchMode=yes unitree@192.168.123.164 python3 -u <MA-Teleop>/tools/r1/piper_can_bridge.py --serve"')
     a = ap.parse_args()
-    serve(RealStack(a.stack_in, a.stack_out, a.out_topic), a.port)
+    serve(RealStack(a.stack_in, a.stack_out, a.out_topic, piper_right=a.piper_right), a.port)
 
 
 if __name__ == '__main__':

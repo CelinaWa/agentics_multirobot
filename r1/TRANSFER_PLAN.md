@@ -61,7 +61,7 @@ protocol 1 + vr fields = encoder mode 1; ports), joint order (stream IsaacLab, t
 three table-front goals through the bridge 15/15 in lockstep sim (0.3-1.8 cm). Free-running sim fell in 5/7 runs:
 the policy is sensitive to ~10-20 ms observation latency, so check 50 Hz timing on the robot PC. Not done: item 2
 (walking) - the RAX parametric gait falls within 1 s and the deploy's own walk clip falls after ~1.4 m in both
-encoder modes, so the bridge refuses `walk`; items 3-4 (camera, PiPER, odometry); head pitch is limited to +/-0.35 rad.
+encoder modes, so the bridge refuses `walk`; items 3-4 (camera, odometry; the right PiPER is wired via --piper-right onto MA-Teleop's piper_can_bridge.py and tested against a protocol stand-in, not hardware); head pitch is limited to +/-0.35 rad.
 
 Validate the bridge against the real R1 deployment running in simulation (`deploy.sh --robot r1 sim` with the
 SONIC_R1 simulator), not against `r1/sim/r1_sim_server.py`. `r1/tools/diag/carry_chain_test.py` cannot validate it:

@@ -425,7 +425,7 @@ R1 的 SONIC 策略**没有 locomotion planner**：`deploy.sh --robot r1` 默认
 | 端口 | **已完成**。默认改成实验室的 6556/6557 |
 | 走路（`r1_walk`，搬运时那两三小步） | **不行，bridge 会明确报错**。没有 planner，只能流式发下肢走路参考。我们 sim 里的参数化步态在真部署栈上 1 秒内摔倒；部署自带的录制走路片段 `reference/r1_example/Neutral_walk_forward_002__A057` 走约 1.4 m 后也摔倒，teleop 模式和全身关节模式都一样。之后在 lockstep sim 里重测（排除延迟），参数化步态、录制片段、录制片段加 1 s 渐入并放慢一半，也都在开始走后约 1 s 摔倒。实验室文档也写着 R1 慢走还没验证。缺的是一段生成的慢速小步下肢参考，这不是 bridge 能修的。**这是 R1 上真机最大的风险** |
 | 相机（`r1_observe`） | 没接，bridge 会明确报错。SONIC_R1 的测试指南也写了 R1 的相机方案还没定 |
-| 夹爪 | 没接。实验室已有 `MA-Teleop tools/r1/piper_can_bridge.py`（JSON lines，收到 start 和新的 trigger 后才使能），下一步接它 |
+| 夹爪（右手） | **已接，用协议一致的替身测过，真机未测**。bridge 加 `--piper-right "<命令>"`，运行实验室的 `MA-Teleop tools/r1/piper_can_bridge.py --serve`（本机或 ssh 到机器人）。指令宽度 < 3.5 cm 就是夹紧（2 mm），否则张开（70 mm），实测宽度来自夹爪反馈；夹爪任何报错都会让 bridge 的 `state` 报错，session 停下。端到端测过：backend 夹紧 → 实测 0.032 m（碰到东西），张开 → 0.07 m。左手夹爪还没有验证过的 USB 序列号 |
 | 头部俯仰 | 这个部署版本启动时关掉了头部跟踪，俯仰限制 ±0.35 rad；任务假设的是 0.5 rad 往下看桌面 |
 | 里程计 | 遥测里没有底盘位置；等走路能用了再做 |
 
