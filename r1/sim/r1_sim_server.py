@@ -229,36 +229,50 @@ class Sim:
 
     def walk(self, forward_m, turn_deg=0.0):
         """Walk forward_m along the current heading (negative = backward) with an optional turn. Blocks until the
-        walk finishes and the robot is still, then holds the measured pose. Closed loop: the scripted gait under the
-        balancing policy covers 20-140 % of the commanded distance in one pass (measured), so up to two correction
-        passes follow until the residual is < 3 cm and < 6 deg. Re-observe afterwards: the robot has moved."""
+        walk finishes and the robot is still, then holds the measured pose. Closed loop on the distance along the
+        starting heading: the scripted gait under the balancing policy covers 20-140 % of the commanded distance in
+        one pass (measured), so one correction pass follows a residual >= 6 cm (passes shorter than 12 cm are
+        lengthened: the balance recovery cancels them; more passes oscillate). A turn gets at most one correction pass and no
+        forward correction (each in-place pass wanders ~0.3 m). The gait veers right ~0.35 m per metre; a fixed
+        left heading bias (R1SIM_VEER_DEG, default 20) halves that. Re-observe afterwards: the robot has moved."""
         with self.lock:
             p0 = self.d.qpos[:2].copy()
             yaw0 = Rotation.from_quat(np.asarray(self.d.qpos[3:7])[[1, 2, 3, 0]]).as_euler("ZYX")[0]
             head = np.array([np.cos(yaw0), np.sin(yaw0)])
+        translating = abs(float(forward_m)) > 0.02
         fwd_left, turn_left = float(forward_m), float(turn_deg)
         for i in range(3):
             out = self._walk_once(fwd_left, turn_left)
             with self.lock:
-                walked = float(np.dot(self.d.qpos[:2] - p0, head))
+                p = self.d.qpos[:2].copy()
                 yaw = Rotation.from_quat(np.asarray(self.d.qpos[3:7])[[1, 2, 3, 0]]).as_euler("ZYX")[0]
+            walked = float(np.dot(p - p0, head))
+            lateral = float(np.dot(p - p0, [-head[1], head[0]]))
             turned = float(np.degrees((yaw - yaw0 + np.pi) % (2 * np.pi) - np.pi))
-            fwd_left, turn_left = float(forward_m) - walked, float(turn_deg) - turned
-            if out["fallen"] or (abs(fwd_left) < 0.03 and abs(turn_left) < 6.0):
+            fwd_left = (float(forward_m) - walked) if translating else 0.0
+            turn_left = float(turn_deg) - turned
+            turn_tol = 6.0 if i == 0 else 10.0
+            if out["fallen"] or (abs(fwd_left) < 0.03 and abs(turn_left) < turn_tol):
                 break
-            if abs(fwd_left) < 0.03: fwd_left = 0.0
-            elif abs(fwd_left) < 0.12: fwd_left = float(np.sign(fwd_left)) * 0.12   # shorter passes net ~0 (balance recovery cancels the step)
-            if abs(turn_left) < 6.0: turn_left = 0.0
-        out.update({"walked_m": round(walked, 3), "turned_deg": round(turned, 1), "passes": i + 1})
+            if abs(fwd_left) < 0.06 or i >= 1: fwd_left = 0.0            # one forward correction at most, only for a residual >= 6 cm
+            elif abs(fwd_left) < 0.12: fwd_left = float(np.sign(fwd_left)) * 0.12   # shorter passes net ~0 (balance recovery cancels them)
+            if abs(turn_left) < turn_tol or i >= 1: turn_left = 0.0
+            if fwd_left == 0.0 and turn_left == 0.0: break
+        out.update({"walked_m": round(walked, 3), "lateral_m": round(lateral, 3), "turned_deg": round(turned, 1), "passes": i + 1})
         return out
 
-    def _walk_once(self, forward_m, turn_deg=0.0):
-        """One open-loop gait pass: advance the reference root at the gait speed while the leg gait steps and the
-        arms hold their streamed targets; wait until the robot is still."""
+    def _walk_once(self, forward_m, turn_deg=0.0, direction=None):
+        """One open-loop gait pass: advance the reference root at the gait speed along `direction` (default: the
+        reference heading) while the leg gait steps and the arms hold their streamed targets; wait until still."""
         with self.lock:
             start2d = self.d.qpos[:2].copy()
-            head_yaw = Rotation.from_quat(np.asarray(self.root_quat)[[1, 2, 3, 0]]).as_euler("ZYX")[0]  # walk along the reference heading (arms stay valid in this frame)
+            if direction is None:
+                head_yaw = Rotation.from_quat(np.asarray(self.root_quat)[[1, 2, 3, 0]]).as_euler("ZYX")[0]  # the reference heading (arms stay valid in this frame)
+            else:
+                head_yaw = float(np.arctan2(direction[1], direction[0]))
             sgn = 1.0 if forward_m >= 0 else -1.0
+            veer = np.radians(float(os.environ.get("R1SIM_VEER_DEG", "20"))) if (sgn > 0 and abs(float(forward_m)) > 0.02) else 0.0
+            head_yaw = head_yaw + veer                              # the gait veers right under the policy: aim left by the calibrated bias
             self.walk_dir = np.array([np.cos(head_yaw), np.sin(head_yaw), 0.0]) * sgn
             self.walk_sign = sgn                                      # backward: run the gait cycle in reverse (time-reversed forward walk)
             self.walk_fwd = self.walk_dir[:2].copy()

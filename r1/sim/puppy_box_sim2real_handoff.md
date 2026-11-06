@@ -147,3 +147,9 @@ waypoints, carry in <= 0.1 m walks checking the grip, lower over the box, releas
   Measured: mean |error| 2.5 cm over 10 walks (one backward overshoot of 12 cm), turns -70 -> -69, +45 -> +42.
   The rightward lateral drift of 2-7 cm per call and the ~0.3 m arc of an in-place turn remain (policy behaviour the
   agent already models in `r1-walk-approach`). The reply now also carries `turned_deg` and `passes`.
+- Walk primitive, second pass (2026-11-05 late): the gait veers right ~0.35 m per metre under the policy; a fixed
+  20 deg left heading bias (R1SIM_VEER_DEG) brings the mean lateral drift to ~0 (individual walks still +-0.1 m).
+  Corrections are now one pass at most for distance (residual >= 6 cm) and one for heading (>= 10 deg): more passes
+  oscillated (12 cm minimum pass) and each in-place turn pass wanders ~0.3 m. Pure-pursuit steering of the
+  correction pass was tried and rejected (the policy answers off-axis reference motion nonlinearly). Known quirk:
+  a forward walk right after a large left turn sometimes nets < 5 cm. The reply carries lateral_m as well.
