@@ -363,7 +363,7 @@ R1 的接口不一样，8.2 里的几项要先改完。RAX 那一半（launcher�
 | 阶段 | 做什么 | 谁做 | 现在能做吗 | 对应 G1 |
 |---|---|---|---|---|
 | A | 装 R1 部署栈，在 sim 里测，再在真机上分阶段测。只用键盘或 PICO 遥操作，不碰 RAX | 你 | **能，现在就做** | 第 1–4 节 |
-| B | 改 bridge（8.2），在 sim 里接真正的 R1 部署栈测通 | Claude | 进行中 | G1 不需要，`g1_up.sh` 已接好 |
+| B | 改 bridge（8.2），在 sim 里接真正的 R1 部署栈测通 | Claude | 站立和伸手已测通；**走路、相机、夹爪还没有** | G1 不需要，`g1_up.sh` 已接好 |
 | C | 真机第一天：不开 agent，逐项检查（8.4） | 你 + Claude | B 做完之后 | 第 3 节标定 |
 | D | 带 sim 经验开 RAX agent 跑 puppy_box_r1（8.5、8.6） | 你当 operator | C 做完之后 | 第 5.5 节 |
 
@@ -415,21 +415,36 @@ A4 是真机分阶段测试，按 `TESTING.md` 第 6–7 节：先在目标工�
 
 ### 8.2 上真机前必须先改完的（大部分没有机器人也能做）
 
-R1 的 SONIC 策略**没有 locomotion planner**：`deploy.sh --robot r1` 默认 `--no-planner`，部署栈只吃 `pose` topic 上的流式参考动作，
-`planner` topic 会被忽略（`gear_sonic_deploy/src/g1/g1_deploy_onnx_ref/include/input_interface/zmq_manager.hpp`）。
-现在的 `rax/services/r1sonic/bridge_real.py` 是按 G1 的 planner 接口写的，下面几处要改：
+R1 的 SONIC 策略**没有 locomotion planner**：`deploy.sh --robot r1` 默认 `--no-planner`，部署栈只吃 `pose` topic 上的流式参考动作。
+`rax/services/r1sonic/bridge_real.py` 已经按这个改写（2026-11-06），并在 sim 里接**真正的 R1 部署栈**测过：
 
-| 项 | 现在 | 要改成 |
-|---|---|---|
-| 手臂指令 | 在 `planner` topic 上发三点 VR 参考 | 在 `pose` topic 上发。可用字段见 `zmq_endpoint_interface.hpp`：`joint_pos`、`body_quat`，可选 `vr_position`、`vr_orientation` |
-| 走路（`r1_walk`，搬运时那两三小步） | 给 planner 发 SLOW_WALK | R1 上没有 planner。要流式发一段走路的参考动作，例如 `reference/r1_example/` 里的步态，并估计实际走了多远 |
-| 相机（`r1_observe`） | bridge 没有 `camera` 指令，agent 看不到东西 | 接头部相机，按 backend 要的格式回 RGB-D 和内参。SONIC_R1 的测试指南也写了 R1 的相机方案还没定 |
-| 夹爪 | 没接 | 用 PiPER SDK 控制开合，并回报实测宽度 |
-| 里程计 | 按指令速度推算 | 换成更可靠的来源 |
-| 端口 | 默认 5556/5557 | 实验室配置是 6556/6557，启动 bridge 时传 `--stack-in 6556 --stack-out 6557` |
+| 项 | 状态 |
+|---|---|
+| 手臂指令 | **已完成，已测**。`pose` topic 协议 1 + `vr_position`/`vr_orientation`，部署栈进入 teleop 模式（encoder mode 1）。RAX backend 经 bridge 伸右手到三个桌前目标，lockstep sim 里 5/5 次、15/15 个目标全部到位，误差 0.3–1.8 cm，倾角 < 2° |
+| 关节顺序 | **已确认**。发出去的 `joint_pos` 是 IsaacLab 顺序，遥测的 `body_q` 是 MuJoCo 顺序 |
+| 端口 | **已完成**。默认改成实验室的 6556/6557 |
+| 走路（`r1_walk`，搬运时那两三小步） | **不行，bridge 会明确报错**。没有 planner，只能流式发下肢走路参考。我们 sim 里的参数化步态在真部署栈上 1 秒内摔倒；部署自带的录制走路片段 `reference/r1_example/Neutral_walk_forward_002__A057` 走约 1.4 m 后也摔倒，teleop 模式和全身关节模式都一样。实验室文档也写着 R1 慢走还没验证。**这是 R1 上真机最大的风险** |
+| 相机（`r1_observe`） | 没接，bridge 会明确报错。SONIC_R1 的测试指南也写了 R1 的相机方案还没定 |
+| 夹爪 | 没接。实验室已有 `MA-Teleop tools/r1/piper_can_bridge.py`（JSON lines，收到 start 和新的 trigger 后才使能），下一步接它 |
+| 头部俯仰 | 这个部署版本启动时关掉了头部跟踪，俯仰限制 ±0.35 rad；任务假设的是 0.5 rad 往下看桌面 |
+| 里程计 | 遥测里没有底盘位置；等走路能用了再做 |
 
-验证 bridge 最好的办法：在 sim 里跑**真正的 R1 部署栈**（`deploy.sh --robot r1 sim`，配 SONIC_R1 测试指南里的 R1 模拟器），
-把 bridge 接上去测完再上真机。不要用 `r1/sim/` 里我们自己写的 R1 sim 来验证 bridge。
+**一个要在真机上查的时序问题：** 同样的伸手，sim 自由运行（物理和策略异步，这台共享机器负载约 13）时 7 次里有 5 次摔倒；
+换成 lockstep（策略每发一次指令，物理走 4 步，没有延迟和抖动）就 5/5 全过。所以策略对观测到动作之间约 10–20 ms 的延迟敏感。
+真机用 TensorRT 在机器人自己的电脑上跑，延迟应该更小，但上真机前要按 `TESTING.md` 第 6 节查 50 Hz 时序。
+
+**自己复现：**
+
+```bash
+# 1. 在有 r1_sim_cpu 和 unitree_sdk2py 的容器里起 R1 DDS sim + 真部署栈（DDS 域 42，回环网卡，端口 6556/6557）
+docker exec sonic-sim2sim bash r1/deploy_sim/run.sh start        # 等 deploy.out 里出现 "Init Done"，约 30 s
+# 2. 起 bridge，跑端到端测试（backend -> bridge -> 部署栈 -> sim）
+cd rax && PYTHONPATH=. ~/envs/rax-g1/bin/python -m services.r1sonic.bridge_real --port 5594 &
+~/envs/rax-g1/bin/python ../r1/deploy_sim/bridge_e2e.py
+docker exec sonic-sim2sim bash r1/deploy_sim/run.sh stop
+```
+
+不要用 `r1/sim/` 里我们自己写的 R1 sim 来验证 bridge：它不是真部署栈，测不出上面这些问题。
 
 ### 8.3 主机安装（只做一次）
 

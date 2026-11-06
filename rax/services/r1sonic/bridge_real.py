@@ -2,34 +2,33 @@
 see stack.py) on top of the real SONIC_R1 deployment (gear_sonic_deploy / g1_deploy_onnx_ref, ZMQManager input,
 ZMQOutputHandler telemetry).
 
-STATUS 2026-11-06: written from the deploy-stack sources, NOT yet run against the stack. Every item marked TODO/VERIFY
-is robot-day work. Validate with r1/tools/diag/carry_chain_test.py pointed at this bridge's --port before any RAX
-session (it drives the backend exactly as the agent does).
+STATUS 2026-11-06 (tested): run against the REAL R1 deployment in simulation - r1_sim_cpu (gear_sonic_deploy, the
+CPU build of r1_deploy_onnx_ref) + the lab's R1 MuJoCo DDS simulator (MA-Teleop teleop/clients/sim/r1_sonic_sim.py,
+DDS domain 42 on lo). Standing holds (tilt < 2 deg) and an IK-consistent right-hand reach to (0.30, -0.20, 0.0) in
+the pelvis frame tracks to < 1 cm; through the RAX backend three table-front reaches pass 15/15 with the simulator in
+--lockstep (0.3-1.8 cm). Free-running, 5/7 runs fell during a reach: the policy is sensitive to ~10-20 ms of
+observation latency - check 50 Hz timing on the robot PC. Test harness: r1/deploy_sim/ (run.sh, bridge_e2e.py).
+NOT working yet: walking (see walk()), camera, PiPER grippers, head pitch.
 
-What the deploy stack expects (src/g1/g1_deploy_onnx_ref, include/input_interface/zmq_manager.hpp):
-  * It CONNECTS a SUB socket to the sender at zmq_host:zmq_port (default localhost:5556); the sender BINDS a PUB.
+What the R1 deploy stack expects (src/g1/g1_deploy_onnx_ref, include/input_interface/zmq_endpoint_interface.hpp):
+  * It CONNECTS a SUB socket to the sender at zmq_host:zmq_port (lab: 6556); the sender BINDS a PUB.
     Messages are  topic bytes + 1280-byte zero-padded JSON header + packed little-endian payload.
-    Header: {"v": 1, "endian": "le", "count": 1, "fields": [{"name", "dtype", "shape"}, ...]}.
-  * topic "command": {start u8, stop u8, planner u8, delta_heading? f32}. planner=1 selects PLANNER mode, which is
-    the mode that reads the "planner" topic below (it carries the VR 3-point reference as optional fields).
-  * topic "planner" (every tick, timeout 1 s): mode i32 (LocomotionMode: IDLE=0, SLOW_WALK=1, WALK=2 ...),
-    movement f32[3] (unit direction), facing f32[3] (unit), speed f32 (-1 = default), height f32 (-1 = default),
-    optional vr_position f32[9] (left wrist, right wrist, chest xyz), vr_orientation f32[12] (3 quaternions),
-    vr_compliance f32[3]. The stack copies vr_position straight into the policy observation: "the sender has
-    already applied offsets and root normalization" (g1_deploy_onnx_ref.cpp GatherVR3PointPosition). The RAX
-    stream rows are exactly that: positions and quaternions relative to the reference root (origin = reference
-    root position, axes = reference heading), the same transform the sim's teleop_input applies. So a row maps
-    1:1 onto vr_position + vr_orientation. VERIFY on the robot: quaternion order (the sim uses wxyz) and the
-    chest point convention (sim: waist_yaw_link, IsaacLab body 6; vr_3point_index = {25, 26, 6}).
-  * telemetry: ZMQOutputHandler BINDS a PUB on zmq_out_port (default 5557), topic zmq_out_topic (default
-    "g1_debug"), msgpack map every tick with body_q, body_dq, base_quat, base_ang_vel, body_torso_quat,
-    left_hand_q, right_hand_q, last_action, index, ... VERIFY the joint order (Isaac order expected by the backend:
-    SONIC_R1_100k/validation/r1_deployment_contract.json) and the quaternion order.
-  * Grippers: the R1's PiPER grippers are not part of the policy I/O; command them through the PiPER SDK (TODO).
-  * Odometry: the telemetry carries no base position. walk() below dead-reckons from the commanded speed and
-    duration and the measured heading; replace by a better source when one exists (TODO).
+  * topic "command": {start u8, stop u8, planner u8}. R1 has NO planner (deploy.sh --robot r1 defaults to
+    --no-planner), so start selects STREAMED MOTION, which reads only the "pose" topic.
+  * topic "pose", protocol version 1: joint_pos f32[N,26] and joint_vel f32[N,26] in IsaacLab order, body_quat
+    f32[N,4] (wxyz, reference root), frame_index i64[N]; plus vr_position f32[9] (left wrist, right wrist, torso) and
+    vr_orientation f32[12] (wxyz). With vr_position present the deploy selects encoder mode 1 (teleop): the
+    lower-body joints of the stream + the three points, root-local with the link offsets applied - exactly the RAX
+    stream row (rows 0-20), so a row maps 1:1. Without vr_position it is mode 0 (whole-body joint reference).
+  * telemetry: ZMQOutputHandler BINDS a PUB on zmq_out_port (lab: 6557), topic "g1_debug", msgpack map every tick.
+    body_q / body_q_measured are in MuJoCo joint order (MUJOCO_JOINTS below; verified against the deploy's own
+    target), base_quat is wxyz.
+  * Grippers: the PiPER grippers are not part of the policy I/O. MA-Teleop's tools/r1/piper_can_bridge.py (--serve,
+    JSON lines, enable only after a start event and fresh triggers) is the lab's verified path: TODO wire it in.
+  * Head: this deploy build starts with head tracking disabled (pitch limit +/-0.35 rad), the RAX task assumes 0.5.
+  * Odometry: the telemetry carries no base position (TODO, only needed once walking works).
 
-Run on the robot PC:  python -m services.r1sonic.bridge_real --port 5591 --stack-in 5556 --stack-out 5557
+Run on the robot PC:  python -m services.r1sonic.bridge_real --port 5591 --stack-in 6556 --stack-out 6557
 then point the RAX backend options at it: {"stack_host": "<robot pc>", "stack_port": 5591}.
 """
 from __future__ import annotations
@@ -49,9 +48,25 @@ except ImportError:  # the telemetry decoder needs it on the robot PC
     msgpack = None
 
 HEADER_SIZE = 1280                      # ZMQPackedMessageSubscriber::HEADER_SIZE
-IDLE, SLOW_WALK = 0, 1                  # LocomotionMode (localmotion_kplanner.hpp)
 CONTROL_HZ = 50.0
-TELEOP_COMPLIANCE = (0.5, 0.5, 0.0)     # initial_vr_3point_compliance_ in the deploy source
+# SONIC_R1 validation/r1_deployment_contract.json: mujoco_joint_order (telemetry order) and the IsaacLab order with
+# the nominal standing pose (stream order)
+MUJOCO_JOINTS = ['left_hip_pitch_joint', 'left_hip_roll_joint', 'left_hip_yaw_joint', 'left_knee_joint',
+                 'left_ankle_pitch_joint', 'left_ankle_roll_joint', 'right_hip_pitch_joint', 'right_hip_roll_joint',
+                 'right_hip_yaw_joint', 'right_knee_joint', 'right_ankle_pitch_joint', 'right_ankle_roll_joint',
+                 'waist_roll_joint', 'waist_yaw_joint', 'left_shoulder_pitch_joint', 'left_shoulder_roll_joint',
+                 'left_shoulder_yaw_joint', 'left_elbow_joint', 'left_wrist_roll_joint', 'right_shoulder_pitch_joint',
+                 'right_shoulder_roll_joint', 'right_shoulder_yaw_joint', 'right_elbow_joint', 'right_wrist_roll_joint',
+                 'head_pitch_joint', 'head_yaw_joint']
+ISAAC_JOINTS = ['left_hip_pitch_joint', 'right_hip_pitch_joint', 'waist_roll_joint', 'left_hip_roll_joint',
+                'right_hip_roll_joint', 'waist_yaw_joint', 'left_hip_yaw_joint', 'right_hip_yaw_joint', 'head_pitch_joint',
+                'left_shoulder_pitch_joint', 'right_shoulder_pitch_joint', 'left_knee_joint', 'right_knee_joint',
+                'head_yaw_joint', 'left_shoulder_roll_joint', 'right_shoulder_roll_joint', 'left_ankle_pitch_joint',
+                'right_ankle_pitch_joint', 'left_shoulder_yaw_joint', 'right_shoulder_yaw_joint', 'left_ankle_roll_joint',
+                'right_ankle_roll_joint', 'left_elbow_joint', 'right_elbow_joint', 'left_wrist_roll_joint',
+                'right_wrist_roll_joint']
+ISAAC_NOMINAL = np.array([-0.1, -0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.35, 0.35, 0.3, 0.3, 0.0, 0.18, -0.18,
+                          -0.2, -0.2, 0.0, 0.0, 0.0, 0.0, 0.87, 0.87, 0.0, 0.0])
 
 
 def packed_message(topic: bytes, fields: list[tuple[str, str, list[int], bytes]]) -> bytes:
@@ -81,34 +96,48 @@ class RealStack:
         self.sub.connect(f'tcp://127.0.0.1:{stack_out_port}')   # VERIFY: host of the deploy process
         self.out_topic = out_topic.encode()
         self.lock = threading.Lock()
-        self.row = np.zeros(24)                 # last reference row (24 floats, see stack.py)
+        self.row = None                         # last reference row (24 floats, see stack.py); FK of the measured pose at start
         self.queue: list[np.ndarray] = []
         self.resets = 0
-        self.walking = None                     # (direction unit xy, speed, t_end) while a walk is in progress
         self.heading0 = None                    # reference heading (yaw at start), set on the first telemetry
-        self.odom = np.zeros(3)                 # dead-reckoned pelvis position in the reference frame (TODO)
+        self.odom = np.zeros(3)                 # pelvis position in the reference frame (no odometry source yet)
         self.last = None                        # last decoded telemetry
-        self.joint_names = None                 # TODO: 26 names in Isaac order from the deployment contract
+        self.joint_names = MUJOCO_JOINTS        # telemetry order
         self.started = False
+        self.frame = 0                          # pose-topic frame_index
+        from services.r1sonic.kin import Kinematics
+        from services.r1sonic.backend import MODEL
+        self.kin = Kinematics(MODEL)
 
     # ---- deploy-stack commands ----
-    def send_command(self, start: bool, stop: bool, planner: bool = True) -> None:
+    def send_command(self, start: bool, stop: bool) -> None:
         self.pub.send(packed_message(b'command', [('start', 'u8', [1], struct.pack('B', int(start))),
                                                    ('stop', 'u8', [1], struct.pack('B', int(stop))),
-                                                   ('planner', 'u8', [1], struct.pack('B', int(planner)))]))
+                                                   ('planner', 'u8', [1], struct.pack('B', 0))]))
 
-    def send_planner(self, mode: int, movement, facing, speed: float, row: np.ndarray) -> None:
-        pos = np.concatenate([row[0:3], row[7:10], row[14:17]])          # L wrist, R wrist, chest (reference frame)
-        quat = np.concatenate([row[3:7], row[10:14], row[17:21]])        # VERIFY wxyz vs xyzw on the robot
-        fields = [('mode', 'i32', [1], struct.pack('<i', int(mode))),
-                  ('movement', 'f32', [3], f32(movement)),
-                  ('facing', 'f32', [3], f32(facing)),
-                  ('speed', 'f32', [1], f32([speed])),
-                  ('height', 'f32', [1], f32([-1.0])),
+    def send_pose(self, row: np.ndarray) -> None:
+        """One protocol-1 pose frame: the standing lower body + the row's three points (encoder mode 1, teleop)."""
+        pos = np.concatenate([row[0:3], row[7:10], row[14:17]])          # L wrist, R wrist, torso (reference frame)
+        quat = np.concatenate([row[3:7], row[10:14], row[17:21]])        # wxyz, as the deploy expects
+        fields = [('joint_pos', 'f32', [1, 26], f32(ISAAC_NOMINAL)),
+                  ('joint_vel', 'f32', [1, 26], f32(np.zeros(26))),
+                  ('body_quat', 'f32', [1, 4], f32([1.0, 0.0, 0.0, 0.0])),
+                  ('frame_index', 'i64', [1], struct.pack('<q', self.frame)),
                   ('vr_position', 'f32', [9], f32(pos)),
-                  ('vr_orientation', 'f32', [12], f32(quat)),
-                  ('vr_compliance', 'f32', [3], f32(TELEOP_COMPLIANCE))]
-        self.pub.send(packed_message(b'planner', fields))
+                  ('vr_orientation', 'f32', [12], f32(quat))]
+        self.pub.send(packed_message(b'pose', fields))
+        self.frame += 1
+
+    def measured_row(self, q: dict | None = None) -> np.ndarray:
+        """The three points of the measured joints (FK, pelvis frame) as a stream row; grippers open, head 0."""
+        if q is None:
+            t = self.last
+            q = dict(zip(self.joint_names, np.asarray(t.get('body_q_measured', t['body_q']), dtype=float)))
+        row = np.zeros(24)
+        for k, (p, qw) in enumerate(self.kin.points(q)):
+            row[7 * k:7 * k + 3] = p; row[7 * k + 3:7 * k + 7] = qw
+        row[21] = row[22] = 0.07
+        return row
 
     # ---- telemetry ----
     def poll_telemetry(self) -> None:
@@ -137,8 +166,8 @@ class RealStack:
                 'q': q.tolist(), 'dq': dq.tolist(), 'base_quat_wxyz': rel.tolist(),
                 'gyro': list(t.get('base_ang_vel', [0, 0, 0])),
                 'gripper_width_m': {'left': _gripper_width(t.get('left_hand_q')), 'right': _gripper_width(t.get('right_hand_q'))},
-                'command_row': np.round(self.row, 5).tolist(), 'queued': len(self.queue),
-                'measured_points_row': np.round(self.row[:21], 5).tolist(),      # TODO: FK of the measured joints
+                'command_row': np.round(self.row if self.row is not None else np.zeros(24), 5).tolist(),
+                'queued': len(self.queue), 'measured_points_row': np.round(self.measured_row()[:21], 5).tolist(),
                 'fallen': bool(_tilt_deg(rel) > 60.0), 'tilt_deg': round(_tilt_deg(rel), 2)}
 
     # ---- reference streaming at 50 Hz ----
@@ -151,48 +180,28 @@ class RealStack:
             self.queue = []
 
     def tick(self) -> None:
+        self.poll_telemetry()
         with self.lock:
+            if self.row is None:
+                # the deploy publishes telemetry only after start; its INIT has put the robot in the nominal standing
+                # pose, so the first reference is the three points of that pose (then the arms stay where they are)
+                self.row = self.measured_row(dict(zip(ISAAC_JOINTS, ISAAC_NOMINAL)))
             if self.queue:
                 self.row = self.queue.pop(0)
-            walking = self.walking
             row = self.row.copy()
-        if not self.started:
-            self.send_command(start=True, stop=False, planner=True); self.started = True
-        if walking is not None and time.monotonic() < walking[2]:
-            d = walking[0]
-            self.send_planner(SLOW_WALK, [d[0], d[1], 0.0], [d[0], d[1], 0.0], walking[1], row)
-            self.odom[:2] += np.asarray(d) * walking[1] / CONTROL_HZ        # dead reckoning (TODO: real odometry)
-        else:
-            self.send_planner(IDLE, [0.0, 0.0, 0.0], [1.0, 0.0, 0.0], -1.0, row)
+        if not self.started or self.frame % 50 == 0:
+            self.send_command(start=True, stop=False); self.started = True
+        self.send_pose(row)
         # TODO: PiPER grippers from row[21] (left width) and row[22] (right width); head pitch from row[23]
 
     # ---- locomotion ----
     def walk(self, forward_m: float, turn_deg: float) -> dict:
-        """Timed SLOW_WALK along the current heading (dead-reckoned), then wait until the gyro is quiet.
-        VERIFY the movement vector's frame (robot heading vs world) and the achieved speed; turning is TODO
-        (facing vector or the command topic's delta_heading)."""
-        speed = 0.15                                                        # m/s, SLOW_WALK range 0.1-0.8
-        s = self.state(); yaw = _yaw_wxyz(np.asarray(s['base_quat_wxyz']))
-        direction = np.array([np.cos(yaw), np.sin(yaw)]) * (1.0 if forward_m >= 0 else -1.0)
-        p0 = self.odom.copy()
-        with self.lock:
-            self.walking = (direction, speed, time.monotonic() + abs(forward_m) / speed)
-        time.sleep(abs(forward_m) / speed + 0.2)
-        with self.lock:
-            self.walking = None
-        t1 = time.monotonic(); still = None
-        while time.monotonic() - t1 < 5.0:
-            time.sleep(0.05)
-            s = self.state()
-            if float(np.linalg.norm(s['gyro'])) < 0.1:
-                still = still or time.monotonic()
-                if time.monotonic() - still > 0.5:
-                    break
-            else:
-                still = None
-        walked = float(np.dot(self.odom[:2] - p0[:2], direction)) * (1.0 if forward_m >= 0 else -1.0)
-        return {'requested_m': forward_m, 'walked_m': round(walked, 3), 'turned_deg': 0.0, 'lateral_m': 0.0,
-                'pelvis': self.odom.round(3).tolist(), 'tilt_deg': s['tilt_deg'], 'fallen': s['fallen'], 'passes': 1}
+        """Not available yet. R1 has no planner, so walking means streaming a lower-body walking reference. Tested in
+        the deploy-stack simulation 2026-11-06: the RAX sim's parametric gait fell within ~1 s (full and half
+        amplitude, with and without look-ahead frames), and the deploy's own recorded clip
+        reference/r1_example/Neutral_walk_forward_002__A057 walked ~1.4 m and then fell, in both encoder modes."""
+        raise NotImplementedError('walking is not available on the real R1 bridge yet: no walking reference has been '
+                                  'shown to keep the robot up (stand where the target is in reach instead)')
 
 
 # ---- small quaternion helpers (wxyz) ----
@@ -261,6 +270,8 @@ def serve(stack: RealStack, port: int) -> None:
                 out = {'refused': 'not available on the real robot: use r1_leg_lift / r1_carry_release', 'held': False, 'in_box': False}
             elif op == 'shutdown':
                 stack.send_command(start=False, stop=True); stop.set(); out = {}
+            elif op == 'camera':
+                raise NotImplementedError('the R1 head camera is not wired into the real bridge yet')
             else:
                 raise ValueError(f'unknown op {op!r}')
             sock.send(json.dumps({'ok': True, **out}).encode())
@@ -271,8 +282,8 @@ def serve(stack: RealStack, port: int) -> None:
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--port', type=int, default=5591, help='port the RAX backend connects to')
-    ap.add_argument('--stack-in', type=int, default=5556, help='the deploy stack\'s zmq_port (it connects here)')
-    ap.add_argument('--stack-out', type=int, default=5557, help='the deploy stack\'s zmq_out_port (telemetry PUB)')
+    ap.add_argument('--stack-in', type=int, default=6556, help='the deploy stack\'s zmq_port (it connects here; lab 6556)')
+    ap.add_argument('--stack-out', type=int, default=6557, help='the deploy stack\'s zmq_out_port (telemetry PUB; lab 6557)')
     ap.add_argument('--out-topic', default='g1_debug', help='the deploy stack\'s zmq_out_topic')
     a = ap.parse_args()
     serve(RealStack(a.stack_in, a.stack_out, a.out_topic), a.port)

@@ -56,6 +56,13 @@ messages are ignored. Before any robot day:
 4. Grippers through the PiPER SDK; odometry from a better source than dead reckoning.
 5. Lab ports are 6556/6557 (`--stack-in 6556 --stack-out 6557`), not the defaults 5556/5557.
 
+**Status 2026-11-06 (tested against the real deploy in sim, `r1/deploy_sim/`).** Done: items 1 and 5 (pose topic,
+protocol 1 + vr fields = encoder mode 1; ports), joint order (stream IsaacLab, telemetry MuJoCo). The backend reaches
+three table-front goals through the bridge 15/15 in lockstep sim (0.3-1.8 cm). Free-running sim fell in 5/7 runs:
+the policy is sensitive to ~10-20 ms observation latency, so check 50 Hz timing on the robot PC. Not done: item 2
+(walking) - the RAX parametric gait falls within 1 s and the deploy's own walk clip falls after ~1.4 m in both
+encoder modes, so the bridge refuses `walk`; items 3-4 (camera, PiPER, odometry); head pitch is limited to +/-0.35 rad.
+
 Validate the bridge against the real R1 deployment running in simulation (`deploy.sh --robot r1 sim` with the
 SONIC_R1 simulator), not against `r1/sim/r1_sim_server.py`. `r1/tools/diag/carry_chain_test.py` cannot validate it:
 it sets scenes with sim-only ground-truth ops. Step-by-step commands: root `README.md`, section 8.
