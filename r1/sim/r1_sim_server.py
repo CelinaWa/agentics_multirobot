@@ -763,7 +763,7 @@ def serve(sim, port, stop):
                         sim.renderer = mujoco.Renderer(sim.m, CAM_H, CAM_W)
                     opt = mujoco.MjvOption(); opt.geomgroup[:] = [1, 1, 1, 0, 1, 0]
                     cam = mujoco.MjvCamera(); cam.type = mujoco.mjtCamera.mjCAMERA_FREE
-                    cam.lookat[:] = sim.d.xpos[sim.m.body("pelvis").id] * 0.4 + sim.d.xpos[sim.m.body("box").id] * 0.6
+                    cam.lookat[:] = sim.d.xpos[sim.m.body("box").id] + np.array([-0.35, 0.0, 0.05])   # static: the scene stays put while the robot moves
                     cam.distance = float(req.get("distance", 1.9)); cam.azimuth = float(req.get("azimuth", -35)); cam.elevation = float(req.get("elevation", -25))
                     sim.renderer.update_scene(sim.d, camera=cam, scene_option=opt)
                     import io as _io; from PIL import Image as _Image
