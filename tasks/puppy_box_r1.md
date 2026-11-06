@@ -63,6 +63,18 @@ ahead, arms home, grippers open. Up to 20 stance placements per session; they ar
 freely to iterate on grasp placement, lift, the carry walk and the release into the box. Your FIRST FIVE resets (the
 transferable ones) should still show the whole chain including walking in; record which strategies worked there.
 
+## MEASURED FULL CHAIN (engineering test through your own tools, sim, 2026-11-05 22:00): 2 placements in 4 runs
+From the grasp stance (hanging hind paw at ~(0.31,-0.21)): (1) measure the leg axis paw->hip; grasp 3 cm up the shaft
+with the approach ALONG that axis and the fingers across it, pregrasp 8 cm short, servo on; close -> width 0.032-0.033.
+(2) Arc lift with the same approach direction, tilting it up to ~0.5 and advancing ~1.5 cm toward the hip per 4 cm of
+rise, to a hand height of 0.265 m in your pelvis frame and NO HIGHER: the puppy then rides roughly level with the hand
+(torso ~20-30 cm above the table top, clear of the 14 cm rim). A raise to 0.40-0.44 m makes the body hang and swing
+and the grip bleeds 1-2 mm per step - that is why the carries in sessions 7-8 failed, not the contact.
+(3) Walk forward in 7 cm steps with NO pause and NO arm or waist move, 3-5 steps, until the torso is past the box's
+front wall (depth image or dead reckoning). (4) Open the gripper. Results: 4 carries of 3-5 steps all held the width
+(0.031-0.044); the two that were released over the box both landed inside (ground truth), one stopped 3 cm short of
+the release point, one lift slipped. Reference script: r1/tools/diag/carry_chain_test.py (engineering copy).
+
 ## RELIABILITY GOAL (this session)
 The full chain has succeeded once in simulation (session 7c03aa: leg-axis shaft grasp, servo-off lift, two short
 carry steps, rim release, push-in with the closed gripper - see skill `r1-leg-axis-grasp-short-carry`). The goal now
