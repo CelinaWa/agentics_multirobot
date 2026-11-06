@@ -423,7 +423,7 @@ R1 的 SONIC 策略**没有 locomotion planner**：`deploy.sh --robot r1` 默认
 | 手臂指令 | **已完成，已测**。`pose` topic 协议 1 + `vr_position`/`vr_orientation`，部署栈进入 teleop 模式（encoder mode 1）。RAX backend 经 bridge 伸右手到三个桌前目标，lockstep sim 里 5/5 次、15/15 个目标全部到位，误差 0.3–1.8 cm，倾角 < 2° |
 | 关节顺序 | **已确认**。发出去的 `joint_pos` 是 IsaacLab 顺序，遥测的 `body_q` 是 MuJoCo 顺序 |
 | 端口 | **已完成**。默认改成实验室的 6556/6557 |
-| 走路（`r1_walk`，搬运时那两三小步） | **不行，bridge 会明确报错**。没有 planner，只能流式发下肢走路参考。我们 sim 里的参数化步态在真部署栈上 1 秒内摔倒；部署自带的录制走路片段 `reference/r1_example/Neutral_walk_forward_002__A057` 走约 1.4 m 后也摔倒，teleop 模式和全身关节模式都一样。实验室文档也写着 R1 慢走还没验证。**这是 R1 上真机最大的风险** |
+| 走路（`r1_walk`，搬运时那两三小步） | **不行，bridge 会明确报错**。没有 planner，只能流式发下肢走路参考。我们 sim 里的参数化步态在真部署栈上 1 秒内摔倒；部署自带的录制走路片段 `reference/r1_example/Neutral_walk_forward_002__A057` 走约 1.4 m 后也摔倒，teleop 模式和全身关节模式都一样。之后在 lockstep sim 里重测（排除延迟），参数化步态、录制片段、录制片段加 1 s 渐入并放慢一半，也都在开始走后约 1 s 摔倒。实验室文档也写着 R1 慢走还没验证。缺的是一段生成的慢速小步下肢参考，这不是 bridge 能修的。**这是 R1 上真机最大的风险** |
 | 相机（`r1_observe`） | 没接，bridge 会明确报错。SONIC_R1 的测试指南也写了 R1 的相机方案还没定 |
 | 夹爪 | 没接。实验室已有 `MA-Teleop tools/r1/piper_can_bridge.py`（JSON lines，收到 start 和新的 trigger 后才使能），下一步接它 |
 | 头部俯仰 | 这个部署版本启动时关掉了头部跟踪，俯仰限制 ±0.35 rad；任务假设的是 0.5 rad 往下看桌面 |

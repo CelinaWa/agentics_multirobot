@@ -19,6 +19,8 @@ case "$1" in
     # the lab script expects MA-Teleop's submodule layout: point it at gr00t-wbc-r1 and write its files under $OUT
     sed -e "s|^ROOT = Path(__file__).resolve().parents\[3\]|ROOT = Path(\"$OUT\")|" \
         -e "s|^GROOT = ROOT / \"submodules/GR00T-WholeBodyControl\"|GROOT = Path(\"$R1_ROOT/gr00t-wbc-r1\")|" \
+        -e "s|row = dict(wall_s=elapsed, sim_s=float(data.time), root_z=|row = dict(wall_s=elapsed, sim_s=float(data.time), root_x=float(data.qpos[0]), root_y=float(data.qpos[1]), yaw_deg=float(np.degrees(np.arctan2(2*(w*z+x*y), 1-2*(y*y+z*z)))), root_z=|" \
+        -e "s|if elapsed - last_log >= 1:|if elapsed - last_log >= 0.25:|" \
         "$R1_ROOT/MA-Teleop-junjie/teleop/clients/sim/r1_sonic_sim.py" > "$OUT/r1_sonic_sim.py"
     cd "$OUT" && nohup "$SIM_PY" r1_sonic_sim.py --headless --lockstep --bundle "$BUNDLE" --log "$OUT/sim.jsonl" > "$OUT/sim.out" 2>&1 &
     sleep 4
