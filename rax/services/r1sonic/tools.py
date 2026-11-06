@@ -150,6 +150,7 @@ def tool_definitions(geometry=True):
              "step_m": {"type": "number", "description": "walk step (default 0.07, 0.04-0.10)"},
              "max_steps": {"type": "integer", "description": "at most this many steps (default 5, 1-8)"},
              "lower_m": {"type": "number", "description": "lower the hand this much before opening (default 0, 0-0.12)"},
+             "advance_m": {"type": "number", "description": "first move the loaded hand this much forward, servo off (default 0, 0-0.08); 0.06 cut the carry to two steps in sim"},
              "release": {"type": "boolean", "description": "open the gripper at the end (default true)"}}}},
         {"name": PLACE_IN_BOX, "description": (
             "With a paw held (after r1_grasp_paw), lower the puppy over the box opening and release so it drops in. One "
@@ -242,7 +243,8 @@ def validate_request(name, arguments):
         _range(arguments, "depth_m", 0.02, 0.05)
         _range(arguments, "lift_z_m", 0.20, 0.32)
     elif name == CARRY_RELEASE:
-        _only(arguments, ("target_forward_m", "step_m", "max_steps", "lower_m", "release"))
+        _only(arguments, ("target_forward_m", "step_m", "max_steps", "lower_m", "release", "advance_m"))
+        _range(arguments, "advance_m", 0.0, 0.08)
         _range(arguments, "target_forward_m", 0.05, 0.40)
         _range(arguments, "step_m", 0.04, 0.10)
         if "max_steps" in arguments:

@@ -150,7 +150,7 @@ class R1SonicBackend:
                 if name == T.CARRY_RELEASE:
                     return self._carry_release(arguments.get('target_forward_m'), arguments.get('step_m', 0.07),
                                                arguments.get('max_steps', 5), arguments.get('lower_m', 0.0),
-                                               arguments.get('release', True)), []
+                                               arguments.get('release', True), arguments.get('advance_m', 0.0)), []
             finally:
                 self._motion = False
                 self.step_id += 1
@@ -426,11 +426,31 @@ class R1SonicBackend:
         fing = [-ax[1], ax[0], 0.0]
         gp = paw + float(depth_m) * ax
         log = {'grasp_point_m': np.round(gp, 3).tolist(), 'leg_yaw_deg': round(float(np.degrees(np.arctan2(ax[1], ax[0]))), 1)}
+        hint = ('the paw is far (x > 0.34): walk forward ~0.03-0.05 m and re-measure' if paw[0] > 0.34 else
+                'the paw is close (x < 0.29): step back ~0.03-0.05 m and re-measure' if paw[0] < 0.29 else None)
+        # adaptive reach: shorter pregrasp, then a shallower grasp point, then the waist, before giving up
+        def reachable(pt, waist):
+            return self._move_hand('right', pt, approach=ax.tolist(), fingers=fing, use_waist=waist, preview_only=True)['reachable']
+        plan = None
+        for waist in (False, True):
+            for d_ in (float(depth_m), max(0.02, float(depth_m) - 0.01)):
+                gp_ = paw + d_ * ax
+                if not reachable(gp_.tolist(), waist):
+                    continue
+                for back in (0.08, 0.06, 0.04, 0.03):
+                    if reachable((gp_ - back * ax).tolist(), waist):
+                        plan = (gp_, back, waist, d_); break
+                if plan: break
+            if plan: break
+        if plan is None:
+            return {**log, 'held': False, 'stage': 'reach', 'reason': 'grasp point or pregrasp unreachable (preview)', 'stance_hint': hint}
+        gp, back, waist, d_ = plan
+        log.update({'grasp_point_m': np.round(gp, 3).tolist(), 'pregrasp_back_m': back, 'used_waist': waist, 'depth_m': d_})
         try:
-            self._move_hand('right', (gp - 0.08 * ax).tolist(), approach=ax.tolist(), fingers=fing, gripper_width_m=0.07, secs=2.0)
-            r = self._move_hand('right', gp.tolist(), approach=ax.tolist(), fingers=fing, secs=1.5)
+            self._move_hand('right', (gp - back * ax).tolist(), approach=ax.tolist(), fingers=fing, gripper_width_m=0.07, secs=2.0, use_waist=waist)
+            r = self._move_hand('right', gp.tolist(), approach=ax.tolist(), fingers=fing, secs=1.5, use_waist=waist)
         except RejectedBeforeAction as exc:
-            return {**log, 'held': False, 'stage': 'reach', 'reason': str(exc)[:200]}
+            return {**log, 'held': False, 'stage': 'reach', 'reason': str(exc)[:200], 'stance_hint': hint}
         log['reach_error_m'] = r.get('grasp_error_m')
         w = self._gripper('right', 0.0, 1.0)['gripper']['measured_m']
         log['closed_width_m'] = w
@@ -442,13 +462,16 @@ class R1SonicBackend:
             z = min(z, float(lift_z_m))
             goal = [float(h[0] + adv * ax[0]), float(h[1] + adv * ax[1]), z]
             appr = None
-            for t_ in (tilt, tilt + 0.2, max(0.0, tilt - 0.2), tilt + 0.4):
-                if self._move_hand('right', goal, approach=[ax[0], ax[1], t_], fingers=fing, preview_only=True)['reachable']:
-                    appr = [float(ax[0]), float(ax[1]), float(t_)]; break
+            lift_waist = False
+            for w_ in (False, True):
+                for t_ in (tilt, tilt + 0.2, max(0.0, tilt - 0.2), tilt + 0.4):
+                    if self._move_hand('right', goal, approach=[ax[0], ax[1], t_], fingers=fing, use_waist=w_, preview_only=True)['reachable']:
+                        appr = [float(ax[0]), float(ax[1]), float(t_)]; lift_waist = w_; break
+                if appr is not None: break
             if appr is None:
                 return {**log, 'held': True, 'stage': 'lift', 'lift_steps': i, 'widths_m': widths, 'reason': f'step {i} unreachable', **self._hand_report()}
             try:
-                self._move_hand('right', goal, approach=appr, fingers=fing, secs=1.5, servo=False)
+                self._move_hand('right', goal, approach=appr, fingers=fing, secs=1.5, servo=False, use_waist=lift_waist)
             except (RejectedBeforeAction, MotionStopped) as exc:
                 return {**log, 'held': self._width() >= 0.012, 'stage': 'lift', 'lift_steps': i, 'widths_m': widths, 'reason': str(exc)[:160], **self._hand_report()}
             time.sleep(0.3)
@@ -467,8 +490,18 @@ class R1SonicBackend:
         return {'hand_pelvis_m': np.round(self._grasp_points(s['qd'])['right'], 3).tolist(), 'gripper_width_m': s['gripper_width_m']['right'],
                 'tilt_deg': s['tilt_deg']}
 
-    def _carry_release(self, target_forward_m=None, step_m=0.07, max_steps=5, lower_m=0.0, release=True):
+    def _carry_release(self, target_forward_m=None, step_m=0.07, max_steps=5, lower_m=0.0, release=True, advance_m=0.0):
         steps = []; total = 0.0; dropped = False
+        if advance_m > 0:    # move the loaded hand forward first (servo off): fewer walk steps are needed (agent finding, session 11)
+            h = np.asarray(self._grasp_points(self._state()['qd'])['right'])
+            try:
+                self._move_hand('right', [float(h[0] + advance_m), float(h[1]), float(h[2])], secs=1.5, servo=False)
+            except (RejectedBeforeAction, MotionStopped) as exc:
+                steps.append({'advance_note': str(exc)[:100]})
+            if target_forward_m is not None:
+                target_forward_m = max(0.0, float(target_forward_m) - advance_m)
+            if self._width() < 0.012:
+                return {'steps': steps, 'walked_total_m': 0.0, 'dropped': True, 'released': False, **self._hand_report()}
         for k in range(int(max_steps)):
             out = self._walk(float(step_m), 0.0)
             total += float(out.get('walked_m', 0.0) or 0.0)
