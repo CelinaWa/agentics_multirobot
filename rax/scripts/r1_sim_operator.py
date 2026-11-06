@@ -21,6 +21,7 @@ def main():
     ap.add_argument('--resets-used', type=int, default=0, help='resets already granted before this daemon started (restart)')
     ap.add_argument('--max-stances', type=int, default=20, help='sim-only "grasp stance" placements granted (0 disables)')
     ap.add_argument('--stances-used', type=int, default=0, help='stance placements already granted before this daemon started')
+    ap.add_argument('--stance-jitter', type=float, default=0.0, help='random +-m offset of the grasp stance (x and y), so practice covers walk-in error')
     a = ap.parse_args(); root = a.session; ctx = zmq.Context()
 
     def req(op, **f):
@@ -80,7 +81,8 @@ def main():
         o = np.asarray(g['pelvis']['pos']); q = np.asarray(g['pelvis']['quat'])[[1, 2, 3, 0]]
         yaw = Rotation.from_quat(q).as_euler('zyx')[0]; R = Rotation.from_euler('z', yaw).as_matrix()
         paw = R.T @ (np.asarray(g['dog_paws'][front]) - o)
-        d = R @ np.array([STANCE[0] - paw[0], STANCE[1] - paw[1], 0.0])
+        jx, jy = (np.random.uniform(-a.stance_jitter, a.stance_jitter, 2) if a.stance_jitter > 0 else (0.0, 0.0))
+        d = R @ np.array([STANCE[0] + jx - paw[0], STANCE[1] + jy - paw[1], 0.0])
         req('slide_table', dx=float(d[0]), dy=float(d[1])); time.sleep(3.0)
         g = req('gt'); paw = R.T @ (np.asarray(g['dog_paws'][front]) - np.asarray(g['pelvis']['pos']))
         return hang, g, paw
