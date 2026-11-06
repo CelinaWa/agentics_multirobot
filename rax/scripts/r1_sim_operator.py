@@ -14,6 +14,8 @@ def main():
     ap.add_argument('--session', required=True); ap.add_argument('--port', type=int, default=5691)
     ap.add_argument('--max-resets', type=int, default=5); ap.add_argument('--overhang-cm', type=float, default=6.0)
     ap.add_argument('--arm-minutes', type=int, default=150); ap.add_argument('--poll', type=float, default=3.0)
+    ap.add_argument('--notice', default='', help='engineering notice appended to every reply (e.g. a simulator update)')
+    ap.add_argument('--resets-used', type=int, default=0, help='resets already granted before this daemon started (restart)')
     a = ap.parse_args(); root = a.session; ctx = zmq.Context()
 
     def req(op, **f):
@@ -55,7 +57,7 @@ def main():
         req('reset_scene'); req('reset'); time.sleep(3.5); return overhang()
 
     arm(); log('armed for', a.arm_minutes, 'min; max resets', a.max_resets)
-    resets = 0; seen = set()
+    resets = a.resets_used; seen = set()
     while True:
         folder = os.path.join(root, 'operator', 'requests')
         for p in sorted(glob.glob(os.path.join(folder, '*.json')), key=os.path.getmtime):
@@ -89,6 +91,7 @@ def main():
                     g = req('gt')
                     reply = (f'Operator: no scene change made (I only arm, reset, and position the hind-paw overhang). {scene(g)}. '
                              'Backward walking works but overshoots (~1.0-1.25x the command); re-observe after every walk.')
+                if a.notice: reply = reply + ' NOTICE FROM ENGINEERING: ' + a.notice
                 operator.reply(root, rid, reply, done=True, by='scripted operator (sim)'); seen.add(rid)
                 log(kind, rid, '->', reply[:120])
             except Exception as exc:  # noqa: BLE001  (keep serving)

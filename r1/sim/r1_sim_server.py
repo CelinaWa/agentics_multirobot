@@ -17,7 +17,8 @@ Requests (JSON; replies JSON, `camera` replies [json, rgb uint8 HxWx3, depth flo
                               the pelvis frame
   gt / place / slide_table    operator only (ground truth, object placement, sliding the table with what is on it)
 """
-import argparse, json, threading, time, sys
+import argparse
+import os, json, threading, time, sys
 from pathlib import Path
 import numpy as np, mujoco, onnxruntime as ort, zmq
 from scipy.spatial.transform import Rotation
@@ -55,6 +56,9 @@ class Sim:
         kp = np.array([p["kp"] for p in params]); kd = np.array([p["kd"] for p in params])
         effort = np.array([p["effort_limit_nm"] for p in params])
         self.m = mujoco.MjModel.from_xml_path(str(scene))
+        noslip = int(os.environ.get("R1SIM_NOSLIP", "0"))          # no-slip solver passes: kills the slow creep of a
+        if noslip > 0:                                               # held object out of soft frictional contacts
+            self.m.opt.noslip_iterations = noslip
         m = self.m
         self.qadr = np.array([m.jnt_qposadr[m.joint(n).id] for n in self.names])
         self.vadr = np.array([m.jnt_dofadr[m.joint(n).id] for n in self.names])
