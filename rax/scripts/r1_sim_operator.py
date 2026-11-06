@@ -5,6 +5,7 @@ position the overhang on request; restore + re-arm after a fall (counts as a res
 no scene change. Run beside a session:  r1_sim_operator.py --session <root> --port 5691 [--max-resets 5]"""
 import numpy as np
 from scipy.spatial.transform import Rotation
+import re
 import argparse, glob, json, os, sys, time
 import zmq
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
@@ -31,7 +32,7 @@ def main():
     MATE = {0: 1, 1: 0, 2: 3, 3: 2}   # the two legs of one end of the puppy (lying on its side they stack ~5 cm apart)
     def place_overhang():
         g = req('gt'); edge_x = g['table']['pos'][0] - 0.300; front = min(p[0] for p in g['dog_paws'])
-        dx = max(-0.25, min(0.0, (edge_x - a.overhang_cm / 100) - front)); d = g['dog']
+        dx = max(-0.25, min(0.25, (edge_x - a.overhang_cm / 100) - front)); d = g['dog']   # either direction: a dragged puppy goes back too
         req('place', body='dog', pos=[d['pos'][0] + dx, d['pos'][1], d['pos'][2]], quat=d['quat']); time.sleep(1.5); return edge_x
     def separate_pair(min_gap=0.035):
         """Present a clean leg (task: 'legs clustered -> operator reposition to present a clean leg'): arrange the
@@ -101,22 +102,35 @@ def main():
                     resets += 1; hang, g = reset(); arm()
                     reply = (f'Operator: the robot is restored and RE-ARMED (used reset {resets}/{a.max_resets}). {scene(g)}; '
                              f'the frontmost hind paw hangs {hang:.1f} cm past the edge. Re-check status and observe before moving.')
-                elif 'box' in text and any(w in text for w in ('beside', 'next to', 'side of', 'my left', 'my right', 'to the left', 'to the right', 'left of', 'right of')):
-                    side = 'left' if ('left' in text and 'right' not in text) else 'right'
-                    g, dy, head = box_beside(side); arm()
-                    reply = (f'Operator: done - the box now stands on the table beside the puppy, on your {side} (its centre '
-                             f'{abs(dy)*100:.0f} cm to the {side} of the puppy, ~4 cm beyond its {"nose" if head == side else "tail"}, same depth); the puppy was not moved. '
-                             f'This is one of the task\'s layouts (box left / right / behind); {scene(g)}.')
-                elif 'stance' in text and a.max_stances > 0:
-                    if stances >= a.max_stances:
-                        reply = f'Operator: the stance budget ({a.max_stances}) is used up; ask for a reset or walk in yourself.'
-                    else:
-                        stances += 1; hang, g, paw = stance(); arm()
-                        reply = (f'Operator (sim-only accelerator, stance {stances}/{a.max_stances}, not counted as a reset): fresh scene, '
-                                 f'robot standing square to the table at the proven grasp stance - the hanging hind paw is at '
-                                 f'({paw[0]:.2f}, {paw[1]:.2f}, {paw[2]:.2f}) in your pelvis frame, {hang:.1f} cm past the edge, '
-                                 f'front edge {g["table_edge_ahead_m"]:.2f} m ahead; arms home, grippers open, armed. '
-                                 'Practise grasp / lift / carry / place from here; your transferable attempts must still walk in.')
+                elif (('stance' in text and a.max_stances > 0)
+                      or re.search(r'(put|place|move|set|position|bring)\s+(the\s+)?box|box\s+(beside|next to|on my (left|right)|to (the|my) (left|right))', text)
+                      or any(w in text for w in ('overhang', 'hind leg', 'hind paw', 'over the edge', 'past the edge', 'position the puppy'))):
+                    # composable scene services: a fresh grasp stance, the box beside the puppy, a hind-leg overhang
+                    want_stance = 'stance' in text and a.max_stances > 0
+                    want_box = re.search(r'(put|place|move|set|position|bring)\s+(the\s+)?box|box\s+(beside|next to|on my (left|right)|to (the|my) (left|right))', text) is not None
+                    want_overhang = any(w in text for w in ('overhang', 'hind leg', 'hind paw', 'over the edge', 'past the edge', 'position the puppy'))
+                    parts = []
+                    if want_stance:
+                        if stances >= a.max_stances:
+                            parts.append(f'the stance budget ({a.max_stances}) is used up (ask for a reset or walk in yourself)')
+                        else:
+                            stances += 1; hang, g, paw = stance(); arm()
+                            parts.append(f'sim-only accelerator, stance {stances}/{a.max_stances} (not counted as a reset): fresh scene, robot '
+                                         f'standing square to the table at the proven grasp stance - the hanging hind paw is at '
+                                         f'({paw[0]:.2f}, {paw[1]:.2f}, {paw[2]:.2f}) in your pelvis frame, {hang:.1f} cm past the edge, front edge '
+                                         f'{g["table_edge_ahead_m"]:.2f} m ahead; arms home, grippers open, armed')
+                    if want_box:
+                        side = 'left' if ('left' in text and 'right' not in text) else 'right'
+                        g, dy, head = box_beside(side); arm()
+                        parts.append(f'the box now stands on the table beside the puppy, on your {side} (its centre {abs(dy)*100:.0f} cm to the '
+                                     f'{side} of the puppy, ~4 cm beyond its {"nose" if head == side else "tail"}, same depth); the puppy was not '
+                                     f'moved; this is one of the task\'s layouts (box left / right / behind)')
+                    if want_overhang and not want_stance:
+                        hang, g = overhang(); arm()
+                        parts.append(f'the puppy\'s frontmost hind paw now hangs {hang:.1f} cm past the table\'s front edge in open space; '
+                                     f'nothing else was moved')
+                    g = req('gt')
+                    reply = 'Operator: ' + '; '.join(parts) + f'. {scene(g)}.'
                 elif kind == 'reset' or 'reset' in text:
                     if resets >= a.max_resets:
                         reply = (f'Operator: the reset budget ({a.max_resets}) is used up - no further resets; the scene stays as it is. '
@@ -125,10 +139,6 @@ def main():
                         resets += 1; hang, g = reset(); arm()
                         reply = (f'Operator: reset {resets}/{a.max_resets} done. {scene(g)}; the puppy\'s frontmost hind paw hangs '
                                  f'{hang:.1f} cm past the front edge in open space; grippers open.')
-                elif any(w in text for w in ('overhang', 'hind leg', 'hind paw', 'over the edge', 'past the edge', 'position the puppy')):
-                    hang, g = overhang()
-                    reply = (f'Operator: done - the puppy\'s frontmost hind paw now hangs {hang:.1f} cm past the table\'s front edge '
-                             f'in open space; nothing else moved. {scene(g)}.')
                 elif 'arm' in text:
                     arm(); g = req('gt'); reply = f'Operator: motion is ARMED; nothing in the scene was moved. {scene(g)}.'
                 else:
