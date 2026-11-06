@@ -99,6 +99,10 @@ YOUR job is what the primitives cannot do: perceive the paw-ball centre and the 
 operator's ground-truth question ("is the puppy inside the box?"), and recover from the reported failure stage.
 Record per-stage counts in memory/RUNS.md.
 
+## THIS SESSION'S MEASURE: walk-in success
+Spend at least 5 of your resets on the complete chain from the start position (walk in, land with the paw at
+0.29-0.34 m, grasp, lift, carry, release) and report the count; use stance placements only to debug a stage.
+
 ## RELIABILITY GOAL (this session)
 The full chain has succeeded once in simulation (session 7c03aa: leg-axis shaft grasp, servo-off lift, two short
 carry steps, rim release, push-in with the closed gripper - see skill `r1-leg-axis-grasp-short-carry`). The goal now
