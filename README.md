@@ -351,20 +351,22 @@ agent 被卡死；而 robot service 退出时 planner keepalive 一停，deploy 
 
 ## 8. R1（Unitree R1 + PiPER 两指夹爪）：从 sim 迁到真机
 
-**现状（2026-11-06）：还不能直接上真机。** sim 里跑了 13 个 RAX session：agent 一共把小狗放进箱子约 21 次，0 次摔倒；
-从远处走过来完成全程是 2/10。经验已导出到 `experience/puppy_box_r1/`。但连接真机控制栈的 bridge 是照 G1 的接口写的，
-R1 的接口不一样，8.2 里的几项要先改完。RAX 那一半（launcher、上锁、operator 请求、经验导入导出）和 G1 相同，不同的地方都写在下面。
+**现状（2026-11-06）：bridge 在 sim 里改好了，可以开始真机测试（先做完阶段 A，再按 8.4 一步步来），完整任务还没在真机上跑过。**
+RAX sim 里 13 个 session：agent 一共把小狗放进箱子约 21 次，0 次摔倒；从远处走过来完成全程是 2/10，经验在 `experience/puppy_box_r1/`。
+连接真机控制栈的 bridge（`rax/services/r1sonic/bridge_real.py`）已经在 sim 里接**真正的 R1 部署程序**测过（8.2）：站立、伸手、走路、头部、
+整条搬运链都通，右手腕加 0.3 kg / 0.6 kg 模拟夹爪和小狗的重量也各 4/4。**没测过的只有真机能回答**：真 PiPER、夹真小狗、R1 的相机。
+RAX 那一半（launcher、上锁、operator 请求、经验导入导出）和 G1 相同，不同的地方都写在下面。
 
 ### 8.0 先看这里：R1 按什么顺序跑
 
 和 G1 对照：G1 的第 1–4 节是装机和让机器人在控制器下站稳，第 5 节开始跑 agent。R1 一样分阶段，但中间多一块
-**bridge**（RAX 和 R1 部署栈之间的翻译层），它还没改好，所以现在只能做到阶段 A。
+**bridge**（RAX 和 R1 部署栈之间的翻译层）。bridge 在 sim 里已经测通（阶段 B），所以阶段 A 做完就可以做 C。
 
 | 阶段 | 做什么 | 谁做 | 现在能做吗 | 对应 G1 |
 |---|---|---|---|---|
 | A | 装 R1 部署栈，在 sim 里测，再在真机上分阶段测。只用键盘或 PICO 遥操作，不碰 RAX | 你 | **能，现在就做** | 第 1–4 节 |
-| B | 改 bridge（8.2），在 sim 里接真正的 R1 部署栈测通 | Claude | 站立、伸手、走路、搬运、头部已测通；相机通路用测试视频测过；夹爪只用替身测过；**相机型号和标定、真机都还没有** | G1 不需要，`g1_up.sh` 已接好 |
-| C | 真机第一天：不开 agent，逐项检查（8.4） | 你 + Claude | B 做完之后 | 第 3 节标定 |
+| B | 改 bridge（8.2），在 sim 里接真正的 R1 部署栈测通 | Claude | **sim 里做完了**。真机才能回答的三项留给 C：真 PiPER、夹真小狗、相机 | G1 不需要，`g1_up.sh` 已接好 |
+| C | 真机第一天：不开 agent，逐项检查（8.4） | 你 + Claude | **能，A 通过后就做** | 第 3 节标定 |
 | D | 带 sim 经验开 RAX agent 跑 puppy_box_r1（8.5、8.6） | 你当 operator | C 做完之后 | 第 5.5 节 |
 
 **阶段 A 要敲的命令**（摘自 Hugging Face `Jay-Ye/SONIC_R1` 的 `TESTING.md`，版本号和细节以那份为准）：
@@ -398,8 +400,7 @@ A4 是真机分阶段测试，按 `TESTING.md` 第 6–7 节：先在目标工�
 再在吊架上做中立站姿、单臂小幅动作。真机部署命令见下面 8.4 的终端 A（网卡名按实际改，真机用 DDS domain 0，不能加
 `--disable-crc-check`）。
 
-**阶段 A 通过的标准：** 吊架上站姿稳定，单臂小幅动作正常，软件停和物理急停都试过有效。做完把结果告诉 Claude；
-阶段 B 完成后这一节会更新，告诉你什么时候可以做 C。
+**阶段 A 通过的标准：** 吊架上站姿稳定，单臂小幅动作正常，软件停和物理急停都试过有效。做完直接进 8.4。
 
 ### 8.1 带过去的和不带的
 
@@ -466,31 +467,49 @@ docker exec sonic-sim2sim bash r1/deploy_sim/run.sh stop
    ```
    G1 用的是同一个 launcher，跑 G1 时也建议这样设。
 
-### 8.4 真机第一天：不开 agent，逐项检查
+### 8.4 真机第一天：不开 agent，逐项检查（你要做的）
 
-前提：8.2 改完；`TESTING.md` 第 7 节的分阶段真机测试通过（吊架上中立站姿、小幅手臂动作）。
+前提：阶段 A 通过（吊架上中立站姿、小幅手臂动作、软件停和物理急停都试过）。全程挂吊架或保护绳，有人拿急停。
+**PICO 的 manager 和 bridge 不要同时开**：两个都往部署栈的同一个端口发指令。
 
 ```bash
-# 终端 A：R1 部署栈（TESTING.md 第 7 节的命令；enp2s0 换成实际接机器人的网卡）
-cd "$MA_TELEOP/submodules/GR00T-WholeBodyControl/gear_sonic_deploy"
-SONIC_DDS_DOMAIN=0 ./deploy.sh enp2s0 --robot r1 --input-type zmq_manager \
-  --cp policy/r1/50k/model_step_050000 --obs-config policy/r1/50k/observation_config.yaml \
-  --motion-data reference/r1_example/ --zmq-port 6556 --zmq-out-port 6557
+# 终端 A：R1 部署栈。不要用 deploy.sh：它不转发 --r1-head-tracking，认不出的参数会被当成网卡名。
+#   这里直接用 deploy.sh 最后执行的那条命令，多加头部跟踪（不加头不会低头，相机只能平视）。enp2s0 换成实际网卡。
+#   bridge 的 sim 测试都用 100k 模型（exports/100000 + observation_config_sonic_r1_v1_1）。TESTING.md 的预设选 50k（评测过的那个），
+#   用 50k 就把 M 和 --obs-config 换成 policy/r1/50k/...，但 50k 没有接 bridge 测过。
+cd "$MA_TELEOP/submodules/GR00T-WholeBodyControl/gear_sonic_deploy" && source scripts/setup_env.sh
+M=~/models/SONIC_R1/exports/100000/model/exported      # A1 下载的包里同时有 50k 和 100k
+SONIC_DDS_DOMAIN=0 just run r1_deploy_onnx_ref enp2s0 "$M/model_step_100000_decoder.onnx" reference/r1_example/ \
+  --obs-config policy/r1/observation_config_sonic_r1_v1_1.yaml --encoder-file "$M/model_step_100000_encoder.onnx" \
+  --input-type zmq_manager --output-type all --zmq-host localhost --zmq-port 6556 --zmq-out-port 6557 \
+  --r1-head-tracking --r1-head-pitch-range 0.5
 
-# 终端 B：bridge，RAX 和部署栈之间的翻译层
+# 终端 B：bridge。--piper-right 是右手 PiPER（实验室的 piper_can_bridge.py，按 USB 序列号找适配器；
+#   机器人上先 sudo ip link set <can口> up type can bitrate 1000000）。相机定下来之前先不加 --camera-*。
 cd ~/agentics_multirobot/rax
-PYTHONPATH=. ~/envs/rax-g1/bin/python -m services.r1sonic.bridge_real --port 5591 --stack-in 6556 --stack-out 6557
+PYTHONPATH=. ~/envs/rax-g1/bin/python -m services.r1sonic.bridge_real --port 5591 --stack-in 6556 --stack-out 6557 \
+  --piper-right "ssh -o BatchMode=yes unitree@192.168.123.164 python3 -u <MA-Teleop>/tools/r1/piper_can_bridge.py --serve"
+
+# 相机定下来以后（终端 C + bridge 加两个参数）：
+#   python3 <MA-Teleop>/tools/r1/publish_camera.py --source <R1 的相机> --port 5600
+#   bridge 加 --camera-port 5600 --camera-intrinsics fx,fy,cx,cy   （该分辨率下的标定内参）
 ```
 
-PICO 的 manager 和 bridge 不要同时开：两个都往部署栈的同一个端口发指令（和第 7 节 MA-Teleop `g1_client` 那条一样）。
+**按顺序做，每步把结果发给 Claude，没过就停在那一步：**
 
-然后按 `r1/TRANSFER_PLAN.md` 第 4 节的第一天清单走：
-1. 读状态、看相机；用 `r1_move_hand` 把右手移到桌面上方几个点，量出够得到的范围。
-2. **夹爪能不能夹住**，这是 sim 里最不可信的假设：夹住伸出桌沿的那条腿，抬 10 cm，停 60 s，再走两步 0.07 m，看宽度变不变。
-   夹不住就先换夹法（双手，或夹在爪子后面），别的都往后放。
-3. 走路精度：0.07 m 和 0.15 m 各走 10 次，量偏差和侧移。
-4. 相机：在 0.3–0.4 m 处用卷尺核对算出来的爪子位置。
-5. 手工调 `r1_leg_lift`（抬多高）和 `r1_carry_release`（步长、前伸、放低）的参数，记成真机值。
+| 步 | 做什么 | 看什么 / 过的标准 |
+|---|---|---|
+| 1 | 只测夹爪：机器人不上电或不动，单独跑 `piper_can_bridge.py --serve`，再通过 bridge 发张开、夹紧 | 张开读数约 70 mm，夹紧空夹约 2 mm，夹住小狗的腿读数停在腿的粗细；没有报错 |
+| 2 | 开终端 A、B，只站立 | 倾角稳定在 2° 以内，不晃。带着两个 PiPER 的重量，这一步最能暴露问题（sim 里手腕加 0.6 kg 没问题，但左手的重量没模拟） |
+| 3 | 头部：发 `head` 0.5，再回 0 | 头低下去又抬起来，不影响站姿 |
+| 4 | 右手伸到桌前 3–5 个点（`r1_move_hand`） | 用尺子量指尖和目标的差。差几厘米是夹爪指尖偏移没标，把数告诉 Claude 改模型 |
+| 5 | 不拿东西走 0.14 m 前进、0.14 m 后退、原地转 30°，各 3 次 | 不倒；量实际距离和侧移（sim 里短步误差 1–3 cm，长距离会走过头） |
+| 6 | **夹爪能不能夹住小狗**（sim 里最不可信的一项）：夹住伸出桌沿的那条腿，抬 10 cm，停 60 s，再走两步 | 宽度读数不变、腿不滑出。夹不住就先换夹法（夹在爪子后面、双手），别的都往后放 |
+| 7 | 相机（定了型号以后）：在 0.3–0.4 m 处用卷尺核对算出来的爪子位置 | 误差 2 cm 以内 |
+| 8 | 手工调 `r1_leg_lift`（抬多高）和 `r1_carry_release`（步长、前伸、放低） | 记成真机值，写进 `experience/puppy_box_r1/workspace/memory/` 的 PARAMS |
+
+步 1–6 不需要相机，现在就能做。**需要你告诉 Claude 的**：R1 用哪个相机（`publish_camera.py --source` 填什么）和它的标定内参；
+左手夹爪的 USB 序列号（目前只有右手的）。
 
 ### 8.5 真机第二天：带 sim 经验开 RAX session
 

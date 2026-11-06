@@ -4,7 +4,7 @@
 #   + r1_sim_cpu (gear_sonic_deploy, CPU build of r1_deploy_onnx_ref), zmq_manager input on 6556, telemetry on 6557.
 # Run INSIDE the container that has both (DGX: docker exec sonic-sim2sim bash r1/deploy_sim/run.sh start).
 # Domain 42 / ports 6556-6557 do not touch a G1 sim on domain 0 / 5556-5557.
-#   run.sh start | stop        env: LOCKSTEP (1 default; 0 = free-running like the robot), POLICY_LOG, R1_ROOT (r1 workspace), SIM_PY (python with mujoco + unitree_sdk2py), OUT
+#   run.sh start | stop        env: LOCKSTEP (1 default; 0 = free-running like the robot), PAYLOAD_KG (extra mass on the right wrist, default 0), POLICY_LOG, R1_ROOT (r1 workspace), SIM_PY (python with mujoco + unitree_sdk2py), OUT
 set -e
 R1_ROOT=${R1_ROOT:-/home/junjieye/workspace/multirobot/r1}
 SIM_PY=${SIM_PY:-/opt/sonic/.venv_sim/bin/python}
@@ -22,6 +22,7 @@ case "$1" in
         -e "s|row = dict(wall_s=elapsed, sim_s=float(data.time), root_z=|row = dict(wall_s=elapsed, sim_s=float(data.time), root_x=float(data.qpos[0]), root_y=float(data.qpos[1]), yaw_deg=float(np.degrees(np.arctan2(2*(w*z+x*y), 1-2*(y*y+z*z)))), root_z=|" \
         -e "s|if elapsed - last_log >= 1:|if elapsed - last_log >= 0.25:|" \
         -e "s|mujoco.mjtObj.mjOBJ_BODY, m.body(\"pelvis\").id, velocity, 1)|mujoco.mjtObj.mjOBJ_XBODY, m.body(\"pelvis\").id, velocity, 1)|" \
+        -e "s|^    model = mujoco.MjModel.from_xml_string(ET.tostring(xml, encoding=\"unicode\"))|&\n    model.body_mass[model.body(\"right_wrist_roll_link\").id] += float(__import__(\"os\").environ.get(\"PAYLOAD_KG\", \"0\"))|" \
         "$R1_ROOT/MA-Teleop-junjie/teleop/clients/sim/r1_sonic_sim.py" > "$OUT/r1_sonic_sim.py"
     cd "$OUT" && nohup "$SIM_PY" r1_sonic_sim.py --headless $( [ "${LOCKSTEP:-1}" = 1 ] && echo --lockstep ) --bundle "$BUNDLE" --log "$OUT/sim.jsonl" > "$OUT/sim.out" 2>&1 &
     sleep 4
