@@ -4,11 +4,13 @@ ZMQOutputHandler telemetry).
 
 STATUS 2026-11-06 (tested): run against the REAL R1 deployment in simulation - r1_sim_cpu (gear_sonic_deploy, the
 CPU build of r1_deploy_onnx_ref) + the lab's R1 MuJoCo DDS simulator (MA-Teleop teleop/clients/sim/r1_sonic_sim.py,
-DDS domain 42 on lo). Standing holds (tilt < 2 deg) and an IK-consistent right-hand reach to (0.30, -0.20, 0.0) in
-the pelvis frame tracks to < 1 cm; through the RAX backend three table-front reaches pass 15/15 with the simulator in
---lockstep (0.3-1.8 cm). Free-running, 5/7 runs fell during a reach: the policy is sensitive to ~10-20 ms of
-observation latency - check 50 Hz timing on the robot PC. Test harness: r1/deploy_sim/ (run.sh, bridge_e2e.py).
-NOT working yet: walking (see walk()), camera, PiPER grippers, head pitch.
+DDS domain 42 on lo; run.sh fixes its gyro frame, see there), free-running like the robot. Through the RAX backend:
+table-front reaches 27/27 (0.3-1.8 cm); walk() 0.14-0.5 m and +/-30 deg turns, no falls; carry chain (reach, close,
+lift, r1_carry_release, lower, open) 13/14 to the 0.21 m target and released, no falls (one bridge crash, see main).
+Long walks overshoot (0.5 m -> 0.6-0.9 m): re-observe after walking.
+Head pitch tracks (deploy needs --r1-head-tracking --r1-head-pitch-range 0.5). Camera: frames from MA-Teleop
+tools/r1/publish_camera.py tested with a video source. Right PiPER: tested against a protocol stand-in only.
+Test harness: r1/deploy_sim/ (run.sh, bridge_e2e.py). Not verified on hardware.
 
 What the R1 deploy stack expects (src/g1/g1_deploy_onnx_ref, include/input_interface/zmq_endpoint_interface.hpp):
   * It CONNECTS a SUB socket to the sender at zmq_host:zmq_port (lab: 6556); the sender BINDS a PUB.
@@ -29,8 +31,9 @@ What the R1 deploy stack expects (src/g1/g1_deploy_onnx_ref, include/input_inter
     right width maps to its binary trigger (< 0.035 m closes to 2 mm, otherwise opens to 70 mm) and its feedback
     is the measured width. Any PiPER error stops the session (state() raises). Without --piper-right the gripper
     is not driven and its width reads 0.07. Left gripper: no verified adapter serial yet.
-  * Head: this deploy build starts with head tracking disabled (pitch limit +/-0.35 rad), the RAX task assumes 0.5.
-  * Odometry: the telemetry carries no base position (TODO, only needed once walking works).
+  * Head: optional pose field r1_head f64[3] = (pitch, yaw, CLOCK_MONOTONIC s), localhost only, fresh within 0.15 s;
+    applied only with --r1-head-tracking (pitch range <= 0.5 rad, default 0.35; the RAX task uses 0.5).
+  * Odometry: the telemetry carries no base position; walk() estimates it from the stance foot (see _odometry).
 
 Run on the robot PC:  python -m services.r1sonic.bridge_real --port 5591 --stack-in 6556 --stack-out 6557
 then point the RAX backend options at it: {"stack_host": "<robot pc>", "stack_port": 5591}.
@@ -90,6 +93,9 @@ def f32(values) -> bytes:
     return np.asarray(values, dtype='<f4').ravel().tobytes()
 
 
+_MJ_LOCK = threading.Lock()     # the tick thread (odometry FK) and the request thread (FK) never run MuJoCo at once
+
+
 class PiperClient:
     """One PiPER gripper through MA-Teleop's piper_can_bridge.py --serve (JSON lines on stdin/stdout)."""
     CLOSE_BELOW_M = 0.035
@@ -143,7 +149,8 @@ class RealStack:
     """Adapter onto the deploy stack over its two ZMQ ports."""
 
     def __init__(self, stack_in_port: int, stack_out_port: int, out_topic: str, bind_host: str = '*',
-                 piper_right: str | None = None, veer_deg: float = 0.0):
+                 piper_right: str | None = None, veer_deg: float = 0.0, camera_port: int | None = None,
+                 camera_intrinsics: list | None = None):
         self.ctx = zmq.Context.instance()
         self.pub = self.ctx.socket(zmq.PUB)
         self.pub.bind(f'tcp://{bind_host}:{stack_in_port}')
@@ -168,6 +175,14 @@ class RealStack:
         self.kin = Kinematics(MODEL)
         self.okin = Kinematics(MODEL)           # odometry FK, used only by the tick thread
         self.veer_deg = veer_deg
+        self.cam = None
+        if camera_port is not None:
+            if not camera_intrinsics or len(camera_intrinsics) != 4:
+                raise ValueError('--camera-port needs --camera-intrinsics fx,fy,cx,cy from a calibration of that camera')
+            self.cam_K = camera_intrinsics
+            self.cam = self.ctx.socket(zmq.SUB)
+            self.cam.setsockopt(zmq.CONFLATE, 1); self.cam.setsockopt_string(zmq.SUBSCRIBE, '')
+            self.cam.connect(f'tcp://127.0.0.1:{camera_port}')
         self.ref_yaw = 0.0                      # streamed reference heading (relative to the stream's start heading)
         self.walk_plan = None                   # {'q': [n+1, 26] gait frames, 'yaw': [n+1], 'i': next frame}
         self.odo_xy = np.zeros(2)               # leg-kinematics odometry: pelvis xy in the start-heading frame
@@ -191,6 +206,8 @@ class RealStack:
                   ('body_quat', 'f32', [n, 4], f32(bq)),
                   ('frame_index', 'i64', [n], np.arange(self.frame, self.frame + n, dtype='<i8').tobytes()),
                   ('vr_position', 'f32', [9], f32(pos)),
+                  # head pitch (row[23]); applied only by a deploy started with --r1-head-tracking (pitch range <= 0.5)
+                  ('r1_head', 'f64', [3], struct.pack('<3d', float(row[23]), 0.0, time.monotonic())),
                   ('vr_orientation', 'f32', [12], f32(quat))]
         self.pub.send(packed_message(b'pose', fields))
         self.frame += 1
@@ -201,7 +218,9 @@ class RealStack:
             t = self.last
             q = dict(zip(self.joint_names, np.asarray(t.get('body_q_measured', t['body_q']), dtype=float)))
         row = np.zeros(24)
-        for k, (p, qw) in enumerate(self.kin.points(q)):
+        with _MJ_LOCK:
+            pts = self.kin.points(q)
+        for k, (p, qw) in enumerate(pts):
             row[7 * k:7 * k + 3] = p; row[7 * k + 3:7 * k + 7] = qw
         row[21] = row[22] = 0.07
         return row
@@ -247,6 +266,29 @@ class RealStack:
             raise RuntimeError('no feedback from the right PiPER gripper yet')
         return self.piper_right.width_m
 
+    def camera(self):
+        """Newest frame from MA-Teleop tools/r1/publish_camera.py (camera wire format: pickled {timestamp, camera,
+        jpeg}) -> (meta, rgb uint8 HxWx3, depth float32 zeros: no depth sensor). The camera pose comes from the
+        kinematic model's head-camera mount (VERIFY on the robot)."""
+        if self.cam is None:
+            raise NotImplementedError('no camera: start MA-Teleop tools/r1/publish_camera.py and pass --camera-port '
+                                      'and --camera-intrinsics to the bridge')
+        if not self.cam.poll(1000):
+            raise RuntimeError('no frame from the camera publisher within 1 s')
+        msg = self.cam.recv_pyobj()                                     # local publisher on 127.0.0.1 only
+        age = time.time() - float(msg['timestamp'])
+        if age > 0.5:
+            raise RuntimeError(f'camera frame is {age:.2f} s old')
+        import io
+        from PIL import Image
+        rgb = np.asarray(Image.open(io.BytesIO(msg['jpeg'])).convert('RGB'), dtype=np.uint8)
+        self.poll_telemetry()
+        q = self.last.get('body_q_measured', self.last['body_q']) if self.last is not None else []
+        h, w = rgb.shape[:2]; fx, fy, cx, cy = self.cam_K
+        meta = {'t': float(msg['timestamp']), 'intrinsics': [[fx, 0, cx], [0, fy, cy], [0, 0, 1]], 'width': w, 'height': h,
+                'q': np.asarray(q, dtype=float).tolist(), 'camera': msg.get('camera')}
+        return meta, rgb, np.zeros((h, w), dtype=np.float32)
+
     # ---- reference streaming at 50 Hz ----
     def stream(self, rows: list[np.ndarray]) -> None:
         with self.lock:
@@ -273,13 +315,13 @@ class RealStack:
         self.send_pose(row, jp, jv, yaw)
         if self.piper_right is not None:
             self.piper_right.tick(float(row[22]))
-        # TODO: left gripper (no verified adapter); head pitch from row[23]
+        # TODO: left gripper (no verified adapter)
 
     # ---- locomotion: a lower-body gait reference (no planner on R1) ----
     # The RAX sim's parametric gait (r1/sim/r1_sim_server.py _gait_pose), streamed with LOOK frames of look-ahead.
     # Deploy-stack sim 2026-11-06 (after fixing the lab sim's gyro frame): walks 2.1-2.2 m for a 1.35 m reference,
     # 3/3 free-running, max tilt 6-8 deg.
-    G_PERIOD, G_RAMP, G_SPEED, LOOK = 52, 16, 0.009, 50
+    G_PERIOD, G_RAMP, G_SPEED, LOOK, N_SHORT, MIN_STEP_M = 52, 16, 0.009, 50, 43, 0.14
     A_HIP, A_KNEE, A_ANK = 0.40, 0.55, 0.20
 
     def _lower_frames(self):
@@ -301,7 +343,14 @@ class RealStack:
         sgn = 1.0 if forward_m >= 0 else -1.0
         advance = abs(forward_m) > 0.02
         hipscale = 1.0 if advance else 0.0                           # pure turn: step in place, no hip swing (0.3 drifted 0.25-0.38 m)
-        n = max(1, max(int(round(abs(forward_m) / self.G_SPEED)) + 12, int(round(abs(turn_deg) / 0.8)) + 2 * self.G_RAMP))
+        dist_ticks = int(round(abs(forward_m) / self.G_SPEED)) + 12
+        if advance and dist_ticks < self.N_SHORT:
+            # a short gait never reaches full amplitude and only shuffles (0.07-0.14 m commands moved 3-5 cm in the deploy
+            # sim): keep the shortest full gait (0.28 m commanded walked 0.29-0.33 m) and scale the hip swing instead
+            # below half swing the push is lost (0.07/0.10 m with the arm out under load-free carry: 0 cm), so the
+            # shortest stride is MIN_STEP_M (0.14 m: 0.142-0.144 m true, carry 0.21 m in 2 steps)
+            hipscale = max(abs(forward_m), self.MIN_STEP_M) / (self.G_SPEED * (self.N_SHORT - 12)); dist_ticks = self.N_SHORT
+        n = max(1, max(dist_ticks, int(round(abs(turn_deg) / 0.8)) + 2 * self.G_RAMP))
         nom = np.asarray(ISAAC_NOMINAL, dtype=float); ix = {nm: ISAAC_JOINTS.index(nm) for nm in ISAAC_JOINTS}
         dph = 2 * np.pi / self.G_PERIOD; turn = np.radians(turn_deg) / n
         veer = np.radians(self.veer_deg) if (sgn > 0 and advance) else 0.0
@@ -327,11 +376,12 @@ class RealStack:
         if self.heading0 is None:
             self.heading0 = _yaw_wxyz(base)
         R = _rot_wxyz(_quat_mul_wxyz(_yaw_quat_wxyz(-self.heading0), base))
-        self.okin.set(dict(zip(self.joint_names, np.asarray(t.get('body_q_measured', t['body_q']), dtype=float))))
         feet = {}
-        for side in ('left', 'right'):                                   # a sole point 6 cm below the ankle (best of a sweep
-            pa, Ra = self.okin.body(f'{side}_ankle_roll_link')           # against sim truth: rms 0.16 m vs 0.22 m at the ankle)
-            feet[side] = R @ (pa + Ra @ np.array([0.0, 0.0, -0.06]))
+        with _MJ_LOCK:
+            self.okin.set(dict(zip(self.joint_names, np.asarray(t.get('body_q_measured', t['body_q']), dtype=float))))
+            for side in ('left', 'right'):                               # a sole point 6 cm below the ankle (best of a sweep
+                pa, Ra = self.okin.body(f'{side}_ankle_roll_link')       # against sim truth: rms 0.16 m vs 0.22 m at the ankle)
+                feet[side] = R @ (pa + Ra @ np.array([0.0, 0.0, -0.06]))
         low = min(feet, key=lambda k: feet[k][2])
         stance = self.odo_stance if (self.odo_stance and feet[self.odo_stance][2] < feet[low][2] + 0.01) else low
         if stance == self.odo_stance and self.odo_foot is not None:
@@ -374,8 +424,8 @@ class RealStack:
 
     def walk(self, forward_m: float, turn_deg: float) -> dict:
         """Walk forward_m along the current heading (negative = backward) with an optional turn; blocks until still.
-        Same pass logic as the RAX sim (one forward correction for a residual >= 6 cm, short passes lengthened to
-        12 cm, at most one turn correction), closed on the leg-odometry ESTIMATE: re-observe afterwards."""
+        One forward correction for a residual >= 4 cm, at most one turn correction, closed on the leg-odometry
+        ESTIMATE (within 1-3 cm of truth in the deploy sim for 0.14-0.3 m walks): re-observe afterwards."""
         if self.last is None:
             raise RuntimeError('no telemetry from the deploy stack yet')
         p0, yaw0 = self._pose2d(); head = np.array([np.cos(yaw0), np.sin(yaw0)])
@@ -391,17 +441,17 @@ class RealStack:
             turn_tol = 6.0 if i == 0 else 10.0
             if out['fallen'] or (abs(fwd_left) < 0.03 and abs(turn_left) < turn_tol):
                 break
-            if abs(fwd_left) < 0.06 or i >= 1:
-                fwd_left = 0.0
-            elif abs(fwd_left) < 0.12:
-                fwd_left = float(np.sign(fwd_left)) * 0.12
+            if abs(fwd_left) < 0.04 or i >= 1 or fwd_left * float(forward_m) < 0:
+                fwd_left = 0.0                                          # one correction, only onward (never walk back an overshoot)
             if abs(turn_left) < turn_tol or i >= 1:
                 turn_left = 0.0
             if fwd_left == 0.0 and turn_left == 0.0:
                 break
         return {'requested_m': round(float(forward_m), 3), 'walked_m': round(walked, 3), 'lateral_m': round(lateral, 3),
                 'turn_deg': float(turn_deg), 'turned_deg': round(turned, 1), 'passes': i + 1, 'fallen': out['fallen'],
-                'tilt_deg': out['tilt_deg'], 'odometry': 'leg-kinematics estimate (no ground truth on the robot)'}
+                'tilt_deg': out['tilt_deg'], 'odometry': 'leg-kinematics estimate (no ground truth on the robot)',
+                **({'note': f'shortest stride is {self.MIN_STEP_M} m: shorter requests step that far'}
+                   if 0.02 < abs(forward_m) < self.MIN_STEP_M else {})}
 
 
 # ---- small quaternion helpers (wxyz) ----
@@ -473,7 +523,9 @@ def serve(stack: RealStack, port: int) -> None:
                 if stack.piper_right is not None:
                     stack.piper_right.stop()
             elif op == 'camera':
-                raise NotImplementedError('the R1 head camera is not wired into the real bridge yet')
+                meta, rgb, depth = stack.camera()
+                sock.send_multipart([json.dumps({'ok': True, **meta}).encode(), rgb.tobytes(), depth.tobytes()])
+                continue
             else:
                 raise ValueError(f'unknown op {op!r}')
             sock.send(json.dumps({'ok': True, **out}).encode())
@@ -482,6 +534,8 @@ def serve(stack: RealStack, port: int) -> None:
 
 
 def main():
+    import faulthandler
+    faulthandler.enable()        # a native crash (seen twice in ~25 sim runs, SIGFPE) prints the Python stack
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--port', type=int, default=5591, help='port the RAX backend connects to')
     ap.add_argument('--stack-in', type=int, default=6556, help='the deploy stack\'s zmq_port (it connects here; lab 6556)')
@@ -492,8 +546,13 @@ def main():
                          '"ssh -o BatchMode=yes unitree@192.168.123.164 python3 -u <MA-Teleop>/tools/r1/piper_can_bridge.py --serve"')
     ap.add_argument('--veer-deg', type=float, default=0.0,
                     help='left heading bias for forward walks if the robot veers (the RAX sim needed 20; the deploy sim 0)')
+    ap.add_argument('--camera-port', type=int, default=None,
+                    help='port of MA-Teleop tools/r1/publish_camera.py (run it with the explicitly selected R1 camera)')
+    ap.add_argument('--camera-intrinsics', default=None, help='fx,fy,cx,cy of that camera at its published resolution')
     a = ap.parse_args()
-    serve(RealStack(a.stack_in, a.stack_out, a.out_topic, piper_right=a.piper_right, veer_deg=a.veer_deg), a.port)
+    K = [float(v) for v in a.camera_intrinsics.split(',')] if a.camera_intrinsics else None
+    serve(RealStack(a.stack_in, a.stack_out, a.out_topic, piper_right=a.piper_right, veer_deg=a.veer_deg,
+                    camera_port=a.camera_port, camera_intrinsics=K), a.port)
 
 
 if __name__ == '__main__':

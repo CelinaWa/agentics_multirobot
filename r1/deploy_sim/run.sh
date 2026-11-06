@@ -29,7 +29,7 @@ case "$1" in
         "$MODEL/model_step_100000_decoder.onnx" "$OUT/data/r1/reference/" \
         --obs-config policy/r1/observation_config_sonic_r1_v1_1.yaml --encoder-file "$MODEL/model_step_100000_encoder.onnx" \
         --input-type zmq_manager --output-type zmq --zmq-host 127.0.0.1 --zmq-port 6556 --zmq-out-port 6557 \
-        --disable-crc-check ${POLICY_LOG:+--policy-input-logfile "$POLICY_LOG"} > "$OUT/deploy.out" 2>&1 &)
+        --disable-crc-check --r1-head-tracking --r1-head-pitch-range 0.5 ${POLICY_LOG:+--policy-input-logfile "$POLICY_LOG"} > "$OUT/deploy.out" 2>&1 &)
     echo "started: logs $OUT/sim.out $OUT/deploy.out (wait for 'Init Done' in deploy.out, ~30 s)" ;;
   *) echo "usage: $0 start|stop"; exit 1 ;;
 esac
