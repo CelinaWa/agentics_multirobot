@@ -3,6 +3,7 @@
 #
 #   bash scripts/g1_up.sh check                      # first day / after an upgrade: the motion check, no agent
 #   bash scripts/g1_up.sh check --preflight-only     # only the checks (settings, build, network); robot may be off
+#   bash scripts/g1_up.sh check --session <dir> --from crouch   # resume a check that stopped part way (same session)
 #   bash scripts/g1_up.sh agent --task-file task.md  # a task session: robot service + Claude agent
 #   bash scripts/g1_up.sh agent --session <dir>      # reuse an existing session directory
 #   bash scripts/g1_up.sh agent --task-file task.md --quick-check   # 1-minute check first, then the agent
@@ -24,11 +25,12 @@
 set -euo pipefail
 MODE=${1:-}; shift || true
 [[ "$MODE" == check || "$MODE" == agent ]] || { sed -n 2,12p "$0"; exit 2; }
-TASK_FILE=""; SESSION=""; QUICK=""; WINDOWS=""; PREFLIGHT_ONLY=""; DEMO_ARGS=(); EXP_ARGS=()
+TASK_FILE=""; SESSION=""; QUICK=""; WINDOWS=""; PREFLIGHT_ONLY=""; CHECK_FROM=""; DEMO_ARGS=(); EXP_ARGS=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --task-file) TASK_FILE=$2; shift 2 ;;
         --session) SESSION=$2; shift 2 ;;
+        --from) CHECK_FROM=$2; shift 2 ;;   # check: resume at this step (with --session)
         --quick-check) QUICK=1; shift ;;
         --preflight-only) PREFLIGHT_ONLY=1; shift ;;
         --windows) WINDOWS=1; shift ;;
@@ -104,7 +106,7 @@ echo "session: $SESSION"
 
 # ---- windows ----------------------------------------------------------------------------------
 WORK_CMD="bash scripts/start_agent.sh --config '$SESSION/operator-input.json'"
-[[ "$MODE" == check ]] && WORK_CMD="bash scripts/g1_check_all.sh '$SESSION'"
+[[ "$MODE" == check ]] && WORK_CMD="bash scripts/g1_check_all.sh '$SESSION'${CHECK_FROM:+ --from $CHECK_FROM}"
 [[ -n "$QUICK" && "$MODE" == agent ]] && WORK_CMD="bash scripts/g1_check_quick.sh '$SESSION' && $WORK_CMD"
 CONSOLE_CMD="'$RAX_PYTHON' scripts/g1_console.py --session '$SESSION'"
 pane_of() { tmux list-panes -s -t "$TMUX_SESSION" -F '#{pane_id} #{pane_title}' | awk -v t="$1" '$2 == t {print $1; exit}'; }
@@ -124,11 +126,19 @@ if [[ -n "$REUSE" ]]; then
 fi
 say "== tmux session '$TMUX_SESSION'"
 DEPLOY_CMD="cd '$SONIC_DEPLOY_DIR' && ./deploy.sh real --input-type zmq_manager --output-type zmq --planner '$SONIC_PLANNER' --motion-data '$SONIC_REF_DIR' --zmq-host '$RAX_HOST_IP'"
-CAMERA_CMD="ssh -t $JETSON_SSH \"$JETSON_CAMERA_CMD\""
+# Single quotes, not double: hold() wraps this in double quotes again, and nested double quotes
+# close that wrapper early -- the pane then dies at once and tmux drops it (no camera pane).
+CAMERA_CMD="ssh -t $JETSON_SSH '$JETSON_CAMERA_CMD'"
 SONIC_CMD=$DEPLOY_CMD; [[ -n "${SONIC_SSH:-}" ]] && SONIC_CMD="ssh -t $SONIC_SSH \"$DEPLOY_CMD\""
 DASH_CMD="bash scripts/run_dashboard.sh"
+# A detached new-session is 80x24 unless told otherwise, and five stacked panes do not fit in 24
+# lines ("no space for new pane"). Build it at the terminal's size, at least big enough to split.
+TMUX_COLS=$(tput cols 2>/dev/null || echo 0); TMUX_LINES=$(tput lines 2>/dev/null || echo 0)
+(( TMUX_COLS >= 200 )) || TMUX_COLS=200
+(( TMUX_LINES >= 50 )) || TMUX_LINES=50
+SIZE=(-x "$TMUX_COLS" -y "$TMUX_LINES")
 if [[ -n "$WINDOWS" ]]; then
-    tmux new-session -d -s "$TMUX_SESSION" -n camera -c "$PROJECT_ROOT" "$(hold "$CAMERA_CMD" camera)"
+    tmux new-session -d "${SIZE[@]}" -s "$TMUX_SESSION" -n camera -c "$PROJECT_ROOT" "$(hold "$CAMERA_CMD" camera)"
     tmux new-window -t "$TMUX_SESSION" -n sonic -c "$PROJECT_ROOT" "$(hold "$SONIC_CMD" sonic)"
     tmux new-window -t "$TMUX_SESSION" -n console -c "$PROJECT_ROOT" "$(hold "$CONSOLE_CMD" console)"
     tmux new-window -t "$TMUX_SESSION" -n dashboard -c "$PROJECT_ROOT" "$(hold "$DASH_CMD" dashboard)"
@@ -136,7 +146,7 @@ if [[ -n "$WINDOWS" ]]; then
     for w in camera sonic console dashboard work; do tmux select-pane -t "$TMUX_SESSION:$w" -T "$w"; done
     tmux select-window -t "$TMUX_SESSION:work"
 else
-    tmux new-session -d -s "$TMUX_SESSION" -n g1 -c "$PROJECT_ROOT" "$(hold "$WORK_CMD" work)"
+    tmux new-session -d "${SIZE[@]}" -s "$TMUX_SESSION" -n g1 -c "$PROJECT_ROOT" "$(hold "$WORK_CMD" work)"
     WORK_PANE=$(tmux display-message -p -t "$TMUX_SESSION" '#{pane_id}')
     tmux select-pane -t "$WORK_PANE" -T work
     for pair in "camera|$CAMERA_CMD" "sonic|$SONIC_CMD" "console|$CONSOLE_CMD" "dashboard|$DASH_CMD"; do

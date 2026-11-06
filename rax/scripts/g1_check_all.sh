@@ -1,11 +1,23 @@
 #!/usr/bin/env bash
 # The first-day motion check of the G1 under SONIC, one step at a time (scripts/g1_motion_check.py), with a
 # prompt between steps. Results: <session>/runtime/characterization/g1_motion_check.jsonl, for G1.md.
-#   bash scripts/g1_check_all.sh <session_root>
+#   bash scripts/g1_check_all.sh <session_root> [--from <step>]
+# --from resumes a check that stopped part way (the robot already stands under SONIC and is armed): the steps
+# before <step>, and their prompts, are skipped. Steps: status disarmed hold arms waist hands pause turn walk
+# crouch camera.
 # Needs: SONIC "Init Done", the console open on the same session (scripts/g1_console.py --session <root>),
 # a person at the stop. The console keys work while a step says "waiting"; between steps they are ignored.
 set -uo pipefail
 ROOT=${1:?session root}
+shift
+FROM=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --from) FROM=$2; shift 2 ;;
+        *) echo "unknown argument $1" >&2; exit 2 ;;
+    esac
+done
+SKIP=${FROM:+1}   # while set, step() and ask() do nothing until the step named by --from comes round
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR/.."
 PY=${RAX_PYTHON:-python3}
@@ -27,6 +39,10 @@ declare -A WHAT=(
     [camera]="moves nothing: one observation, surface heights against your tape values"
 )
 step() {  # step <name> [args...]: say what the step does, wait for ENTER, run it; ask before going on if it failed
+    if [[ -n "$SKIP" ]]; then
+        [[ "$1" == "$FROM" ]] || { echo "=================== $1 (skipped: --from $FROM)"; return 0; }
+        SKIP=""   # from here on the check runs normally
+    fi
     echo; echo "=================== $1"
     echo "    ${WHAT[$1]}"
     read -rp ">>> ENTER to run '$1' (Ctrl-C stops the check; SPACE on the console pauses the robot at any time): " _
@@ -34,16 +50,18 @@ step() {  # step <name> [args...]: say what the step does, wait for ENTER, run i
         read -rp ">>> step $1 FAILED or was paused. ENTER to continue with the next step, Ctrl-C to stop: " _
     fi
 }
-ask() { echo; read -rp ">>> $1  [ENTER] " _; }
+ask() { [[ -n "$SKIP" ]] && return 0; echo; read -rp ">>> $1  [ENTER] " _; }
 
 echo "motion check, session $ROOT" | tee -a "$LOG"
 ask "Robot in the gantry, SONIC window shows 'Init Done' (it ramped to its standing pose while hanging). Console window open. Start?"
 step status
 step disarmed
 ask "LOWER the gantry until the FEET CARRY the robot, the straps still lightly supporting it (after Init Done it is a rigid PD-held
-    statue with no balance: it topples if the straps go fully slack now). Then console: press s. Within a few seconds after s,
-    SLACKEN the straps completely (attached, no load: a strap pulling on the pelvis makes the balancing policy oscillate).
-    Never press s with the feet off the floor (SONIC paddles its legs in the air). When it is still: press SPACE (arm). Then ENTER here."
+    statue with no balance: it topples if the straps go fully slack now). Never press s with the feet off the floor (SONIC
+    paddles its legs in the air). Then ENTER here: the step waits for the arming and NOTHING MOVES yet. The console is only
+    polled while a step runs (a START pressed between steps is discarded as history), so press s only AFTER this ENTER:
+    console s (the robot stands) -> SLACKEN the straps completely (attached, no load: a strap pulling on the pelvis makes
+    the balancing policy oscillate) -> when it is still, console SPACE (arm)."
 step hold
 step arms
 step waist

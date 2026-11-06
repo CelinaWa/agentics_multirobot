@@ -424,6 +424,12 @@ class Check:
         self.wait_armed()
         value = self.call(T.OBSERVE)
         cam = value['camera']
+        if 'frame_id' not in cam:   # no camera in this session: say why instead of a KeyError on frame_id
+            result = {'camera': cam.get('error', cam), 'tilt_deg': value.get('tilt_deg')}
+            log('no camera frame:', str(result['camera'])[:200])
+            print(json.dumps(result, indent=1, default=str), flush=True)
+            self.save(result=result)
+            return
         frame_dir = Path(self.backend.frames_root) / cam['frame_id']
         result = {'frame_dir': str(frame_dir), 'depth': value.get('depth'), 'tilt_deg': value['tilt_deg']}
         if 'camera_intrinsics' not in value:

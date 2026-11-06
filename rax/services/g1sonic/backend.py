@@ -118,6 +118,8 @@ DEFAULTS = {
     'settle_timeout_s': 15.0,         # ... giving up after this long (the start then fails and the session can retry)
     'stack_restart_s': 2.0,           # state older than this while streaming: the stack stopped or restarted, so the
                                       # hold is forgotten and the next armed motion starts it again
+    'console_start_timeout_s': 180.0,  # console START: how long to wait for the robot to be quiet on its feet
+                                      # while the operator lowers the gantry; then START fails and can be retried
     'console_start_mode': 'stand',    # console START: 'planner' = stand under the walking planner until quiet (it
                                       # steps in place first); 'stand' = switch to streamed mode right after the first
                                       # state, where the stack holds its standing reference (frame 0, paused): no steps

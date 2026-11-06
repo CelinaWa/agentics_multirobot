@@ -58,14 +58,44 @@ def read_status(root):
         return None
 
 
+SERVICE_MAX_AGE_S = 3.0
+
+
+def service_age(root):
+    """Seconds since the robot service last wrote its status, or None when it never did.
+
+    START and STOP are files the robot service polls: with no service running nothing reads them, so
+    the console must not claim the robot was damped or stood (it was not).
+    """
+    status = read_status(root)
+    if not isinstance(status, dict) or not isinstance(status.get('at'), (int, float)):
+        return None
+    return max(0.0, time.time() - status['at'])
+
+
+def _no_service(root):
+    age = service_age(root)
+    if age is None:
+        return 'no robot service has run in this session'
+    return f'the robot service is {age:.0f} s stale' if age > SERVICE_MAX_AGE_S else None
+
+
 def do_start(root):
     send_stack(root, 'start')
+    gone = _no_service(root)
+    if gone:
+        return (f'START written, but {gone}: NOTHING received it and the robot did NOT stand. '
+                'Start the session (work pane) first, then press s again')
     return 'START sent: the robot stands (holding its standing reference), then the hold takes over'
 
 
 def do_stop(root):
     arming.write(root, False, by='g1-console', reason='console stop')
     send_stack(root, 'stop')
+    gone = _no_service(root)
+    if gone:
+        return (f'session DISARMED, but {gone}: the damp command was NOT received and the robot is NOT '
+                'limp. Use SONIC O (its window) or the gamepad Select, with the straps carrying it')
     return 'STOP sent: every joint damped, session disarmed; relaunch the deploy before the next START'
 
 

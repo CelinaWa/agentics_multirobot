@@ -31,6 +31,8 @@ How to work (from the harness skills; they apply anyway):
 Limits set for this session (operator's rules):
 - One puppy. If the same grasp has failed twice (missed, pushed it away, dropped it), stop and `request_operator` with what you saw.
 - Use only the right hand, wherever the puppy and the box are (the demonstrations used the right hand). Before moving it, tuck the left arm back and up (shoulder pitch about +0.45, elbow about −0.5) and keep it there for the whole task. The left hand must not touch the puppy at any point: an attempt where it does, even a brush, does not count. Check the left arm is still tucked before every grasp and lift.
+  This robot's left hand also has a closing fault (see "Measured on this robot"), so do not switch hands:
+  if the puppy lies out of the right hand's reach, `request_operator` and ask for it to be moved.
 - Lift no higher than needed to clear the box wall, carry the puppy close to the body, and release only when the hand is above the inside of the box.
 - Never push the box: if a hand touches a box wall, back off upward first.
 
@@ -48,6 +50,35 @@ Limits set for this session (operator's rules):
 - Simulation, measuring the table edge from depth: the standing hands hang at table height 0.20-0.26 m ahead of the pelvis, so "the nearest point at table height" is your own hand (sim: read 0.20 m for a true 0.33 m). Tuck the arms before measuring, or ignore points near your hands.
 - The right hand at its home pose sits at the table's front edge when the hips are 0.2 m from it: move the arm back (shoulder pitch +0.45) and the forearm up (elbow −0.5) before swinging it forward over the table, and bring the other arm back (shoulder pitch 0.5) before leaning.
 - Commanded minus measured joint offsets under load were large in simulation (elbow +0.3 rad, shoulder yaw up to −0.4, waist yaw not tracking at all): plan from the measured joints and the camera after every step, not from the command.
+
+## Measured on this robot (motion check, 2026-10-29; these are facts, not sim estimates)
+
+From `G1.md` / `rax/runtime/sessions/20261029T200355Z_motion_check_28979a`. They were measured standing at
+rest with slack straps, through the same backend and the same gates you use.
+
+- **Use the right hand.** Right hand closing error 0.053 rad; **left hand 0.495 rad with nothing in it**.
+  So on the left hand "the fingers stopped before the full fist" is NOT evidence of contact -- it stops
+  short even when empty. The contact test above is only reliable on the right hand.
+- **Commanded joint angles undershoot.** A 0.30 rad command reached 0.202-0.288 rad (shoulder pitch 0.288,
+  elbow 0.202-0.212, wrist pitch 0.213-0.234). Expect roughly 70-95 % of what you ask for on one command,
+  more on shoulder pitch than on elbow, and re-observe rather than assuming the commanded value.
+- **Hand placement error 1.1-3.4 cm** between commanded and measured palm position (worst on wrist pitch).
+  Plan on about 2 cm of positioning error per motion: approach the puppy in two or three short moves with an
+  observation between them, not one long reach.
+- **Waist pitch is accurate, waist yaw is not.** Pitch +0.15 rad commanded reached +0.159 rad; yaw +0.20 rad
+  reached only +0.055 rad (SONIC does not follow waist yaw). Lean with waist pitch as the hint above says;
+  do not plan to rotate the torso toward the box with waist yaw -- it will barely move.
+- **The standing hold is steady, but its tracking error is not contact.** Over 10 s of standing still: joint
+  drift 0.0005 rad, tilt 1.72-1.77 deg, and the controller's own joint tracking RMSE **0.1743 rad**. That
+  0.17 rad is the controller's baseline, present with nothing touching the robot: do not read a reference
+  error of that size as the hand having hit something.
+- **The operator's pause is immediate**: 0.008 s from disarm to the motion stopping, no overrun, no drift in
+  the 3 s after. A motion you are unsure about can be stopped mid-way without overshoot.
+- **If walking is ever allowed here** (this task needs none): `g1_walk` travels about **0.5x** the commanded
+  distance (1.0 m commanded -> 0.55 m and 0.50 m measured) and a 30 deg turn gives 18-24 deg, about
+  **0.6-0.8x**. Never take a commanded distance as the distance moved.
+- Crouch depths are confirmed on hardware (0.1 / 0.2 / 0.3 m commanded -> 0.080 / 0.190 / 0.289 m, tilt
+  <= 5.0 deg), but the rule above still holds: do not crouch at a table; use waist pitch.
 
 ## Ask the operator (`request_operator`) when
 

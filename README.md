@@ -110,13 +110,22 @@ cd ~/agentics_multirobot/rax && bash scripts/g1_up.sh check --preflight-only
 # 主机上
 ssh-copy-id unitree@192.168.123.164            # 以后 g1_up.sh 要免密 ssh 过去开相机
 scp -r jetson_camera unitree@192.168.123.164:~/
-# Jetson 上
+# Jetson 上（登录后一行一行敲：ros:foxy(1) noetic(2) 的提示会吞掉粘贴进去的后续命令）
 ssh unitree@192.168.123.164
-python3 -c "import pyrealsense2, cv2, numpy, PIL" || pip3 install pyrealsense2 numpy opencv-python-headless pillow
-cd ~/jetson_camera && python3 camera_server.py --camera realsense --port 7790
+sudo /unitree/sbin/mscli stopservice video_hub_pc4   # 宇树的 video_hub 占着 RealSense 的彩色流
+cd ~/jetson_camera && ~/miniconda3/envs/teleop/bin/python3 camera_server.py --camera realsense --port 7790
 ```
 
-看到 `serving realsense on port 7790`、之后每 5 秒一行 `frames sent N`，Ctrl-C 退出。这个服务**只读相机、不碰电机**。
+Jetson 上**不要** pip 装 pyrealsense2：系统 `python3` 是 3.8，`/usr/lib/python3/dist-packages/pyrealsense2`
+里只有 cp310/cp312 的 `.so`，而且 Jetson 不通外网。用 `teleop` 这个 conda 环境（Python 3.10 +
+pyrealsense2 2.57.6）；JPEG 由 cv2 编码，Pillow 用不到。`~/.g1_up.env` 的 `JETSON_CAMERA_CMD`
+已指向这个解释器。
+
+`video_hub_pc4` 不停的话相机只报 `VIDIOC_S_FMT ... Device or resource busy`（只有彩色流冲突，深度和
+红外能开）。`stopservice` 只停当前这次（重启后 `enable` 又回到 1），所以**每次机器人上电后都要再 stop 一次**；停掉期间宇树 App 看不到头部相机，
+**不影响电机、SONIC 和状态流**。恢复：`sudo /unitree/sbin/mscli startservice video_hub_pc4`。
+
+看到 `serving realsense on port 7790`、之后每 5 秒一行 `frames sent N`，Ctrl-C 退出。没有客户端连上来时 `N` 一直是 0，这是正常的：`serving` 这行就说明相机已经打开。这个服务**只读相机、不碰电机**。
 相机内参从 RealSense 固件里读，外参用 URDF 的 `d435_link`，**都不用标**。
 
 （以后换头盔 ZED：相机服务改在主机本地跑 `--camera zedsdk`，`camera_host` 填 `127.0.0.1`，并在 `g1_real_options.json`
