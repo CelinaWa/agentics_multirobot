@@ -144,6 +144,13 @@ class R1SonicBackend:
                     return self._grasp_paw(), []
                 if name == T.PLACE_IN_BOX:
                     return self._place_in_box(arguments.get('side', 'auto')), []
+                if name == T.LEG_LIFT:
+                    return self._leg_lift(arguments['paw_position'], arguments['leg_direction'],
+                                          arguments.get('depth_m', 0.03), arguments.get('lift_z_m', 0.265)), []
+                if name == T.CARRY_RELEASE:
+                    return self._carry_release(arguments.get('target_forward_m'), arguments.get('step_m', 0.07),
+                                               arguments.get('max_steps', 5), arguments.get('lower_m', 0.0),
+                                               arguments.get('release', True)), []
             finally:
                 self._motion = False
                 self.step_id += 1
@@ -405,6 +412,89 @@ class R1SonicBackend:
                 if 'stopped' in sub:
                     break
         return self._report('move_hand', trace, plan=plan, goal=(arm, goal), servo_errors_m=servo_log)
+
+    # ----- measured chains (sim 2026-11-05: grasp along the leg, arc lift, short-step carry) ------------------------
+    LIFT_PLAN = ((0.015, 0.04, 0.0), (0.035, 0.07, 0.2), (0.055, 0.10, 0.3), (0.07, 0.14, 0.4), (0.08, 0.18, 0.5),
+                 (0.08, 0.22, 0.5), (0.08, 0.265, 0.5))   # (advance along the leg, hand z, approach tilt) per step
+
+    def _width(self):
+        return float(self._state()['gripper_width_m']['right'])
+
+    def _leg_lift(self, paw_position, leg_direction, depth_m=0.03, lift_z_m=0.265):
+        paw = np.asarray(paw_position, dtype=float)
+        ax = np.array([float(leg_direction[0]), float(leg_direction[1]), 0.0]); ax /= np.linalg.norm(ax)
+        fing = [-ax[1], ax[0], 0.0]
+        gp = paw + float(depth_m) * ax
+        log = {'grasp_point_m': np.round(gp, 3).tolist(), 'leg_yaw_deg': round(float(np.degrees(np.arctan2(ax[1], ax[0]))), 1)}
+        try:
+            self._move_hand('right', (gp - 0.08 * ax).tolist(), approach=ax.tolist(), fingers=fing, gripper_width_m=0.07, secs=2.0)
+            r = self._move_hand('right', gp.tolist(), approach=ax.tolist(), fingers=fing, secs=1.5)
+        except RejectedBeforeAction as exc:
+            return {**log, 'held': False, 'stage': 'reach', 'reason': str(exc)[:200]}
+        log['reach_error_m'] = r.get('grasp_error_m')
+        w = self._gripper('right', 0.0, 1.0)['gripper']['measured_m']
+        log['closed_width_m'] = w
+        if w < 0.015:
+            return {**log, 'held': False, 'stage': 'grasp', 'reason': 'the jaws closed on nothing (width < 0.015)'}
+        h = np.asarray(self._grasp_points(self._state()['qd'])['right'])
+        widths = [w]; peak = w
+        for i, (adv, z, tilt) in enumerate(self.LIFT_PLAN):
+            z = min(z, float(lift_z_m))
+            goal = [float(h[0] + adv * ax[0]), float(h[1] + adv * ax[1]), z]
+            appr = None
+            for t_ in (tilt, tilt + 0.2, max(0.0, tilt - 0.2), tilt + 0.4):
+                if self._move_hand('right', goal, approach=[ax[0], ax[1], t_], fingers=fing, preview_only=True)['reachable']:
+                    appr = [float(ax[0]), float(ax[1]), float(t_)]; break
+            if appr is None:
+                return {**log, 'held': True, 'stage': 'lift', 'lift_steps': i, 'widths_m': widths, 'reason': f'step {i} unreachable', **self._hand_report()}
+            try:
+                self._move_hand('right', goal, approach=appr, fingers=fing, secs=1.5, servo=False)
+            except (RejectedBeforeAction, MotionStopped) as exc:
+                return {**log, 'held': self._width() >= 0.012, 'stage': 'lift', 'lift_steps': i, 'widths_m': widths, 'reason': str(exc)[:160], **self._hand_report()}
+            time.sleep(0.3)
+            w = self._width(); widths.append(round(w, 4)); peak = max(peak, w)
+            if w < 0.012:
+                return {**log, 'held': False, 'stage': 'lift', 'lift_steps': i + 1, 'widths_m': widths, 'reason': 'the leg slid out during the lift', **self._hand_report()}
+            if i < 4 and peak - w > 0.004:
+                return {**log, 'held': True, 'width_falling': True, 'stage': 'lift', 'lift_steps': i + 1, 'widths_m': widths,
+                        'reason': 'width falling: the leg is sliding out; open, re-measure and re-grasp', **self._hand_report()}
+            if z >= float(lift_z_m) - 1e-6:
+                break
+        return {**log, 'held': True, 'stage': 'lifted', 'lift_steps': len(widths) - 1, 'widths_m': widths, **self._hand_report()}
+
+    def _hand_report(self):
+        s = self._state()
+        return {'hand_pelvis_m': np.round(self._grasp_points(s['qd'])['right'], 3).tolist(), 'gripper_width_m': s['gripper_width_m']['right'],
+                'tilt_deg': s['tilt_deg']}
+
+    def _carry_release(self, target_forward_m=None, step_m=0.07, max_steps=5, lower_m=0.0, release=True):
+        steps = []; total = 0.0; dropped = False
+        for k in range(int(max_steps)):
+            out = self._walk(float(step_m), 0.0)
+            total += float(out.get('walked_m', 0.0) or 0.0)
+            w = self._width(); steps.append({'walked_m': out.get('walked_m'), 'width_m': round(w, 4), 'tilt_deg': out.get('tilt_deg')})
+            if out.get('fallen'):
+                return {'steps': steps, 'walked_total_m': round(total, 3), 'dropped': w < 0.012, 'released': False, 'fallen': True}
+            if w < 0.012:
+                dropped = True; break
+            if target_forward_m is not None and total >= float(target_forward_m) - 0.01:
+                break
+        result = {'steps': steps, 'walked_total_m': round(total, 3), 'dropped': dropped, 'released': False}
+        if target_forward_m is not None and not dropped and total < float(target_forward_m) - 0.03:
+            result['short_by_m'] = round(float(target_forward_m) - total, 3)   # still held: call again for the rest, or release explicitly
+            return {**result, **self._hand_report()}
+        if dropped or not release:
+            return {**result, **self._hand_report()}
+        if lower_m > 0:
+            h = np.asarray(self._grasp_points(self._state()['qd'])['right'])
+            try:
+                self._move_hand('right', [float(h[0]), float(h[1]), float(h[2] - lower_m)], secs=1.5, servo=False)
+            except (RejectedBeforeAction, MotionStopped) as exc:
+                result['lower_note'] = str(exc)[:120]
+            result['width_before_release_m'] = round(self._width(), 4)
+        self._gripper('right', 0.07, 1.0)
+        time.sleep(1.0)
+        return {**result, 'released': True, **self._hand_report()}
 
     def _move_joints(self, joints, secs):
         s0 = self._state()

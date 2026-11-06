@@ -75,6 +75,17 @@ front wall (depth image or dead reckoning). (4) Open the gripper. Results: 4 car
 (0.031-0.044); the two that were released over the box both landed inside (ground truth), one stopped 3 cm short of
 the release point, one lift slipped. Reference script: r1/tools/diag/carry_chain_test.py (engineering copy).
 
+## NEW TOOLS (since session 2fbfb7): `r1_leg_lift` and `r1_carry_release`
+The measured chain above is now available as two robot-service primitives, built from the same hand/gripper/walk
+commands you use (so they transfer to the real robot): `r1_leg_lift(paw_position, leg_direction)` does the aligned
+shaft grasp and the arc lift (stops early with width_falling=true if the leg is sliding out: open, re-measure, re-grasp),
+and `r1_carry_release(target_forward_m, lower_m)` does the short-step carry and the release (holds instead of releasing
+if it falls short of your target). Engineering test through the backend: 2 placements in 4 runs plus one safe early abort.
+YOUR job is what the primitives cannot do: perceive the paw-ball centre and the leg direction (paw -> hip) accurately
+(within ~1 cm / 10 deg), choose the stance, estimate target_forward_m from the box's front wall, verify with the
+operator's ground-truth question ("is the puppy inside the box?"), and recover from the reported failure stage.
+Record per-stage counts in memory/RUNS.md.
+
 ## RELIABILITY GOAL (this session)
 The full chain has succeeded once in simulation (session 7c03aa: leg-axis shaft grasp, servo-off lift, two short
 carry steps, rim release, push-in with the closed gripper - see skill `r1-leg-axis-grasp-short-carry`). The goal now

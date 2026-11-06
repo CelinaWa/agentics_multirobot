@@ -8,9 +8,11 @@ STATUS, OBSERVE, PIXEL_TO_POSITION = "r1_status", "r1_observe", "r1_pixel_to_pos
 MOVE_HAND, MOVE_JOINTS, GRIPPER, HEAD, HOLD = "r1_move_hand", "r1_move_joints", "r1_gripper", "r1_head", "r1_hold"
 WALK = "r1_walk"
 GRASP_PAW, PLACE_IN_BOX = "r1_grasp_paw", "r1_place_in_box"
-ROBOT_TOOLS = (STATUS, OBSERVE, PIXEL_TO_POSITION, MOVE_HAND, MOVE_JOINTS, GRIPPER, HEAD, HOLD, WALK, GRASP_PAW, PLACE_IN_BOX)
+LEG_LIFT, CARRY_RELEASE = "r1_leg_lift", "r1_carry_release"
+ROBOT_TOOLS = (STATUS, OBSERVE, PIXEL_TO_POSITION, MOVE_HAND, MOVE_JOINTS, GRIPPER, HEAD, HOLD, WALK, GRASP_PAW, PLACE_IN_BOX,
+               LEG_LIFT, CARRY_RELEASE)
 READ_TOOLS = (STATUS, OBSERVE, PIXEL_TO_POSITION)
-MUTATING = frozenset({MOVE_HAND, MOVE_JOINTS, GRIPPER, HEAD, WALK, GRASP_PAW, PLACE_IN_BOX})
+MUTATING = frozenset({MOVE_HAND, MOVE_JOINTS, GRIPPER, HEAD, WALK, GRASP_PAW, PLACE_IN_BOX, LEG_LIFT, CARRY_RELEASE})
 
 ARMS = ("left", "right")
 # joints the agent commands (the legs stand on SONIC's default stance; the head yaw stays 0)
@@ -115,6 +117,40 @@ def tool_definitions(geometry=True):
             "then r1_gripper width 0. It refuses (held=false, 'refused') if the nearest paw is more than 0.35 m ahead: "
             "leaning further has tipped the robot over. Needs operator arming."),
          "inputSchema": {"type": "object", "additionalProperties": False, "properties": {}}},
+        {"name": LEG_LIFT, "description": (
+            "Measured grasp-and-lift chain (engineering, sim 2026-11-05: 8 placements in 12 runs with r1_carry_release). "
+            "You supply the perceived paw-ball centre (pelvis frame, metres) and the leg direction from the paw toward the "
+            "hip (horizontal unit vector, from your leg-axis measurement). The right arm then: pregrasps 8 cm short of a point "
+            "depth_m up the shaft along that direction, approaches ALONG the leg with the fingers across it (servo on), "
+            "closes, and if the width is on the leg (>= 0.015) lifts in an arc about the hip (the hand advances along the "
+            "leg as it rises, approach tilt capped at 0.5) to hand height lift_z_m, checking the width each step. Stops "
+            "early and reports stage='lift', width_falling=true if the width drops more than 4 mm below its peak during "
+            "the first steps (the leg is sliding out: open with r1_gripper, re-measure, re-grasp). Returns held, the clamped "
+            "width (0.031-0.036 = clean shaft), the hand position and the lift reached. Stand at the grasp stance first "
+            "(paw ~0.30-0.34 m ahead, y -0.17..-0.25). Needs operator arming."),
+         "inputSchema": {"type": "object", "additionalProperties": False, "required": ["paw_position", "leg_direction"],
+                         "properties": {
+             "paw_position": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3,
+                              "description": "perceived paw-ball centre, pelvis frame, metres"},
+             "leg_direction": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 3,
+                               "description": "paw -> hip direction (x, y[, z]); only the horizontal part is used"},
+             "depth_m": {"type": "number", "description": "grasp point up the shaft from the paw centre (default 0.03, 0.02-0.05)"},
+             "lift_z_m": {"type": "number", "description": "hand height to reach, pelvis frame (default 0.265, 0.20-0.32)"}}}},
+        {"name": CARRY_RELEASE, "description": (
+            "Measured carry-and-release chain, to call right after a successful r1_leg_lift with NO other motion in "
+            "between: walks forward in short steps (step_m, default 0.07) with no pause, checking the gripper width after "
+            "each step, for up to max_steps steps or until the total walked reaches target_forward_m (your estimate of the "
+            "distance that puts the held puppy's body past the box's front wall, typically 0.15-0.25 m from the grasp "
+            "stance in the box-behind layout); then optionally lowers the hand by lower_m (relative, same approach, servo "
+            "off) and opens the gripper. Reports each step's width, whether the puppy was still held at the release, the "
+            "total walked, and whether it released. If dropped=true the puppy fell during the carry: observe and ask the "
+            "operator where it is. Needs operator arming."),
+         "inputSchema": {"type": "object", "additionalProperties": False, "properties": {
+             "target_forward_m": {"type": "number", "description": "stop walking once this total distance is covered (0.05-0.40)"},
+             "step_m": {"type": "number", "description": "walk step (default 0.07, 0.04-0.10)"},
+             "max_steps": {"type": "integer", "description": "at most this many steps (default 5, 1-8)"},
+             "lower_m": {"type": "number", "description": "lower the hand this much before opening (default 0, 0-0.12)"},
+             "release": {"type": "boolean", "description": "open the gripper at the end (default true)"}}}},
         {"name": PLACE_IN_BOX, "description": (
             "With a paw held (after r1_grasp_paw), lower the puppy over the box opening and release so it drops in. One "
             "blocking call. The box must be under your holding hand first: ask the operator to slide the table so the "
@@ -197,6 +233,22 @@ def validate_request(name, arguments):
         reject_unless("pitch" in arguments, "pitch is required")
         _range(arguments, "pitch", *HEAD_PITCH)
         _range(arguments, "secs", 0.3, 3.0)
+    elif name == LEG_LIFT:
+        _only(arguments, ("paw_position", "leg_direction", "depth_m", "lift_z_m"))
+        _vec(arguments.get("paw_position"), 3, "paw_position")
+        d = arguments.get("leg_direction")
+        reject_unless(isinstance(d, (list, tuple)) and len(d) in (2, 3) and all(isinstance(v, (int, float)) and math.isfinite(v) for v in d)
+                      and math.hypot(d[0], d[1]) > 1e-3, "leg_direction must be a 2- or 3-vector with a horizontal part")
+        _range(arguments, "depth_m", 0.02, 0.05)
+        _range(arguments, "lift_z_m", 0.20, 0.32)
+    elif name == CARRY_RELEASE:
+        _only(arguments, ("target_forward_m", "step_m", "max_steps", "lower_m", "release"))
+        _range(arguments, "target_forward_m", 0.05, 0.40)
+        _range(arguments, "step_m", 0.04, 0.10)
+        if "max_steps" in arguments:
+            reject_unless(type(arguments["max_steps"]) is int and 1 <= arguments["max_steps"] <= 8, "max_steps must be 1-8")
+        _range(arguments, "lower_m", 0.0, 0.12)
+        reject_unless(type(arguments.get("release", True)) is bool, "release must be a boolean")
     elif name == PIXEL_TO_POSITION:
         _only(arguments, ("observation_step_id", "selections", "depth_window_radius"))
         reject_unless(type(arguments.get("observation_step_id")) is int, "observation_step_id must be an integer")
