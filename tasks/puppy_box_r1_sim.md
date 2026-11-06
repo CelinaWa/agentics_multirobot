@@ -54,6 +54,14 @@ Keep the gripper commanded fully closed (width 0) from the grip until the releas
 - Use only the right gripper for the puppy; keep the left arm away from it.
 - This is simulation, so exploration is cheap: a `reset` request is allowed five times. If the same grasp has failed twice, change the approach rather than repeating it.
 
+## THIS SESSION: the practice stance is JITTERED (+-3 cm) on purpose
+Your library skill places the puppy from the exact practice stance but failed from every walk-in stance (2-4 cm off).
+From now on each "grasp stance" placement lands you at a random offset of up to 3 cm in x and y, like a real walk-in.
+Make the chain work from wherever you land: measure the paw and leg direction fresh every time (never assume the nominal
+stance), and use the primitives' adaptive reach (`r1_leg_lift` now tries shorter pregrasps, a shallower depth and the
+waist before refusing, and reports a stance_hint when the paw is beyond 0.34 m or closer than 0.29 m; `r1_carry_release`
+has advance_m, which cut the carry to two steps). Count placements per stance offset in memory/RUNS.md.
+
 ## SIMULATION ACCELERATOR: the "grasp stance" request (sim only)
 Walking to a good stance costs you 20-40 minutes per attempt in this simulator and does not transfer. To practise the
 part that does transfer (grasp, lift, carry, place), ask the operator with kind `help`: "place me at the grasp stance".
