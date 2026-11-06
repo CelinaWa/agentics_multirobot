@@ -144,6 +144,7 @@ class Sim:
         self.row[21] = self.row[22] = 0.07
         self.row[23] = 0.0
         self.ticks = 0
+        self.resets = getattr(self, "resets", -1) + 1          # the backend re-syncs its command state when this changes
         self.fallen = False
         self.warm = 100        # ticks with the policy only, robot pinned upright by nothing: just let it settle
         self.walking = 0; self.walk_dir = np.zeros(3); self.walk_turn = 0.0; self.walk_advance = 0.0; self.gait_i = 0; self.walk_sign = 1.0
@@ -608,7 +609,7 @@ class Sim:
                 "gripper_width_m": {s: round(self.gripper_width(s), 4) for s in ("left", "right")},
                 "command_row": np.round(self.row, 5).tolist(), "queued": len(self.queue),
                 "measured_points_row": np.round(self.measured_row()[:21], 5).tolist(),
-                "fallen": self.fallen, "tilt_deg": round(self.tilt_deg(), 2), "mode": "teleop"}
+                "fallen": self.fallen, "tilt_deg": round(self.tilt_deg(), 2), "mode": "teleop", "resets": self.resets}
 
     def stream(self, rows):
         rows = [np.asarray(r, dtype=float) for r in rows]

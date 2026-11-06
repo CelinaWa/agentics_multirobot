@@ -87,6 +87,7 @@ class R1SonicBackend:
         self.cmd = dict(DEFAULT_UPPER)        # commanded upper-body joints (the targets are their FK)
         self.correction = {'left': np.zeros(3), 'right': np.zeros(3)}   # servo offsets on the wrist points (pelvis frame)
         self.grip = {'left': 0.07, 'right': 0.07}
+        self._stack_resets = None             # the stack's reset count seen last (sim); see _resync_after_reset
         self.head_pitch = o['head_pitch']
         self.step_id = 0
         self.last_feedback = None
@@ -285,6 +286,7 @@ class R1SonicBackend:
         """Stream a smooth joint-space interpolation from the commanded pose to upper_to, then wait until it ran,
         watching tilt and stepping. Returns the trace summary."""
         n = max(1, int(round(secs * self.options['control_hz'])))
+        self._resync_after_reset(s0)
         start = dict(self.cmd); g0 = dict(self.grip); h0 = self.head_pitch
         c0 = {a: self.correction[a].copy() for a in T.ARMS}
         c1 = correction_to or c0
@@ -300,6 +302,22 @@ class R1SonicBackend:
         self.cmd = {j: upper_to.get(j, start[j]) for j in start}
         self.grip, self.head_pitch, self.correction = dict(g1), h1, {a: c1[a].copy() for a in T.ARMS}
         return self._wait(n / self.options['control_hz'])
+
+    def _resync_after_reset(self, s0):
+        """After an operator reset (the stack reports a new reset count, or the measured arm sits far from the last
+        command) the commanded pose is stale: streaming from it would fling the arm back to where it was before the
+        reset with the gripper still closed (seen in sim, 2026-11-05). Start from the measured pose instead."""
+        qd = s0.get('qd', {})
+        resets = s0.get('resets')
+        deviation = max((abs(qd[j] - self.cmd[j]) for j in self.cmd if j in qd), default=0.0)
+        stale = (resets is not None and self._stack_resets is not None and resets != self._stack_resets) or deviation > 0.5
+        if stale:
+            self.cmd = {j: float(qd.get(j, self.cmd[j])) for j in self.cmd}
+            widths = s0.get('gripper_width_m') or {}
+            self.grip = {a: (0.07 if widths.get(a, 0.07) > 0.05 else float(widths.get(a, 0.07))) for a in self.grip}
+            self.correction = {a: np.zeros(3) for a in T.ARMS}
+            self._event('command state re-synced to the measured pose', resets=resets, deviation_rad=round(deviation, 3))
+        self._stack_resets = resets
 
     def _wait(self, duration):
         o = self.options
