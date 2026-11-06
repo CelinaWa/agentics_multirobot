@@ -294,8 +294,8 @@
 - [strategy] where: sim. Abort rule: running width peak from lift step 0 (the close width is a transient: R1 .0378 ->
   .0343 at step 0); abort if > 4 mm below the peak in steps 0-5; RETRACE the lift path downward and open only at
   cmd z < .08 - a direct put-back from the top was refused and opening at z .22 threw the puppy off the table (s12).
-- [param] where: sim. My paw sphere fit reads (.321,-.200,.032) where the operator states (.31,-.21,.03) (ball cut by
-  the image border at v ~473): grasp depth .02 with my fit ~= engineering depth .03 (close .034-.0365).
+- [sim-only] where: sim. My paw sphere fit reads (.321,-.200,.032) where the operator states (.31,-.21,.03) (ball cut by
+  the image border at v ~473): grasp depth .02 with my fit ~= engineering depth .03 (close .034-.0365). (retagged for transfer: a real operator cannot state coordinates; calibrate perception against a tape measure instead)
 - [sim-only] where: sim. Walk-in stances (paw x .34-.37, y -.17..-.20, 4-6 deg off square) gave 0/3 lifts vs 5/8 at
   the operator stance: match the operator stance geometry before grasping. (retagged for transfer: sim locomotion artifact (walk-in scatter); measure the real walk-in scatter)
 - [param] where: sim. Walks this session: fwd .15 -> .089, .117 -> .061, .07 -> .073/.076, .09 -> .11, .12 -> .08,

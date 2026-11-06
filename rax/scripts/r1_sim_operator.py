@@ -117,11 +117,15 @@ def main():
                     where = ('INSIDE the box (torso centre within the walls and below the rim)' if inside else
                              'NOT inside: ' + ('its torso centre is above the rim height (resting on or across the rim does not count)' if (abs(rel[0]) < 0.134 and abs(rel[1]) < 0.189) else 'its torso centre is outside the box footprint'))
                     edge_x = g['table']['pos'][0] - 0.300
-                    reply = (f'Operator (ground truth, nothing moved): the puppy is {where}. Torso centre relative to the box centre: '
-                             f'{rel[0]*100:+.0f} cm forward, {rel[1]*100:+.0f} cm to your left, {rel[2]*100:+.0f} cm above the box floor. '
-                             f'Frontmost paw-ball centre in your pelvis frame: ({paws[front][0]:.3f}, {paws[front][1]:.3f}, {paws[front][2]:.3f}), '
-                             f'{(edge_x - (o + Rm @ paws[front])[0])*100:.1f} cm past the front edge; its leg direction paw->hip: '
-                             f'({ax[0]:.2f}, {ax[1]:.2f}, {ax[2]:.2f}), yaw {np.degrees(np.arctan2(ax[1], ax[0])):+.0f} deg. {scene(g)}.')
+                    # what a HUMAN operator could say by looking (no coordinates: the real world has no ground truth)
+                    fwd = rel[0]; side = rel[1]
+                    rough = ('in the box' if inside else
+                             ('on top of the box rim' if (abs(fwd) < 0.134 and abs(side) < 0.189) else
+                              f"on the table about {abs(fwd + 0.137)*100:.0f} cm {'in front of' if fwd < 0 else 'behind'} the box"
+                              + (f", {abs(side)*100:.0f} cm to your {'left' if side > 0 else 'right'} of its centre" if abs(side) > 0.08 else '')))
+                    hang = (edge_x - (o + Rm @ paws[front])[0]) * 100
+                    paw_words = ('a hind paw hangs about %.0f cm past the front edge' % hang if hang > 1 else 'no paw hangs past the front edge')
+                    reply = (f'Operator (looking, nothing moved): the puppy is {where}; it lies {rough}; {paw_words}. {scene(g)}.')
                     g = req('gt'); d = np.asarray(g['dog']['pos']); b = np.asarray(g['box']['pos']); rel = d - b
                     inside = abs(rel[0]) < 0.134 and abs(rel[1]) < 0.189 and 0.0 < rel[2] < 0.145
                     where = ('INSIDE the box (torso centre within the walls and below the rim)' if inside else
