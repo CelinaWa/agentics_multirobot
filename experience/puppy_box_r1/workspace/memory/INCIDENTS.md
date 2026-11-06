@@ -53,3 +53,11 @@ Hazard zone: right hand below table level within ~.1 m of the edge with the edge
 | 22:36 | v4 out after st9: walk back -0.2 went only .031, then HOME | hand driven onto the table edge (.26,-.29,.00), gripper blocked .049 | 6.65 | hold; open; hand up (.24,-.31,.16) -> out (.14,-.40,.12); walk -0.2; HOME. out() now repeats the walk back and refuses HOME if short |
 | 23:07 | st17 release at hand z .356 after the LOWER move was refused (jump .49) | puppy ended on the FLOOR (operator) | 1.4 | if LOWER is refused, retry it as a smaller step / skip release and report; never release from a thin (.028) grip high above the rim |
 Hazard zones: (1) arm HOME within .25 m of the table edge; (2) releasing a swinging body high above the box.
+
+## Session 727e14 (sim)
+- st3: after a carry DROP (hand at (.43,-.23,.26), robot .078 closer), `home.py` (direct HOME joints) caught the arm on
+  the table/puppy: tilt 7.25, hand stuck at (.356,-.263,.081), waist yawed .18. Freed by `v6.py out 0.2` (up, back,
+  out (.14,-.40,.14), walk back .198, HOME). Rule: after any carry, ONLY `v6.py out`, never home.py.
+- st4: a QUESTION mentioning "the hanging hind paw" was routed as an overhang request (answer "paw now hangs 6.1 cm
+  past the edge"), and the puppy was then gone from the table (off the table, frame 20261105234950f210a1). Never put
+  "hanging"/"overhang"/"position" words in a question; questions only as "Question only ... is the puppy inside the box?"
