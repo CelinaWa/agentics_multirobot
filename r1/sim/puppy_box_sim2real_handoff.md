@@ -167,3 +167,17 @@ waypoints, carry in <= 0.1 m walks checking the grip, lower over the box, releas
   first: it is soft-contact creep under load spikes in MuJoCo and may not exist with real pads on fabric.
 - Harness fixes this round: stance accelerator and box-beside requests in the scripted operator; the backend
   re-syncs its commanded pose after an operator reset (a stale command swung the raised arm through the paw area).
+
+## Session 8 (sim) and the open carry question
+- Session 8 (`20261106T043952Z_puppy_box_r1_cf6e88`): lifts 9/9, a clean 0.03 m grip survives the first carry step
+  2/2 (a 0.05 m grip 0/2), placements 0/10 by the 50-minute mark: the puppy lands beside or in front of the box.
+  The agent tried the box-left layout (judged worse for the right hand), a closer stance before grasping (killed by
+  the sim's random sub-6-cm steps), and a waist yaw while holding (width unchanged, the body swings over).
+- Candidate not yet tested: the sim puppy's paws have NO collision bulge (visual sphere only), so no stopper grasp
+  exists in sim. A real plush paw is thicker than its leg: clamping the shaft right behind the paw, with the paw on the
+  side the body will pull toward, would make the carry form-closed. A scene variant with 1.9 cm paw cores exists
+  (`tools/scratch/scene_test_ft/seed21/scene_r1_dog_box_paw.xml` + `layout_21_paw.json`); a top-down approach was
+  out of reach at the table edge, so it needs the leg presented hanging DOWN over the edge and a horizontal grasp.
+  Verify the real paw's bulge before relying on this.
+- A gait-free "nudge" (shifting the reference root without stepping) was tried for precise small steps: the policy
+  ignores it (0 motion). Small steps stay random in this sim; the real stack should be measured for the same.
