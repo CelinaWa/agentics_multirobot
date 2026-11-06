@@ -102,6 +102,14 @@ def main():
                     resets += 1; hang, g = reset(); arm()
                     reply = (f'Operator: the robot is restored and RE-ARMED (used reset {resets}/{a.max_resets}). {scene(g)}; '
                              f'the frontmost hind paw hangs {hang:.1f} cm past the edge. Re-check status and observe before moving.')
+                elif kind == 'reset' or 'reset' in text:
+                    if resets >= a.max_resets:
+                        reply = (f'Operator: the reset budget ({a.max_resets}) is used up - no further resets; the scene stays as it is. '
+                                 'Finish safely and write what you learned to memory/ (RUNS.md, TIPS.md, PARAMS.json).')
+                    else:
+                        resets += 1; hang, g = reset(); arm()
+                        reply = (f'Operator: reset {resets}/{a.max_resets} done. {scene(g)}; the puppy\'s frontmost hind paw hangs '
+                                 f'{hang:.1f} cm past the front edge in open space; grippers open.')
                 elif (('stance' in text and a.max_stances > 0)
                       or re.search(r'(put|place|move|set|position|bring)\s+(the\s+)?box|box\s+(beside|next to|on my (left|right)|to (the|my) (left|right))', text)
                       or any(w in text for w in ('overhang', 'hind leg', 'hind paw', 'over the edge', 'past the edge', 'position the puppy'))):
@@ -131,14 +139,6 @@ def main():
                                      f'nothing else was moved')
                     g = req('gt')
                     reply = 'Operator: ' + '; '.join(parts) + f'. {scene(g)}.'
-                elif kind == 'reset' or 'reset' in text:
-                    if resets >= a.max_resets:
-                        reply = (f'Operator: the reset budget ({a.max_resets}) is used up - no further resets; the scene stays as it is. '
-                                 'Finish safely and write what you learned to memory/ (RUNS.md, TIPS.md, PARAMS.json).')
-                    else:
-                        resets += 1; hang, g = reset(); arm()
-                        reply = (f'Operator: reset {resets}/{a.max_resets} done. {scene(g)}; the puppy\'s frontmost hind paw hangs '
-                                 f'{hang:.1f} cm past the front edge in open space; grippers open.')
                 elif 'arm' in text:
                     arm(); g = req('gt'); reply = f'Operator: motion is ARMED; nothing in the scene was moved. {scene(g)}.'
                 else:
