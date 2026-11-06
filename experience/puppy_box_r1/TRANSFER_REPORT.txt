@@ -1,3 +1,3 @@
-memory/TIPS.md: strategy 68, param 31, sim-only 8, untagged 0
+memory/TIPS.md: strategy 75, param 35, sim-only 8, untagged 0
 handoff/README.md: strategy 0, param 0, sim-only 0, untagged 0
-PARAMS.json: 65 measured in sim, 0 on the real robot
+PARAMS.json: 76 measured in sim, 0 on the real robot

@@ -61,3 +61,10 @@ Hazard zones: (1) arm HOME within .25 m of the table edge; (2) releasing a swing
 - st4: a QUESTION mentioning "the hanging hind paw" was routed as an overhang request (answer "paw now hangs 6.1 cm
   past the edge"), and the puppy was then gone from the table (off the table, frame 20261105234950f210a1). Never put
   "hanging"/"overhang"/"position" words in a question; questions only as "Question only ... is the puppy inside the box?"
+
+## Session 90b103 (sim)
+| time | situation | what happened | tilt | fix / rule |
+|---|---|---|---|---|
+| s12 | lift abort at the TOP step (width .0361 -> .0317 at cmd z .252) | direct put-back to G refused (joint jump .73), back_off opened the gripper at z ~.22 | 0.9 | puppy fell off the table. Abort = retrace the lift path downward, open only low; refuse -> keep holding and ask |
+| s6 | puppy bridged across the box top after a carry drop; 2 closed-gripper push sweeps (approach (.8,.6,.15), z .20/.155) | puppy rode up onto the forearm (+20 cm above the box floor), robot .10 m from the edge, waist yawed -.24 | 2.9 | never push a bridged puppy with the arm; withdraw sideways (y -.30) and down, walk back, HOME |
+| W0 | lateral walk-in by turn pairs (+45/-45) | -45 reported -6.8 deg but walked .356 m toward the table (edge .33 ahead, robot 38 deg off) | 1.5 | turns move the robot forward ~.2-.35 m per 45 deg; do turns only >= .6 m from the edge, re-observe after each |

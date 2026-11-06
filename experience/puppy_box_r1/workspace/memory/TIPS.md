@@ -282,3 +282,33 @@
   (measured axis biased low) but a CLEAN narrow grip is not what holds (see the width-trend row).
 - [strategy] where: sim. NEVER HOME the arm before confirming the walk back: -0.2 once walked .031 and HOME drove
   the hand onto the table edge (tilt 6.65).
+
+# Session 20261106T080133Z_puppy_box_r1_90b103 (r1sonic sim, where: sim) - new rows
+- [strategy] where: sim. LIFT WITH A LEVEL APPROACH: own servo-off lift, approach z component 0 -> .15 (not the .5 tilt
+  of r1_leg_lift / older profiles): widths flat 5/8 at the stance vs r1_leg_lift 1/5 (width +3-4 mm at lift step 2,
+  then falling, with +5 yaw AND with the engineering inputs). Skill r1-leg-lowtilt-lift-advance-carry.
+- [strategy] where: sim. SHORTEN THE CARRY by a 6 cm level advance of the loaded hand at the top of the lift (hand x
+  ~.475): carry .16 m = 2 walk steps held 4/4 and released inside 4/4; a .225 m carry (3 steps) dropped on step 3.
+- [param] where: sim. r1_carry_release(target = wall + .10 - (hand x + .06), lower .06, step .10) after an OWN lift
+  works; walks .094-.122 then .042-.07; width -5..-7 mm on walk 1; torso lands 5-8 cm short of the box centre.
+- [strategy] where: sim. Abort rule: running width peak from lift step 0 (the close width is a transient: R1 .0378 ->
+  .0343 at step 0); abort if > 4 mm below the peak in steps 0-5; RETRACE the lift path downward and open only at
+  cmd z < .08 - a direct put-back from the top was refused and opening at z .22 threw the puppy off the table (s12).
+- [param] where: sim. My paw sphere fit reads (.321,-.200,.032) where the operator states (.31,-.21,.03) (ball cut by
+  the image border at v ~473): grasp depth .02 with my fit ~= engineering depth .03 (close .034-.0365).
+- [strategy] where: sim. Walk-in stances (paw x .34-.37, y -.17..-.20, 4-6 deg off square) gave 0/3 lifts vs 5/8 at
+  the operator stance: match the operator stance geometry before grasping.
+- [param] where: sim. Walks this session: fwd .15 -> .089, .117 -> .061, .07 -> .073/.076, .09 -> .11, .12 -> .08,
+  .1 -> .092/.048, .195 -> .158; back -.06 -> -.217, -.05 -> -.13, -.2 -> -.258/-.192/-.309/-.196..-.285 (retreats);
+  turn +45 -> .215 fwd; turn -45 reported -6.8 but walked .356 (+.17 left); turn +20 -> ~15 deg + .12 fwd;
+  turn -15 -> -15 + .076 fwd; turn -5.8 -> ok. Straight walks drift the paw +2..+4 cm in y (once -3.6).
+- [strategy] where: sim. Lateral repositioning by turn pairs FAILED (W0: +45/-45 = .56 fwd, .044 left): the paw that
+  overhangs after the operator's overhang request in the INITIAL scene was at y -.02 (needs .19 m left) - prefer
+  a reset (reset layout: paw (.56,-.25)) over trying to shift sideways.
+- [strategy] where: sim. A help message containing "do not move" is routed as the inside-the-box QUESTION; ask for the
+  overhang with exactly "Please position the puppy so a hind leg overhangs the front edge." The engineering
+  suggestion "question only: where is the paw" was also answered as the inside-the-box question (no paw position).
+- [strategy] where: sim. A bridged puppy (torso on the rim, legs up) must NOT be pushed with the arm: two sweeps
+  (z .20, .155) lifted it onto the forearm (+20 cm). Withdraw sideways (y -.30) and down, walk back, HOME.
+- [param] where: sim. Grasp depth .03 past my paw fit (skill v3 default): lift widths ROSE (.036 -> .040-.041) and both
+  runs placed (s16, s17); depth .02 lifted 5/9. Small sample - keep counting.
