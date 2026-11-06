@@ -312,3 +312,27 @@
   (z .20, .155) lifted it onto the forearm (+20 cm). Withdraw sideways (y -.30) and down, walk back, HOME.
 - [param] where: sim. Grasp depth .03 past my paw fit (skill v3 default): lift widths ROSE (.036 -> .040-.041) and both
   runs placed (s16, s17); depth .02 lifted 5/9. Small sample - keep counting.
+
+# Session 20261106T094654Z_puppy_box_r1_5600c1 (r1sonic sim, where: sim) - jittered stances + walk-ins
+- [strategy] where: sim. Library skill r1-leg-lowtilt-lift-advance-carry v4 via code/puppy_box/ctl.py works from jittered
+  (+-3 cm) and walked-in stances: 5 inside / 17 attempts overall, final config 3/3 (R2 walk-in, j13, j14). Lift ~50% is
+  the limit; aborts are safe (retrace, open low).
+- [param] where: sim. Horizontal-finger ball gate: regrasp only if close > .045 (once). Deeper regrasps at .033/.0385
+  WIDENED the close (.037 -> .043) and pushed the paw out of selection (j11, R3).
+- [param] where: sim. Carry precondition: start r1_carry_release only with width >= .031 and <= 3 mm below the lift
+  peak (j10b entered at .0299 -> dropped on walk 1 in front of the box).
+- [strategy] where: sim. Paw below the view at a close stance (edge < .375, paw x <= .29): waist yaw -.35 shows it;
+  map it back by the shared visible paw nearest it (translation only). Do NOT step back: -0.05 walked -.11..-.18 and
+  drifted 9-11 cm right, then the robot kept settling (scene moved 6 cm, edge yaw -2 -> -4.7) -> a grasp miss (j5v).
+- [strategy] where: sim. Vertical straddle (fingers 0,0,1) on the leg shaft: steady lift widths (.026-.032) but SUDDEN
+  losses (carry drops 2/2, top-of-lift loss 1) and +-1 cm lateral tolerance: not worth it.
+- [strategy] where: sim. INCIDENTS: (1) operator overhang request after a put-back -> puppy off the table although the
+  reply said "on the table" (j3); (2) dragging the put-back paw 2.5 cm toward the robot -> puppy off the table (j12).
+- [strategy] where: sim. After any lift slip with the hand up, free the arm: open, back to x .18 at height, out
+  (.12,-.40,.10), HOME. The v3 main() returned with the arm up (j9v).
+- [param] where: sim. Walk-in from the reset start (paw .56,-.25): 4-5 straight walks, 24-26 s; walks .15 -> .111-.119,
+  .07-.1 -> .064-.1. Stop while the paw is still visible (x <= .39-.40); stances at paw x .35-.38 grasped fine.
+- [strategy] where: sim. LIFT DEPENDS ON THE STANCE (5600c1, 20 graspings): paw x < .32 (my fit) -> lift 1/9; x >= .32
+  and y <= -.18 -> 4/5; x >= .32, y >= -.16 -> 1/4. Fix the stance before grasping; backward walks drift y by +5..+11 cm.
+- [strategy] where: sim. Never pipe a robot script through grep without keeping stderr in a log: a hidden crash in the
+  retreat left the robot against the table (j15a). Bound the carry so the pelvis stays >= .22 m from the edge.

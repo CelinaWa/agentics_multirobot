@@ -8,6 +8,9 @@ import sys
 sys.path.insert(0, '.'); sys.path.insert(0, 'code/puppy_box')
 import chain
 from chain import ctx, log, perceive, select
+# 5600c1: a paw at x ~.33-.35 is cut by the image bottom (n < 800) -> it was rejected, walkin stepped back (-.11..-.18,
+# drifting 9-11 cm RIGHT). Accept n >= 300 like lowtilt_v4 (fixed-radius fit agreed within ~1 cm at n 355).
+chain.good = lambda p: p['n'] >= 300 and p['rms'] <= 0.001
 X_OK = float(sys.argv[1]) if len(sys.argv) > 1 else 0.38
 X_GOAL = float(sys.argv[2]) if len(sys.argv) > 2 else 0.35
 MAXM = int(sys.argv[3]) if len(sys.argv) > 3 else 6

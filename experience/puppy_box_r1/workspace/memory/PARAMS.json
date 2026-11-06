@@ -63,6 +63,15 @@
     },
     "unit": "calls"
   },
+  "carry.min_entry_width_m": {
+    "note": "end-of-lift width needed to start r1_carry_release; also <= 3 mm below the lift peak",
+    "sim": {
+      "how": "5600c1 j10b: entered at .0299 after a 3.5 mm fall -> drop on walk 1; entries >= .0337 held 8/8 across sessions",
+      "measured": "2026-11-06",
+      "value": 0.031
+    },
+    "unit": "m"
+  },
   "carry.step_m": {
     "sim": {
       "how": "90b103: walked .094-.122 then .042-.07",
@@ -114,6 +123,15 @@
       "value": 3.0
     },
     "unit": "deg"
+  },
+  "grasp.ball_gate_width_m": {
+    "note": "close width above which the pads are on the paw ball (horizontal fingers)",
+    "sim": {
+      "how": "5600c1: horizontal regrasps at .033/.0385 widened (.037->.043) and pushed the paw (j11, R3); final gate .045 + 1 regrasp: 3/3 placed",
+      "measured": "2026-11-06",
+      "value": 0.045
+    },
+    "unit": "m"
   },
   "grasp.past_paw_along_axis_m": {
     "sim": {
@@ -193,6 +211,14 @@
     },
     "unit": "m"
   },
+  "lift.success_rate_horizontal": {
+    "note": "slip signature: width rises 2-4 mm at steps 0-2 then falls at hand z .10-.17",
+    "sim": {
+      "how": "5600c1 sim",
+      "measured": "2026-11-06",
+      "value": "7/13 lifts completed (all variants, jittered+walk-in); final config 3/3"
+    }
+  },
   "lift.yaw_end_deg": {
     "sim": {
       "how": "approach yaw at end of lift; body centroid moves ahead of the hand (7c03aa)",
@@ -200,6 +226,24 @@
       "value": 2.0
     },
     "unit": "deg"
+  },
+  "look.close_edge_waist_look_m": {
+    "note": "edge distance below which a missing paw triggers look_waist",
+    "sim": {
+      "how": "5600c1 j5/j6: paw x .28 below the view at head .6 when the edge is ~.35 ahead; waist yaw -.35 shows it",
+      "measured": "2026-11-06",
+      "value": 0.375
+    },
+    "unit": "m"
+  },
+  "look.min_paw_points": {
+    "note": "sphere fit (r .025) points for a paw cut by the image bottom",
+    "sim": {
+      "how": "5600c1 j3: cut paw n 355 rms .0002 agreed with the operator within ~1 cm",
+      "measured": "2026-11-06",
+      "value": 300
+    },
+    "unit": "points"
   },
   "lowtilt.approach_z_max": {
     "note": "approach z component during the servo-off lift",
@@ -499,6 +543,22 @@
       ]
     },
     "unit": "m"
+  },
+  "walk.back_small_cmd_overshoot": {
+    "note": "small backward walks overshoot 2-4x and drift sideways",
+    "sim": {
+      "how": "5600c1 j5v and walkin3 corrective steps; each also drifted the robot ~9-11 cm RIGHT (paw y -.25 -> -.14..-.16)",
+      "measured": "2026-11-06",
+      "value": {
+        "cmd": -0.05,
+        "walked": [
+          -0.184,
+          -0.118,
+          -0.106,
+          -0.137
+        ]
+      }
+    }
   },
   "walk.drift_right_per_call_m": {
     "sim": {

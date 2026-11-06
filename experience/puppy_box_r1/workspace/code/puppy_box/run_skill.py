@@ -3,7 +3,10 @@ carry/release -> retreat) and save its result.  python code/puppy_box/run_skill.
 import sys, json, importlib.util, time
 sys.path.insert(0, '.')
 from api.runtime import Context
-spec = importlib.util.spec_from_file_location('skill', 'skill-library/skills/r1-leg-lowtilt-lift-advance-carry/code/run.py')
+MOD = 'skill-library/skills/r1-leg-lowtilt-lift-advance-carry/code/run.py'
+if '--mod' in sys.argv:
+    i = sys.argv.index('--mod'); MOD = sys.argv[i + 1]; del sys.argv[i:i + 2]
+spec = importlib.util.spec_from_file_location('skill', MOD)
 skill = importlib.util.module_from_spec(spec); spec.loader.exec_module(skill)
 if __name__ == '__main__':
     tag = sys.argv[1] if len(sys.argv) > 1 else 'run'

@@ -1,58 +1,58 @@
-# Handoff - puppy_box_r1 on r1sonic (sim), session 20261106T080133Z_puppy_box_r1_90b103
+# Handoff - puppy_box_r1 on r1sonic (sim), session 20261106T094654Z_puppy_box_r1_5600c1
 
-Outcome: 7 placements confirmed INSIDE by the operator's ground truth (s7, s9, s11, s13, s14, s16, s17) in 17
-grasp-stance runs (11 with the final recipe -> 7 inside); 5 of them fully unattended runs of the library skill
-(look -> retreat). Final state: puppy inside, robot .42 m back, arms home, grippers open.
-Reset walk-ins: 0/4 placements (W0 initial scene: no stance reached; R1, R2, R3: stance reached in 4-7 walk calls,
-lift aborted 4/4 there).
-Falls 0; one object incident (s12: puppy fell off the table after an abort at the top of the lift - fixed in v2).
-Resets 3/10, stance placements 17/30. Older handoffs: README_2fbfb7.md (own chain, 3/21) and earlier.
-Library: **r1-leg-lowtilt-lift-advance-carry v3 (verified, depth .03 default)** merged; uses r1-leg-axis-grasp-short-carry (perception).
+Outcome: 6 placements confirmed INSIDE by the operator (j2, j4v, R2, j13, j14, j21) in 25 unattended attempts on
+JITTERED grasp stances (+-3 cm) and 4 reset walk-ins (R2 = the FIRST walk-in placement on this task). j15a: robot stuck
+against the table after a carry (operator reset). j21 used the stance gate (paw x >= .32, y <= -.18) and placed.
+FINAL STATE: puppy INSIDE (j21: +1 fwd, -9 left, +12 above the floor), robot .44 m behind the edge, arms home,
+grippers open, tilt .85.
+Falls 0. Object incidents 2 (puppy off the table: j3 operator overhang request after a put-back; j12 my pull-back).
+Resets 5/10, stance placements 20/30.
+Library: **r1-leg-lowtilt-lift-advance-carry v4.1 (verified)** merged (main f3b9bcd). Older handoff: README_90b103.md.
 
-## Run it (from the operator grasp stance)
-    python code/puppy_box/run_skill.py <tag>          # skill main(): HOME, look, grasp, low-tilt lift, advance, carry,
-                                                      # lower, release, retreat (walk back, HOME)  ~80 s
-    request_operator(help): "Question only, please do not move anything: is the puppy inside the box?"
-    (reset walk-in first: python code/puppy_box/home.py 0.6; python code/puppy_box/walkin3.py 0.38 0.35 6)
+## THE lesson: the lift depends on the STANCE
+Lift completed (horizontal fingers, my paw fit): paw x < .32 -> 1/9; x >= .32 and y <= -.18 -> 4/5; x >= .32 but
+y >= -.16 (walk-ins that drifted left) -> 1/4. So get the paw to x .32-.38, y -.19..-.24 BEFORE the grasp. Backward
+walks to fix x drift the robot 5-11 cm right (paw y up) - j20 fixed x and failed on y. Next: a lateral correction that
+does not drift (e.g. a small turn far from the table, or approach from further left so the right-drift lands at -.20).
 
-## What changed vs earlier sessions (and why it works)
-1. Do NOT use r1_leg_lift for the lift: 4/5 aborted here (width +3-4 mm at lift step 2, then falling), with the +5 deg
-   yaw offset AND with the engineering inputs (exact yaw, paw centre, d .02/.03). Its approach tilts up to .5 during
-   the arc. Own servo-OFF lift with the approach nearly LEVEL (z component 0 -> .15): widths flat or slowly rising
-   in 7/11 stance lifts (vs ~1/5 with the tool); depth .03 2/2, .02 5/9.
-2. Level ADVANCE of 6 cm along the leg at the top of the lift (2 x 3 cm, servo off): the hand ends at x ~.475, so the
-   carry is ~.16 m = 2 walk steps. Without it (.225 m, 3 steps) the grip dropped on step 3 and the puppy landed
-   BRIDGED across the box top (s6). With it: carry 7/7, inside 7/7 (s14 dropped on step 2 past the wall: still in).
-3. r1_carry_release works after an own lift (it does not require r1_leg_lift first): target = wall + .10 -
-   (hand x + .06), lower_m .06, step_m .10.
-4. Abort safely: running width peak from lift step 0 (the close width is a transient), abort if it falls > 4 mm in
-   steps 0-5, RETRACE the lift path downward, open only low. A direct put-back from the top was refused and the
-   gripper opened at z .22: the puppy fell off the table (s12).
+## Run it
+    # from an operator grasp stance (sim) or after the walk-in:
+    python code/puppy_box/ctl.py <tag> tries=2         # v4: look (+waist look) -> grasp -> level lift -> carry
+                                                       # precondition -> advance -> r1_carry_release -> retreat (~80 s)
+    # full walk-in from a reset (robot .62 m back, paw overhanging):
+    python code/puppy_box/home.py 0.6; python code/puppy_box/walkin3.py 0.39 0.35 7; python code/puppy_box/ctl.py R<n>
+    # ground truth (sim): request_operator(help) "Question only, please do not move anything: is the puppy inside the box?"
+Library copy: skill-library/skills/r1-leg-lowtilt-lift-advance-carry/code/{run.py, ctl.py}.
 
 ## How to plan each subtask in a differently laid-out scene
-1. Stance: the operator stance (paw (.32,-.20,.03), leg yaw 15-16 deg, edge .38, square) is where the lift works
-   (6/9). Walk-in stances so far (paw x .34-.37, y -.15..-.20, 2.5-6 deg off square, leg yaw 8.5-22) gave 0/4 lifts:
-   aim the walk-in at the operator stance geometry (paw x .31-.33, y -.20, square) and treat x > .34 or |edge yaw|
-   > 3 deg as "not there yet". Straight forward walks drift the robot RIGHT (paw y +2..+4 cm per walk, but R2 also
-   went -3.6 cm once); turns are arcs (+45 moved .22 fwd; -45 reported -6.8 deg and moved .36). The paw is invisible
-   below x ~.33 (head .6): a short final walk (cmd .07 walked .055-.11) can lose it; walk back -.05 walked -.13/-.22.
-   Unsolved: a precise last 3-5 cm. Idea: measure at x ~.37 then use the waist (r1_move_joints waist_yaw) or lean
-   instead of walking; or let the arm reach the farther paw and keep the lift profile in the LEG frame.
-2. Grasp: paw-ball sphere fit + leg axis (x-slices of the leg's right edge); grasp point 3 cm past the paw centre
-   along the leg (v3; my paw fit reads ~1 cm further than the operator's .31; .03 widths ROSE in the lift 2/2), approach whose
-   ACHIEVED yaw equals the leg yaw (choose_approach preview), fingers horizontal across the leg, close to 0.
-   Width .034-.0365.
-3. Lift: 6 servo-off steps (+1.2..0.5 cm along the leg, +3-4 cm up), approach z component <= .15, 2 s per step, to
-   cmd z .25 (hand z ~.22), then the 6 cm level advance. Watch the width every step.
-4. Carry/release: r1_carry_release ~.16 m in 2 steps of .10 (walked .094-.122 + .042-.07), width drops ~5-7 mm on
-   walk 1, lowers .06, opens. Torso lands 5-8 cm short of the box centre (fine: interior 27 cm deep).
-5. Retreat: v4.out (open, up, back, out beside the body, walk back .2, HOME). Never push a bridged puppy with the arm
-   (s6: two pushes raised it onto the forearm).
-6. Verify: only the operator's ground truth; questions must not contain "paw"/"overhang"/"position" (routed as an
-   overhang request) and "do not move" in a REQUEST makes it a question.
+1. Walk-in (R1-R3, 4-5 walk calls, ~25 s): straight forward walks re-selecting the overhanging paw each time.
+   The paw drops out of view at x < ~.33 (head .6); walkin3 then steps back -0.05 which walks -.11..-.18 AND drifts
+   the robot 9-11 cm RIGHT (paw y -.25 -> -.14..-.16). Final stances: paw (.316,-.155), (.362,-.156), (.38,-.235).
+   Better: stop the walk-in early (paw x <= .39-.40, still visible) and grasp from there - x .35-.38 works (R2 at
+   .375, j13 .349, j4v .351). Do NOT walk back to fix a close stance: use the waist look (below).
+2. Look: paw-ball sphere fit + leg axis (library chain.py). v4: accept a cut paw (n >= 300); if no paw and the edge
+   is < .375 ahead, look_waist(): waist yaw -.35, perceive, waist 0, perceive, map the paw by the shared paw nearest it
+   (translation only). Wrong rotation from a yawed-view edge fit threw the paw 4 cm once (j6v, fixed).
+3. Grasp: horizontal fingers across the leg, approach = measured leg yaw, G = paw + .03 along the leg, pregrasp 8 cm
+   short, servo on, close to 0 -> .035-.038 typical. Regrasp 1.5 cm deeper ONCE only if > .045; never chase a narrow
+   width with deeper regrasps (the leg gets thicker; regrasps pushed the paw: j11, R3).
+4. Lift (servo off, level approach, 2 s/step, library PROFILE): THE weak stage, ~50%. Signature of a failure: width
+   rises 2-4 mm at steps 0-2, then falls at hand z .10-.17 (body leaving the table). Abort = retrace and open low,
+   no drop (8/8 safe this session). Not separable by leg yaw (11-17), paw x (.30-.38), close width, lift speed (3 s/step
+   failed too). Vertical straddle (fingers 0,0,1) held the lift steadily but loses the leg SUDDENLY (3/4 that got high).
+   Ideas not tried: move the hand toward the body's centre of mass while lifting (perceive the torso blob), or a
+   box-beside layout to avoid the carry walk.
+5. Carry (v4.1): target <= edge distance - .22 (j15a: a .203 m carry from an edge .39 ahead left the torso against the
+   table, the retreat crashed and the robot could not walk back -> operator reset), equal steps <= .10.
+   Carry precondition (v4): only carry if the end-of-lift width >= .031 and <= 3 mm below its peak; otherwise put back.
+   r1_carry_release(target = wall + .10 - (hand x + .06), lower .06, step .10): walks overshoot (.144/.145 for .10)
+   but entries >= .0337 held every time; release lands the torso -6..+2 cm of the box centre.
+6. Retreat: library v4.out (open, up, back, out (.14,-.40,.14), walk back .2, HOME). After a slip with the hand up:
+   free_arm (open, back to x .18 at height, out (.12,-.40,.10), HOME) - never straight down onto the puppy.
+7. Operator: never ask for an overhang after a put-back (pushed the puppy off the table, and the reply still said
+   "puppy on the table"); never drag a paw toward the edge. Since 02:20 the operator gives no coordinates.
 
 ## Files
-memory/PROGRESS.md, memory/RUNS.md (90b103 table: W0, s1-s14, R1, R2), memory/TIPS.md (90b103 rows),
-memory/INCIDENTS.md, memory/PARAMS.json; code/puppy_box/{run_skill.py, v8.py, v7.py, walkin3.py, walkin2.py,
-pushin.py, overlay.py, scan.py}; skill code skill-library/skills/r1-leg-lowtilt-lift-advance-carry/code/run.py;
-results output/skill_runs.jsonl; frames runtime/frames/<id>/ (ids in RUNS.md).
+memory/PROGRESS.md, memory/RUNS.md (5600c1 table j1..j14, R1..R3), memory/TIPS.md (5600c1 rows), memory/INCIDENTS.md,
+memory/PARAMS.json; code/puppy_box/{ctl.py, lowtilt_v4.py, look_waist.py, look_only.py, dry_v.py, ov2.py, walkin3.py,
+home.py}; results output/skill_runs.jsonl; frames runtime/frames/<id>/ (ids in RUNS.md).
