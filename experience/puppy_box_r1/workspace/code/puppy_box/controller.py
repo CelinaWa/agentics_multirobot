@@ -2,7 +2,7 @@
 
 Run ONE step at a time and look at the printed report / frames between steps (the agent is the checkpoint):
 
-    PYTHONPATH=/tmp/claude-1001/ws_08803f/pylib python controller.py <step> ['{json args}']
+    PYTHONPATH=/tmp/claude-1001/ws_c4f6c3/pylib python controller.py <step> ['{json args}']
 
 Steps (in order):
     look                      head 0.6, observe, print edge / paws / box (pelvis frame)
@@ -28,7 +28,7 @@ from pathlib import Path
 import numpy as np
 
 WSR = Path('/home/junjieye/workspace/multirobot/real_g1_release/rax/runtime/sessions/'
-           '20261105T222431Z_puppy_box_r1_e0ac0c/agent-workspace')
+           '20261105T232821Z_puppy_box_r1_c4f6c3/agent-workspace')
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(WSR))
 sys.path.insert(0, str(HERE))

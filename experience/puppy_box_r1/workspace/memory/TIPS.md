@@ -109,3 +109,31 @@
 - [strategy] where: sim. After a drop the puppy lies on its back at the edge with legs up, right where the arm swings
   down on HOME (hit it twice, tilt 5-7 deg, hand stuck at (0.22,-0.30,-0.02)). Free the arm by moving the hand UP
   (z .12), then OUT to y -0.40 (x .14, z .06), then HOME.
+
+# Session 20261105T232821Z_puppy_box_r1_c4f6c3 (r1sonic sim, where: sim) — new rows
+- [strategy] where: sim. Workspace READ-ONLY again (skill-library/.git too): skill_library_merge cannot see commits
+  made in a copy -> merged:false. Ask the operator for a writable workspace, or hand the patch over.
+- [strategy] where: sim. help "position a hind leg to overhang" now answers in ~30 s; every reset gives the SAME layout
+  (head right, box behind, overhanging hind paw ~(0.55,-0.02) from the start, other hind paw 11 cm right/5 cm back).
+- [param] where: sim. r1_walk TURNS ARE ARCS, not in place: left turns pivot about (0.05,+0.31) m (robot frame), right
+  turns about (0.02,-0.52) m; actual angle 0.86-0.87 x cmd for 45-100 (cmd 25 -> 14deg, 15 -> deadband/odd).
+  A 90deg turn moves the pelvis 0.33-0.53 m. Back cmd -0.1 -> 0.12-0.24 m. Fwd 0.1 -> 0.003-0.1 (deadband), 0.15 ->
+  0.06-0.15. Every call drifts 0-0.06 m right. NEVER combine forward_m and turn_deg (-0.25/-45 moved 0.96 m).
+- [strategy] where: sim. Use r1_walk reply 'pelvis' odometry as the world frame (x = table normal from a square start)
+  + the edge heading (code/puppy_box/edges.py or skill r1-walk-approach) and re-plan after every call (walkplan.py).
+- [strategy] where: sim. Do the big lateral shifts with turn pairs (+60/-50) from >= 0.8 m; plan for the turn arc.
+- [strategy] where: sim. Paw at x < 0.34 is invisible at head 0.6: r1_move_joints waist_yaw -0.35 -> visible; the
+  pelvis counter-rotates (IMU yaw +3..6 deg) so MEASURE AND GRASP IN THE SAME waist configuration.
+- [param] where: sim. Pivot pinch at low z (-0.03..0.0): IK err .019-.027 at x .30-.38, y -.17..-.25 (approach (1,0,0));
+  x .39+ or y < -.30 unreachable. Grasp point 0.5 cm short of the ball centre if the full depth is > 0.03.
+- [strategy] where: sim. Pivot pinch HOLDS THE FULL HANGING PUPPY statically (z .285, width .031 constant) but is
+  friction-only: dropped by (a) an approach change (1,0,.6)->(1,0,.8) + 3 cm servo jump, (b) r1_walk 0.089 m while
+  holding. => do the place WITHOUT walking, or switch to a stopper grasp before walking.
+- [strategy] where: sim. After a drop the puppy may land on its back with legs up next to the box: legs up = natural
+  stopper candidates, but the leg-1 shaft grasp was blocked 2x (hand stopped 2 cm high, z servo maxed -0.05).
+- [strategy] where: sim. HOME from a hand at (0.22,-0.30,0.12) next to the puppy hit something (tilt 8.3 deg): ALWAYS
+  route up -> out (0.12,-0.40,0.06) -> HOME (worked) when anything is near the hand.
+- [strategy] where: sim. Box-behind layout: from the closest grasp stance (paw x .28) the box interior starts at x .68;
+  right-hand IK with waist reaches x .54 -> the carry needs ~0.15 m of walking, which the friction pinch does not
+  survive (0/2), nor does lowering the puppy onto the table (0/1). Next: a stopper grasp, or ask whether a
+  box-beside layout / operator help is allowed.

@@ -1,6 +1,6 @@
 """Preview-only reach grid for the right hand. python reach.py '<json list of [x,y,z]>' '[ax,ay,az]|null' '[fx,fy,fz]|null' [waist]"""
 import sys, json
-sys.path.insert(0, '/home/junjieye/workspace/multirobot/real_g1_release/rax/runtime/sessions/20261105T222431Z_puppy_box_r1_e0ac0c/agent-workspace')
+sys.path.insert(0, '/home/junjieye/workspace/multirobot/real_g1_release/rax/runtime/sessions/20261105T232821Z_puppy_box_r1_c4f6c3/agent-workspace')
 from api.runtime import Context
 pts = json.loads(sys.argv[1]); appr = json.loads(sys.argv[2]) if len(sys.argv) > 2 else None
 fing = json.loads(sys.argv[3]) if len(sys.argv) > 3 else None

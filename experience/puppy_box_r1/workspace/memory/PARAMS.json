@@ -1,277 +1,380 @@
 {
- "env": "sim r1sonic (session 20261105T194732Z)",
- "walk_forward_cmd_0.25_m_far": {
-  "sim": [
-   0.35,
-   0.127,
-   0.109,
-   0.108,
-   0.197,
-   0.155
-  ]
- },
- "walk_forward_cmd_0.2_m_near_table": {
-  "sim": [
-   0.063,
-   0.098,
-   0.021,
-   0.099,
-   0.084,
-   0.078,
-   0.052
-  ]
- },
- "walk_forward_cmd_0.15_m_near_table": {
-  "sim": [
-   0.04,
-   0.037,
-   0.041,
-   0.037
-  ]
- },
- "walk_backward": {
-  "sim": "does not work (0, -0.11, +0.09 fwd, +0.05 fwd for -0.25..-0.6)"
- },
- "turn_cmd_to_actual_deg": {
-  "sim": {
-   "10": 1.5,
-   "15": 14,
-   "17": 11.5,
-   "25": 17,
-   "90": "90 with 0.25-0.3 m arc drift"
-  }
- },
- "right_hand_reach_x_max_m_use_waist": {
-  "sim": {
-   "y-0.2": 0.6,
-   "y-0.3": 0.55,
-   "y-0.4": 0.5,
-   "no_waist": 0.5
-  }
- },
- "table_top_z_pelvis_m": {
-  "sim": [
-   -0.023,
-   -0.039,
-   -0.047,
-   -0.051,
-   -0.053
-  ]
- },
- "box_rim_above_table_m": {
-  "sim": 0.14
- },
- "box_near_wall_behind_edge_m": {
-  "sim": 0.22
- },
- "safe_stance_edge_ahead_m": {
-  "sim": "0.25-0.28 (operator); fall at paw 0.38-0.39 ahead with r1_grasp_paw"
- },
- "env_08803f": "sim r1sonic (session 20261105T213131Z_puppy_box_r1_08803f)",
- "walk_forward_cmd_0.2_m_08803f": {
-  "sim": [
-   0.045,
-   0.073,
-   0.142,
-   0.093,
-   0.119,
-   0.071,
-   0.107,
-   0.066,
-   0.142,
-   0.075,
-   0.116,
-   0.075,
-   0.107
-  ]
- },
- "walk_forward_cmd_0.12_0.15_m_08803f": {
-  "sim": [
-   0.12,
-   0.203,
-   0.065,
-   0.063,
-   0.122,
-   0.08
-  ]
- },
- "walk_backward_08803f": {
-  "sim": {
-   "-0.2": [
-    0.228,
-    0.263
-   ],
-   "-0.12": [
-    0.218
-   ]
-  }
- },
- "turn_cmd_to_actual_deg_08803f": {
-  "sim": {
-   "12": 6.6,
-   "15": 3.8,
-   "28": 20,
-   "30": 21
-  }
- },
- "pinch_paw_width_held_m": {
-  "sim": [
-   0.0346,
-   0.0326,
-   0.0316,
-   0.0322
-  ]
- },
- "pinch_slip_hand_z_m": {
-  "sim": [
-   0.29,
-   0.29,
-   0.19,
-   0.12
-  ],
-  "held_max": 0.2
- },
- "backend_grasp_point_offset_along_approach_m": {
-  "sim": 0.107,
-  "note": "local r1_piper_kin right_grasp site minus 0.107*approach = backend grasp point"
- },
- "box_front_wall_behind_edge_m": {
-  "sim": [
-   0.21,
-   0.22,
-   0.235,
-   0.25
-  ]
- },
- "box_rim_z_pelvis_m": {
-  "sim": [
-   0.1,
-   0.105,
-   0.115,
-   0.12
-  ]
- },
- "env_e0ac0c": "sim r1sonic (session 20261105T222431Z_puppy_box_r1_e0ac0c)",
- "walk_forward_cmd_0.2_m_e0ac0c": {
-  "sim": [
-   0.061,
-   0.091,
-   0.115,
-   0.103,
-   0.045,
-   0.127,
-   0.11
-  ]
- },
- "walk_forward_cmd_0.1_0.15_m_e0ac0c": {
-  "sim": [
-   0.098,
-   0.053,
-   0.051,
-   0.084,
-   0.035,
-   0.025,
-   0.088
-  ]
- },
- "walk_backward_e0ac0c": {
-  "sim": {
-   "-0.1": [
-    0.183
-   ],
-   "-0.08": [
-    0.226
-   ]
-  }
- },
- "walk_lateral_drift_per_forward_walk_m_e0ac0c": {
-  "sim": "0.02-0.06 to the RIGHT each call (scene shifts +y)"
- },
- "right_hand_y_min_without_servo_saturation_m": {
-  "sim": -0.12,
-  "note": "y > -0.08: shoulder roll at limit, hand 1.5-3.5 cm right of goal"
- },
- "pelvis_shift_back_reaching_x040_m": {
-  "sim": 0.02
- },
- "vertical_pinch_slip_hand_z_m_e0ac0c": {
-  "sim": [
-   0.06,
-   0.035
-  ]
- },
- "horizontal_pivot_pinch_width_m": {
-  "sim": {
-   "reset2_held_to_z0.27": [
-    0.0315,
-    0.0313,
-    0.0314
-   ],
-   "reset3_slip_z0.08": [
-    0.0309,
-    0.0279
-   ],
-   "reset1": [
-    0.0317,
-    0.0255
-   ]
-  }
- },
- "camera_z_bias_waist_yawed_m": {
-  "sim": 0.02
- },
- "pivot_pinch_lift_waypoints_pelvis_m": {
-  "sim": {
-   "approach_1_0_0": [
-    [
-     0.382,
-     -0.1,
-     0.039
-    ],
-    [
-     0.396,
-     -0.104,
-     0.077
-    ],
-    [
-     0.395,
-     -0.1,
-     0.107
-    ]
-   ],
-   "approach_1_0_0.3": [
-    [
-     0.39,
-     -0.12,
-     0.14
-    ],
-    [
-     0.385,
-     -0.13,
-     0.17
-    ],
-    [
-     0.38,
-     -0.14,
-     0.2
-    ]
-   ],
-   "approach_1_0_0.4": [
-    [
-     0.38,
-     -0.145,
-     0.24
-    ],
-    [
-     0.375,
-     -0.15,
-     0.28
-    ]
-   ]
+  "backend_grasp_point_offset_along_approach_m": {
+    "note": "local r1_piper_kin right_grasp site minus 0.107*approach = backend grasp point",
+    "sim": 0.107
   },
-  "note": "one successful lift; (0.409,-0.098,0.146) with approach (1,0,0) flips the IK branch"
- },
- "carry_walk_with_pivot_pinch": {
-  "sim": "0/1 (dropped during a 0.186 m walk with the hand at z .27)"
- }
+  "box_front_wall_behind_edge_m": {
+    "sim": [
+      0.21,
+      0.22,
+      0.235,
+      0.25
+    ]
+  },
+  "box_near_wall_behind_edge_m": {
+    "sim": 0.22
+  },
+  "box_rim_above_table_m": {
+    "sim": 0.14
+  },
+  "box_rim_z_pelvis_m": {
+    "sim": [
+      0.1,
+      0.105,
+      0.115,
+      0.12
+    ]
+  },
+  "camera_z_bias_waist_yawed_m": {
+    "sim": 0.02
+  },
+  "carry_walk_with_pivot_pinch": {
+    "sim": "0/1 (dropped during a 0.186 m walk with the hand at z .27)"
+  },
+  "env": "sim r1sonic (session 20261105T194732Z)",
+  "env_08803f": "sim r1sonic (session 20261105T213131Z_puppy_box_r1_08803f)",
+  "env_e0ac0c": "sim r1sonic (session 20261105T222431Z_puppy_box_r1_e0ac0c)",
+  "horizontal_pivot_pinch_width_m": {
+    "sim": {
+      "reset1": [
+        0.0317,
+        0.0255
+      ],
+      "reset2_held_to_z0.27": [
+        0.0315,
+        0.0313,
+        0.0314
+      ],
+      "reset3_slip_z0.08": [
+        0.0309,
+        0.0279
+      ]
+    }
+  },
+  "pelvis_shift_back_reaching_x040_m": {
+    "sim": 0.02
+  },
+  "pinch_paw_width_held_m": {
+    "sim": [
+      0.0346,
+      0.0326,
+      0.0316,
+      0.0322
+    ]
+  },
+  "pinch_slip_hand_z_m": {
+    "held_max": 0.2,
+    "sim": [
+      0.29,
+      0.29,
+      0.19,
+      0.12
+    ]
+  },
+  "pivot_pinch.grasp_reach_lowz": {
+    "sim": {
+      "how": "previews at z -0.03..0, approach (1,0,0)",
+      "measured": "2026-11-05",
+      "value": {
+        "ik_err": [
+          0.019,
+          0.027
+        ],
+        "x": [
+          0.3,
+          0.38
+        ],
+        "y": [
+          -0.25,
+          -0.17
+        ]
+      }
+    },
+    "unit": "m"
+  },
+  "pivot_pinch.width_held_m": {
+    "sim": {
+      "how": "2 grasps, held to full hang z .285",
+      "measured": "2026-11-05",
+      "value": [
+        0.031,
+        0.0344
+      ]
+    },
+    "unit": "m"
+  },
+  "pivot_pinch_lift_waypoints_pelvis_m": {
+    "note": "one successful lift; (0.409,-0.098,0.146) with approach (1,0,0) flips the IK branch",
+    "sim": {
+      "approach_1_0_0": [
+        [
+          0.382,
+          -0.1,
+          0.039
+        ],
+        [
+          0.396,
+          -0.104,
+          0.077
+        ],
+        [
+          0.395,
+          -0.1,
+          0.107
+        ]
+      ],
+      "approach_1_0_0.3": [
+        [
+          0.39,
+          -0.12,
+          0.14
+        ],
+        [
+          0.385,
+          -0.13,
+          0.17
+        ],
+        [
+          0.38,
+          -0.14,
+          0.2
+        ]
+      ],
+      "approach_1_0_0.4": [
+        [
+          0.38,
+          -0.145,
+          0.24
+        ],
+        [
+          0.375,
+          -0.15,
+          0.28
+        ]
+      ]
+    }
+  },
+  "right_hand_reach_x_max_m_use_waist": {
+    "sim": {
+      "no_waist": 0.5,
+      "y-0.2": 0.6,
+      "y-0.3": 0.55,
+      "y-0.4": 0.5
+    }
+  },
+  "right_hand_y_min_without_servo_saturation_m": {
+    "note": "y > -0.08: shoulder roll at limit, hand 1.5-3.5 cm right of goal",
+    "sim": -0.12
+  },
+  "safe_stance_edge_ahead_m": {
+    "sim": "0.25-0.28 (operator); fall at paw 0.38-0.39 ahead with r1_grasp_paw"
+  },
+  "scene.box_front_wall_behind_edge_m": {
+    "sim": {
+      "how": "rim corners in 3 frames, c4f6c3",
+      "measured": "2026-11-05",
+      "value": 0.2
+    },
+    "unit": "m"
+  },
+  "table_top_z_pelvis_m": {
+    "sim": [
+      -0.023,
+      -0.039,
+      -0.047,
+      -0.051,
+      -0.053
+    ]
+  },
+  "turn_cmd_to_actual_deg": {
+    "sim": {
+      "10": 1.5,
+      "15": 14,
+      "17": 11.5,
+      "25": 17,
+      "90": "90 with 0.25-0.3 m arc drift"
+    }
+  },
+  "turn_cmd_to_actual_deg_08803f": {
+    "sim": {
+      "12": 6.6,
+      "15": 3.8,
+      "28": 20,
+      "30": 21
+    }
+  },
+  "vertical_pinch_slip_hand_z_m_e0ac0c": {
+    "sim": [
+      0.06,
+      0.035
+    ]
+  },
+  "walk.back_cmd_0.1_m": {
+    "sim": {
+      "how": "8 calls, session c4f6c3",
+      "measured": "2026-11-05",
+      "value": [
+        0.12,
+        0.24
+      ]
+    },
+    "unit": "m"
+  },
+  "walk.drift_right_per_call_m": {
+    "sim": {
+      "how": "odometry vs perception",
+      "measured": "2026-11-05",
+      "value": [
+        0.0,
+        0.06
+      ]
+    },
+    "unit": "m"
+  },
+  "walk.fwd_cmd_0.1_m": {
+    "sim": {
+      "how": "4 calls (deadband)",
+      "measured": "2026-11-05",
+      "value": [
+        0.003,
+        0.1
+      ]
+    },
+    "unit": "m"
+  },
+  "walk.turn_actual_per_cmd": {
+    "sim": {
+      "how": "cmd 45..100 -> 39..84 deg; cmd 25 -> 14",
+      "measured": "2026-11-05",
+      "value": 0.87
+    },
+    "unit": "ratio"
+  },
+  "walk.turn_left_pivot_centre_robot_m": {
+    "sim": {
+      "how": "fit of 3 left turns 39-84 deg, session c4f6c3",
+      "measured": "2026-11-05",
+      "value": [
+        0.05,
+        0.31
+      ]
+    },
+    "unit": "m"
+  },
+  "walk.turn_right_pivot_centre_robot_m": {
+    "sim": {
+      "how": "fit of 2 right turns 77-88 deg, session c4f6c3",
+      "measured": "2026-11-05",
+      "value": [
+        0.02,
+        -0.52
+      ]
+    },
+    "unit": "m"
+  },
+  "walk_backward": {
+    "sim": "does not work (0, -0.11, +0.09 fwd, +0.05 fwd for -0.25..-0.6)"
+  },
+  "walk_backward_08803f": {
+    "sim": {
+      "-0.12": [
+        0.218
+      ],
+      "-0.2": [
+        0.228,
+        0.263
+      ]
+    }
+  },
+  "walk_backward_e0ac0c": {
+    "sim": {
+      "-0.08": [
+        0.226
+      ],
+      "-0.1": [
+        0.183
+      ]
+    }
+  },
+  "walk_forward_cmd_0.12_0.15_m_08803f": {
+    "sim": [
+      0.12,
+      0.203,
+      0.065,
+      0.063,
+      0.122,
+      0.08
+    ]
+  },
+  "walk_forward_cmd_0.15_m_near_table": {
+    "sim": [
+      0.04,
+      0.037,
+      0.041,
+      0.037
+    ]
+  },
+  "walk_forward_cmd_0.1_0.15_m_e0ac0c": {
+    "sim": [
+      0.098,
+      0.053,
+      0.051,
+      0.084,
+      0.035,
+      0.025,
+      0.088
+    ]
+  },
+  "walk_forward_cmd_0.25_m_far": {
+    "sim": [
+      0.35,
+      0.127,
+      0.109,
+      0.108,
+      0.197,
+      0.155
+    ]
+  },
+  "walk_forward_cmd_0.2_m_08803f": {
+    "sim": [
+      0.045,
+      0.073,
+      0.142,
+      0.093,
+      0.119,
+      0.071,
+      0.107,
+      0.066,
+      0.142,
+      0.075,
+      0.116,
+      0.075,
+      0.107
+    ]
+  },
+  "walk_forward_cmd_0.2_m_e0ac0c": {
+    "sim": [
+      0.061,
+      0.091,
+      0.115,
+      0.103,
+      0.045,
+      0.127,
+      0.11
+    ]
+  },
+  "walk_forward_cmd_0.2_m_near_table": {
+    "sim": [
+      0.063,
+      0.098,
+      0.021,
+      0.099,
+      0.084,
+      0.078,
+      0.052
+    ]
+  },
+  "walk_lateral_drift_per_forward_walk_m_e0ac0c": {
+    "sim": "0.02-0.06 to the RIGHT each call (scene shifts +y)"
+  }
 }

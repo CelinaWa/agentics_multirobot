@@ -36,3 +36,13 @@ carry walk 2/2; place 0. Falls 1 (r1_grasp_paw). Puppy off table 4. Final state:
 | 5 | 23:17-23:20 | reset 4 | walks .092/.108; closed-gripper pushes on the upper front paw (back-right to (.40,-.24); straight to .445/.46 refused as unreachable) -> pair offset only 2.3 cm, so no pinch tried; arm home, walk back -0.15 (.231) | final state (frame 20261105151957f2d67a): robot standing ~0.65 m from the edge, arms home, grippers open, tilt 1.2; puppy on the table at the edge, box upright, nothing on the floor | 20261105151842f8657c, 202611051519336c2528 |
 
 Funnel (this session, 4 resets used of 10, 0 falls): approach 5/5; grasp: vertical pinch 2/2, pivot pinch 3/3; lift >= .20: vertical 0/2, pivot 1/3 (to .27, stable); carry-walk 0/1; place 0. TASK NOT ACHIEVED.
+
+# Session 20261105T232821Z_puppy_box_r1_c4f6c3 (sim) — all by hand, no unattended runs
+| att | reset | approach calls | grasp | lift / carry | outcome |
+|---|---|---|---|---|---|
+| 1 | start | 3 turns (45,50,-45) | - | - | stuck 0.18 m from edge beside the hanging leg -> reset 1 |
+| 2 | 1 | turn 25, fwd .08, back .1, turn 33 | - | - | paw always too far left; IK sweep done -> reset 2 |
+| 3 | 2 | 11 calls | pivot pinch w .032 (waist -.35) | full hang z .285, slip at .31 (approach change) | puppy to floor -> reset 3 |
+| 4 | 3 | 9 calls | rotated approach +10deg: MISS w .004 | - | puppy off the table -> reset 4 |
+| 5 | 4 | 7 calls (MPC planner) | pivot pinch w .0344 | z .265 over the table edge ok; walk .089 -> DROP | puppy on its back in front of box; 3 leg grasps missed; robot safe |
+Look points: every approach call (edges.py heading + odometry); paw sphere fit before pregrasp, after pregrasp; image after each lift stage.

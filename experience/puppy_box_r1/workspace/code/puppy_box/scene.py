@@ -2,7 +2,7 @@
 All in the pelvis frame of the observation. python scene.py <frame_id>"""
 import json, sys
 import numpy as np, cv2
-sys.path.insert(0, '/tmp/claude-1001/ws_e0ac0c/code/puppy_box')
+sys.path.insert(0, '/tmp/claude-1001/ws_c4f6c3/code/puppy_box')
 from percep import load_frame, cloud, table
 
 

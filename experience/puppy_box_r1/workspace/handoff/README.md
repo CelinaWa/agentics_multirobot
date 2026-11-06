@@ -1,45 +1,44 @@
-# Handoff — puppy_box_r1 on r1sonic (sim), session 20261105T222431Z_puppy_box_r1_e0ac0c
+# Handoff — puppy_box_r1 on r1sonic (sim), session 20261105T232821Z_puppy_box_r1_c4f6c3
 
-Outcome: NOT solved (0 placements; 4 resets used of 10; no falls). Best: pivot pinch lifted the puppy's front to z .27. The agent workspace was READ-ONLY again: all
-deliverables are in /tmp/claude-1001/ws_e0ac0c (code/, memory/, handoff/, skill-library/ commit). Previous handoff
-kept as handoff/README_08803f.md (still valid: perception, approach, retreat, r1_grasp_paw = fall hazard).
+Outcome: NOT solved (0 placements; 6 attempts; resets 5/10; falls 0; one 8.3 deg tilt from a HOME move).
+Workspace was READ-ONLY again: everything is in /tmp/claude-1001/ws_c4f6c3 (code/, memory/, handoff/, skill-library
+commit 6e5f23d + patch output/0001-*.patch). skill_library_merge -> merged:false (reads the read-only clone).
+Older handoffs: handoff/README_e0ac0c.md, README_08803f.md (perception, retreat routes, r1_grasp_paw = fall hazard).
 
-## The blocking problem and what this session learned about it
-Lifting the puppy needs a grasp that survives the full hanging weight. Evidence so far (3 sessions, sim):
-- Vertical-finger pinch of the paw ball (pads above/below): grasps 6/6, but the leg is a stiff ~8 cm lever that
-  twists the ball out -> slipped at hand z .035-.29 (this session at the first 3-4 cm, twice). Do not plan on it.
-- Horizontal-finger PIVOT pinch (fingers (0,1,0), approach (1,0,0), pads left/right of the ball): the ball can rotate
-  about the pinch axis so the hanging load is shear only. Grasp 3/3 (w .031-.032); lift to z .27 with the width
-  STABLE at .031 in 1/3 (reset 2; waypoints in memory/PARAMS.json pivot_pinch_lift_waypoints_pelvis_m); the other two
-  slipped at .06-.09 (neighbour paw too close behind / my IK flip). THIS IS THE LEAD. Carry-walk with it: 0/1 (dropped
-  during a 0.19 m walk at z .27).
-- The obstacle for the pivot pinch: the neighbouring paw of the pair (centres ~5 cm apart, balls ~5 cm wide).
-  One finger must go between them. It worked only after earlier contacts had splayed the pair. Options to test:
-  (a) wedge the open finger tip between the two balls from the front (push the neighbour aside 1-2 cm);
-  (b) pick the paw of a pair whose neighbour is >= 3 cm further back or forward;
-  (c) ask the operator for the overhang with "only one leg hanging" (untested wording).
+## Layout (identical on every reset this session)
+Start square, edge .62-.63 ahead; puppy head RIGHT; box BEHIND the puppy (front wall = edge + .20, rim = table + .145,
+box spans y paw+.09 .. paw-.31); operator overhang: hind paw ~8 cm past the edge at (.548,-.017,+.004) from the start,
+other hind paw 11 cm right / 5 cm back (clean for the pivot pinch).
 
-## Plan for the next session
-1. Reset, head 0.5, `code/puppy_box/pivot_pinch.py look`. Approach straight with 0.2 then <= 0.12 walks; expect
-   2-6 cm RIGHT drift per walk; stop with the target front paw at x 0.38-0.42 (visible at head 0.6) and y -0.12..-0.20.
-   If the paws end at y > -0.10, back off >= 0.2 and fix the heading far from the table (turn 20 cmd ~ 10-13 deg).
-2. `seed` (wrist roll for horizontal fingers) -> `pregrasp X-0.08 Y Z` -> `look` (re-measure with the arm out; the
-   pelvis moves ~2 cm back) -> `grasp X Y Z` (ball centre, z from an arm-home frame) -> width .025-.05 = held.
-3. `lift 0.04 0.01` repeatedly (safe_move refuses IK flips) to z ~.25, moving x back over the hip as you rise so
-   the leg hangs vertically. Watch the width; if it creeps below ~.02, lower and re-grasp deeper.
-4. If it holds: walk holding in SHORT steps (<= 0.1, check the width after each; the 0.19 m walk dropped it) so the
-   box front wall (edge+.21) comes within x ~.45,
-   move the hand over the interior at z >= .22, lower 5 cm, open, retreat (straight back, then HOME).
-5. If the pivot pinch also fails under load: the remaining options are a stopper grasp across a leg (needs a side
-   approach the 5-DOF arm cannot do at table height from a square stance) or r1_grasp_paw (2 falls in 7 calls).
+## Per subtask: how to plan it in any layout
+1. Stance (skill r1-walk-approach): goal = the target paw at pelvis (0.31,-0.21) [range x .30-.38, y -.17..-.25],
+   heading 0..+10 deg (leg along +x). Walks are ARCS: left turns pivot ~0.31 m to the left, right turns ~0.52 m to the
+   right; a 90 deg turn moves 0.33-0.53 m; every call drifts 0-6 cm right; fwd 0.1 is a deadband. Use odometry
+   ('pelvis' in r1_walk replies) + edge heading and re-plan after each call (code/puppy_box/walkplan.py, plan4.py).
+   Proven sequence from this start: back -.1, back -.1, turn +60, turn -50, fwd .1-.15 x1-3 (7 calls).
+2. Look: the paw at x < .34 is out of view at head .6 -> waist_yaw -0.35 (r1_move_joints), sphere-fit the paw
+   (code/puppy_box/pawfit.py, rms .3 mm). Measure and grasp in THE SAME waist configuration (pelvis counter-rotates).
+3. Grasp (skill r1-paw-pivot-pinch): pregrasp x-.08, approach (1,0,0), fingers (0,1,0), open .07; re-measure with
+   the arm out; advance to the ball centre (0.5 cm short if ik > .03); close -> width .031-.035 = held (2/2 in the
+   proven configuration; a +10 deg rotated approach missed 1/1).
+4. Lift (code/puppy_box/lift.py = guarded steps): approach (1,0,0) to z .10, then forward+up over the table edge
+   ((.39,.125)->(.43,.18)->(.43,.265), approach tilt .2-.5). Holds the full hanging weight statically (z .285).
+   Do NOT tilt the approach beyond ~.6 under load and keep steps <= 4 cm (a (1,0,.8) step dropped it).
+5. Carry to the box: THE BLOCKER. Walking while holding the friction pinch dropped it 2/2 (0.19 m and 0.089 m).
+   With the box behind the puppy the box interior is 0.25-0.30 m beyond arm reach from the grasp stance.
+   Next options, in order:
+   a) No-walk place: TESTED att 6 - from the closest stance (paw x .28) the box interior starts at x .68, waist IK
+      reaches only x .54 (.58 flips, .62 unreachable) => impossible in the box-behind layout. Lowering the held
+      puppy onto the table (to walk with low load) also slipped (width .0255 -> .004).
+   b) Stopper grasp before walking: pads across a leg shaft with the ball outside (load on the ball, not friction).
+      After a drop the puppy lay on its back legs-up against the box: a shaft grasp with approach (0.97,0.24,0)
+      previewed ik .004, but the hand stopped 2 cm above the shaft twice (z servo saturates at .05).
+   c) If the box is beside the puppy (left/right layouts), the carry is lateral and in arm reach: try that first.
+6. Retreat: open, hand UP then OUT to (0.12,-0.40,0.06) then HOME joints, then walk back 0.1. Never HOME directly
+   from a low hand near the puppy/edge (tilt 8.3 deg this session).
 
-## Skill library
-skill-library commit b8569a9 on session/20261105T222431Z_puppy_box_r1_e0ac0c in /tmp/claude-1001/ws_e0ac0c/skill-library:
-new draft r1-paw-pivot-pinch (code/run.py primitives seed/pregrasp/grasp/lift/release with the IK-flip guard) and new
-evidence for r1-paw-pinch-grasp. NOT merged (skill_library_merge reads the read-only workspace clone) - copy it over.
-
-## Files
-code/puppy_box/pivot_pinch.py (new: look/seed/pregrasp/grasp/lift/release, every move previewed + branch/jump
-check), obs.py (observe+scene), px.py (pixels of a saved frame -> pelvis points), scene.py, percep.py;
-code/tools/sweep.py (local IK reach sweep per approach); kin/ (backend r1_kin.py + xml copy).
-memory/{PROGRESS,RUNS,TIPS,INCIDENTS}.md, memory/PARAMS.json.
+## Files (in /tmp/claude-1001/ws_c4f6c3)
+code/puppy_box: walkplan.py (model + MPC search, `python walkplan.py x y psi tx ty tpsi edge_x`), plan4.py (depth-4),
+edges.py (table edge lines), look.py (observe + scene + edges), pawfit.py (sphere fit), preview.py, sweep_angle.py
+(IK reach sweep per approach angle), lift.py (guarded holding moves), pivot_pinch.py/scene.py/percep.py (older).
+memory/{PROGRESS,TIPS,RUNS,INCIDENTS}.md, memory/PARAMS.json (walk.* and pivot_pinch.* rows added).
