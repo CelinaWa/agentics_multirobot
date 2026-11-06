@@ -8,7 +8,7 @@
 | 机器人 | 任务 | 现状（2026-11-06） | 怎么跑 |
 |---|---|---|---|
 | G1 + Dex3 | `tasks/puppy_box.md`：站着不走，右手把小狗放进箱子 | sim 最后一次不改代码评测 7/8，可以上真机 | 第 1–4 节装机和标定，然后第 5.5 节带 sim 经验跑 |
-| R1 + PiPER 两指夹爪 | `tasks/puppy_box_r1.md`：夹小狗的腿，走两三小步，放进箱子 | sim 里还不可靠；连接真机控制栈的 bridge 有几处必须先改 | 第 8 节 |
+| R1 + PiPER 两指夹爪 | `tasks/puppy_box_r1.md`：夹小狗的腿，走两三小步，放进箱子 | sim 里还不可靠；连接真机控制栈的 bridge 有几处必须先改 | 先看第 8.0 节：现在能做的是阶段 A（装 R1 部署栈、sim 和真机分阶段测） |
 
 两台都用同一个 RAX：同一个 launcher、同一套 operator 请求和上锁、同一种经验导出导入（`experience/<任务>/`）。
 
@@ -354,6 +354,52 @@ agent 被卡死；而 robot service 退出时 planner keepalive 一停，deploy 
 **现状（2026-11-06）：还不能直接上真机。** sim 里跑了 13 个 RAX session：agent 一共把小狗放进箱子约 21 次，0 次摔倒；
 从远处走过来完成全程是 2/10。经验已导出到 `experience/puppy_box_r1/`。但连接真机控制栈的 bridge 是照 G1 的接口写的，
 R1 的接口不一样，8.2 里的几项要先改完。RAX 那一半（launcher、上锁、operator 请求、经验导入导出）和 G1 相同，不同的地方都写在下面。
+
+### 8.0 先看这里：R1 按什么顺序跑
+
+和 G1 对照：G1 的第 1–4 节是装机和让机器人在控制器下站稳，第 5 节开始跑 agent。R1 一样分阶段，但中间多一块
+**bridge**（RAX 和 R1 部署栈之间的翻译层），它还没改好，所以现在只能做到阶段 A。
+
+| 阶段 | 做什么 | 谁做 | 现在能做吗 | 对应 G1 |
+|---|---|---|---|---|
+| A | 装 R1 部署栈，在 sim 里测，再在真机上分阶段测。只用键盘或 PICO 遥操作，不碰 RAX | 你 | **能，现在就做** | 第 1–4 节 |
+| B | 改 bridge（8.2），在 sim 里接真正的 R1 部署栈测通 | Claude | 进行中 | G1 不需要，`g1_up.sh` 已接好 |
+| C | 真机第一天：不开 agent，逐项检查（8.4） | 你 + Claude | B 做完之后 | 第 3 节标定 |
+| D | 带 sim 经验开 RAX agent 跑 puppy_box_r1（8.5、8.6） | 你当 operator | C 做完之后 | 第 5.5 节 |
+
+**阶段 A 要敲的命令**（摘自 Hugging Face `Jay-Ye/SONIC_R1` 的 `TESTING.md`，版本号和细节以那份为准）：
+
+```bash
+# A1. 下载并校验 R1 模型（有外网时做）
+python3 -m venv ~/.venvs/sonic-r1-check && source ~/.venvs/sonic-r1-check/bin/activate
+python -m pip install huggingface_hub numpy onnx onnxruntime
+hf download Jay-Ye/SONIC_R1 --local-dir ~/models/SONIC_R1
+export SONIC_R1_BUNDLE=~/models/SONIC_R1
+python "$SONIC_R1_BUNDLE/integration/verify_bundle.py"
+
+# A2. MA-Teleop 和部署子模块切到 TESTING.md 第 2 节写的固定版本，装 R1 预设，编译
+export MA_TELEOP=~/workspace/MA-Teleop
+cd "$MA_TELEOP" && git submodule update --init submodules/GR00T-WholeBodyControl
+git -C submodules/GR00T-WholeBodyControl fetch origin r1-deploy-heading-fix
+git -C submodules/GR00T-WholeBodyControl switch --detach 5de0e1316837fec5204dd8a824e7b664a092b353
+python "$SONIC_R1_BUNDLE/integration/install_ma_teleop.py" --ma-root "$MA_TELEOP"
+cd "$MA_TELEOP/submodules/GR00T-WholeBodyControl/gear_sonic_deploy" && source scripts/setup_env.sh && just build
+
+# A3. sim 测试：终端 1 开实验室打过 R1 补丁的 unitree_mujoco（config.py 里 ROBOT="r1"、DOMAIN_ID=42、INTERFACE="lo"）
+cd /path/to/R1-patched-unitree_mujoco/simulate_python && python unitree_mujoco.py
+#     终端 2：键盘控制回放参考动作。] 请求控制，T 播放，O 软停；R1 上不要按 Enter 选 planner 模式
+cd "$MA_TELEOP/submodules/GR00T-WholeBodyControl/gear_sonic_deploy"
+SONIC_DDS_DOMAIN=42 ./deploy.sh sim --robot r1 --input-type keyboard \
+  --cp policy/r1/50k/model_step_050000 --obs-config policy/r1/50k/observation_config.yaml \
+  --motion-data reference/r1_example/ --zmq-port 6556 --zmq-out-port 6557
+```
+
+A4 是真机分阶段测试，按 `TESTING.md` 第 6–7 节：先在目标工作站上查 50 Hz 时序；真机上先不启动策略，核对接口、关节方向和急停；
+再在吊架上做中立站姿、单臂小幅动作。真机部署命令见下面 8.4 的终端 A（网卡名按实际改，真机用 DDS domain 0，不能加
+`--disable-crc-check`）。
+
+**阶段 A 通过的标准：** 吊架上站姿稳定，单臂小幅动作正常，软件停和物理急停都试过有效。做完把结果告诉 Claude；
+阶段 B 完成后这一节会更新，告诉你什么时候可以做 C。
 
 ### 8.1 带过去的和不带的
 
