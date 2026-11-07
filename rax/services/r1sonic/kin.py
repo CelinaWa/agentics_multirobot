@@ -26,6 +26,8 @@ class Kinematics:
         for j in list(pelvis.joints):        # floating base -> fixed at the origin: everything is in the pelvis frame
             spec.delete(j)
         pelvis.pos = [0, 0, 0]
+        for name, (body, off) in zip(("left_teleop", "right_teleop"), POINTS[:2]):   # the stream's wrist points as sites
+            spec.body(body).add_site(name=name, pos=list(off))
         self.m = spec.compile()
         self.d = mujoco.MjData(self.m)
         m = self.m
@@ -130,6 +132,32 @@ class Kinematics:
         q = {n: float(d.qpos[a]) for n, a in zip(names, qa)}
         ang = 0.0 if a_goal is None else float(np.degrees(np.arccos(np.clip(R[:, 2] @ a_goal, -1, 1))))
         return q, float(np.linalg.norm(goal - p)), ang
+
+    def ik_point(self, side, goal, q0=None, iters=25, margin=0.05):
+        """ARM[side] angles putting SIDE's teleop point (POINTS: wrist roll link + 0.12 m along x) at GOAL (pelvis
+        frame), position only, from Q0: a warm start for the real bridge, where the streamed rows move a little per
+        tick and the arm must stay on its branch. Returns (q dict, position error m)."""
+        m, d = self.m, self.d
+        if q0 is not None:
+            self.set(q0)
+        names = ARM[side]
+        dofs = [m.jnt_dofadr[self.jid[n]] for n in names]
+        qa = [m.jnt_qposadr[self.jid[n]] for n in names]
+        lo = np.array([self.lower[n] + margin for n in names]); hi = np.array([self.upper[n] - margin for n in names])
+        site = m.site(f"{side}_teleop").id
+        jp = np.zeros((3, m.nv)); jr = np.zeros((3, m.nv))
+        goal = np.asarray(goal, float)
+        for _ in range(iters):
+            mujoco.mj_kinematics(m, d); mujoco.mj_comPos(m, d)
+            e = goal - d.site_xpos[site]
+            if np.linalg.norm(e) < 1e-4:
+                break
+            mujoco.mj_jacSite(m, d, jp, jr, site)
+            J = jp[:, dofs]
+            dq = J.T @ np.linalg.solve(J @ J.T + 1e-3 * np.eye(3), e)
+            d.qpos[qa] = np.clip(d.qpos[qa] + np.clip(dq, -0.2, 0.2), lo, hi)
+        mujoco.mj_kinematics(m, d)
+        return {n: float(d.qpos[a]) for n, a in zip(names, qa)}, float(np.linalg.norm(goal - d.site_xpos[site]))
 
     def all_q(self):
         return {n: float(self.d.qpos[self.m.jnt_qposadr[i]]) for n, i in self.jid.items() if self.m.jnt_type[i] != 0}

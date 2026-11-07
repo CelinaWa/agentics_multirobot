@@ -19,9 +19,12 @@ What the R1 deploy stack expects (src/g1/g1_deploy_onnx_ref, include/input_inter
     --no-planner), so start selects STREAMED MOTION, which reads only the "pose" topic.
   * topic "pose", protocol version 1: joint_pos f32[N,26] and joint_vel f32[N,26] in IsaacLab order, body_quat
     f32[N,4] (wxyz, reference root), frame_index i64[N]; plus vr_position f32[9] (left wrist, right wrist, torso) and
-    vr_orientation f32[12] (wxyz). With vr_position present the deploy selects encoder mode 1 (teleop): the
-    lower-body joints of the stream + the three points, root-local with the link offsets applied - exactly the RAX
-    stream row (rows 0-20), so a row maps 1:1. Without vr_position it is mode 0 (whole-body joint reference).
+    vr_orientation f32[12] (wxyz). Protocol 1 pins the encoder to mode 0 (whole-body JOINT reference,
+    zmq_endpoint_interface.hpp "Version 1: Use encoder mode 0"). Mode 1 (the three teleop points) is switched on only
+    inside ZMQManager::handlePlannerInput, i.e. in PLANNER mode, which R1 never has: with vr_position in the pose
+    message (and in a planner message) the deploy stayed in mode 'g1' and held the arms at the nominal pose
+    (deploy-sim runs 2026-11-06). So the bridge solves the row's two wrist points to ARM JOINT targets itself
+    (kin.ik_point, warm-started) and streams them in joint_pos; the points still ride along for a planner build.
   * telemetry: ZMQOutputHandler BINDS a PUB on zmq_out_port (lab: 6557), topic "g1_debug", msgpack map every tick.
     body_q / body_q_measured are in MuJoCo joint order (MUJOCO_JOINTS below; verified against the deploy's own
     target), base_quat is wxyz.
@@ -170,10 +173,15 @@ class RealStack:
         self.started = False
         self.frame = 0                          # pose-topic frame_index
         self.piper_right = PiperClient(piper_right) if piper_right else None
-        from services.r1sonic.kin import Kinematics
+        from services.r1sonic.kin import Kinematics, ARM
         from services.r1sonic.backend import MODEL
         self.kin = Kinematics(MODEL)
-        self.okin = Kinematics(MODEL)           # odometry FK, used only by the tick thread
+        self.okin = Kinematics(MODEL)           # odometry FK and the arm IK, used only by the tick thread
+        self.isaac_index = {n: i for i, n in enumerate(ISAAC_JOINTS)}
+        self.arm_names = ARM
+        self.arm_q = {s: {n: float(ISAAC_NOMINAL[self.isaac_index[n]]) for n in ARM[s]} for s in ('left', 'right')}
+        self.arm_err = {'left': 0.0, 'right': 0.0}   # IK position error of the last solve (m), for state()
+        self.arm_key = None                     # the wrist points the cached solution is for
         self.veer_deg = veer_deg
         self.cam = None
         if camera_port is not None:
@@ -211,6 +219,21 @@ class RealStack:
                   ('vr_orientation', 'f32', [12], f32(quat))]
         self.pub.send(packed_message(b'pose', fields))
         self.frame += 1
+
+    def _arm_frames(self, jp: np.ndarray, row: np.ndarray) -> np.ndarray:
+        """The row's two wrist points as ARM joint targets in every look-ahead frame (mode 0 tracks whole-body joints,
+        see the header). Position-only IK on the teleop point, warm-started from the last solution so the arm stays
+        on its branch; solved again only when the points change (between streams the row is constant)."""
+        key = (tuple(np.round(row[0:3], 4)), tuple(np.round(row[7:10], 4)))
+        if key != self.arm_key:
+            for side, goal in (('left', row[0:3]), ('right', row[7:10])):
+                self.arm_q[side], self.arm_err[side] = self.okin.ik_point(side, goal, q0=self.arm_q[side])
+            self.arm_key = key
+        jp = jp.copy()
+        for side in ('left', 'right'):
+            for n, v in self.arm_q[side].items():
+                jp[:, self.isaac_index[n]] = v
+        return jp
 
     def measured_row(self, q: dict | None = None) -> np.ndarray:
         """The three points of the measured joints (FK, pelvis frame) as a stream row; grippers open, head 0."""
@@ -309,6 +332,7 @@ class RealStack:
                 self.row = self.queue.pop(0)
             row = self.row.copy()
             jp, jv, yaw = self._lower_frames()
+        jp = self._arm_frames(jp, row)
         self._odometry()
         if not self.started or self.frame % 50 == 0:
             self.send_command(start=True, stop=False); self.started = True
@@ -483,10 +507,10 @@ def _tilt_deg(q):
     return float(np.degrees(np.arccos(np.clip(zz, -1, 1))))
 
 
-def serve(stack: RealStack, port: int) -> None:
+def serve(stack: RealStack, port: int, bind: str = '127.0.0.1') -> None:
     ctx = zmq.Context.instance()
     sock = ctx.socket(zmq.REP)
-    sock.bind(f'tcp://127.0.0.1:{port}')
+    sock.bind(f'tcp://{bind}:{port}')
     stop = threading.Event()
 
     def loop():
@@ -538,6 +562,9 @@ def main():
     faulthandler.enable()        # a native crash (seen twice in ~25 sim runs, SIGFPE) prints the Python stack
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--port', type=int, default=5591, help='port the RAX backend connects to')
+    ap.add_argument('--bind', default='127.0.0.1',
+                    help='address of that port; 0.0.0.0 when the bridge runs on the Jetson and RAX on the workstation '
+                         '(the deploy\'s own sockets stay on localhost)')
     ap.add_argument('--stack-in', type=int, default=6556, help='the deploy stack\'s zmq_port (it connects here; lab 6556)')
     ap.add_argument('--stack-out', type=int, default=6557, help='the deploy stack\'s zmq_out_port (telemetry PUB; lab 6557)')
     ap.add_argument('--out-topic', default='g1_debug', help='the deploy stack\'s zmq_out_topic')
@@ -552,7 +579,7 @@ def main():
     a = ap.parse_args()
     K = [float(v) for v in a.camera_intrinsics.split(',')] if a.camera_intrinsics else None
     serve(RealStack(a.stack_in, a.stack_out, a.out_topic, piper_right=a.piper_right, veer_deg=a.veer_deg,
-                    camera_port=a.camera_port, camera_intrinsics=K), a.port)
+                    camera_port=a.camera_port, camera_intrinsics=K), a.port, a.bind)
 
 
 if __name__ == '__main__':
