@@ -360,7 +360,7 @@ agent 被卡死；而 robot service 退出时 planner keepalive 一停，deploy 
 
 ## 8. R1（Unitree R1 + PiPER 两指夹爪）：从 sim 迁到真机
 
-**现状（2026-11-06）：bridge 在 sim 里改好了，可以开始真机测试（先做完阶段 A，再按 8.4 一步步来），完整任务还没在真机上跑过。**
+**现状（2026-11-06 晚）：真机第一天做完了手动检查（头、右夹爪、右手伸手），停在相机这一步，agent 还没在真机上跑过。做了什么、停在哪、还差什么见 [8.7](#87-2026-11-06-真机第一天记录做了什么停在哪还没做)；8.4 的命令有几处和实际不一样，以 8.7 为准。**
 RAX sim 里 13 个 session：agent 一共把小狗放进箱子约 21 次，0 次摔倒；从远处走过来完成全程是 2/10，经验在 `experience/puppy_box_r1/`。
 连接真机控制栈的 bridge（`rax/services/r1sonic/bridge_real.py`）已经在 sim 里接**真正的 R1 部署程序**测过（8.2）：站立、伸手、走路、头部、
 整条搬运链都通，右手腕加 0.3 kg / 0.6 kg 模拟夹爪和小狗的重量也各 4/4。**没测过的只有真机能回答**：真 PiPER、夹真小狗、R1 的相机。
@@ -564,3 +564,103 @@ git add experience/puppy_box_r1_real && git commit -m "experience: first real R1
 
 **算迁移成功**（`r1/TRANSFER_PLAN.md` 第 5 节）：一个真机 session 里 5 次 reset 至少 3 次从远处走过来把小狗放进箱子，
 不摔倒，导出的 PARAMS 里抬起和搬运的参数是真机值。
+
+### 8.7 2026-11-06 真机第一天记录：做了什么、停在哪、还没做
+
+代码在分支 `r1-real-bringup`（commit `67c8cd7`）。
+
+**实际的连法（和 8.4 不一样）：部署栈和 bridge 都跑在 R1 自己的 Jetson 上，主机只跑 RAX。**
+
+```
+主机（工作站）  --wifi TP-Link_4ED8_5G-->  R1 Jetson 192.168.0.193（用户 unitree）  --eth10 192.168.123.164-->  R1 内部 PC1 .161（电机、IMU、相机）
+r1_check.py / RAX  -> :5591             bridge（~/rax_bridge） -> :6556/6557 部署栈 r1_deploy_onnx_ref
+```
+
+- bridge 只能跑在 Jetson 上：它连部署栈的遥测和相机都写死了 127.0.0.1，PiPER 的 CAN 适配器也插在 Jetson 上。
+- 主机 wifi 连 `TP-Link_4ED8_5G` 就能同时上网和连 R1。这个路由器的 DNS 坏了，主机上已经把这个 wifi 的 DNS 固定成 8.8.8.8 / 1.1.1.1。
+- Jetson 上已经装好部署栈（实验室的 `~/MA-Teleop`，junjie 分支，原生编译的 `r1_deploy_onnx_ref` + TensorRT，100K 模型），不用再装。
+  我们只加了：`~/rax_bridge/`（bridge 的副本 + `run_bridge.sh` + `r1_cam_calib.py`），`.venv-r1` 里加装了 `mujoco 3.17.0`、`pillow`（只新增包，没改已有的）。
+  主机 ssh 免密码登录 Jetson（已装 key）。
+
+**开机后的命令（实际用的）：**
+
+```bash
+# 终端 A：部署栈（在 Jetson 的 tmux 里）。参数是实验室 launch_config.py --onboard r1_onboard 生成的，加了头部跟踪。
+#   参考动作目录是 tools/r1/reference（里面只有 stand_default，安全）。启动会做 INIT（电机走到站立姿态），机器人要挂好/有人扶。
+ssh unitree@192.168.0.193
+tmux new -s r1
+unset CYCLONEDDS_URI
+cd ~/MA-Teleop/submodules/GR00T-WholeBodyControl/gear_sonic_deploy
+SONIC_DDS_DOMAIN=0 LD_LIBRARY_PATH=/opt/onnxruntime/lib:/usr/local/cuda/lib64 \
+target/release/r1_deploy_onnx_ref eth10 policy/r1/100k/model_step_100000_decoder.onnx ~/MA-Teleop/tools/r1/reference \
+  --obs-config policy/r1/100k/observation_config.yaml --encoder-file policy/r1/100k/model_step_100000_encoder.onnx \
+  --input-type zmq_manager --output-type zmq --zmq-host 127.0.0.1 --zmq-port 6556 --zmq-out-port 6557 \
+  --r1-head-neutral -0.03819574751520938 -0.008877652567908605 --motor-kp-scale 25=0.5 --motor-kd-scale 25=0.1 \
+  --r1-head-tracking --r1-head-speed 1.0 --r1-head-pitch-range 0.5 --r1-head-yaw-range 0.6
+# 等到打印 Init Done
+
+# 终端 B：bridge（注意单引号，不然 ~ 会在主机上展开）。打印 {"ready": true, "port": 5591, ...} 就好了，窗口别关。
+ssh unitree@192.168.0.193 '~/rax_bridge/run_bridge.sh'
+
+# 终端 C：主机上手动检查（~/r1_real_options.json 的 stack_host 已经改成 192.168.0.193）
+cd ~/agentics_multirobot/rax && export PYTHONPATH=$PWD
+~/envs/rax-g1/bin/python scripts/r1_check.py status
+~/envs/rax-g1/bin/python scripts/r1_check.py head 0.5
+~/envs/rax-g1/bin/python scripts/r1_check.py gripper right 0.0
+~/envs/rax-g1/bin/python scripts/r1_check.py hand right 0.30 -0.21 -0.02
+
+# 停机：先 hold，再给终端 A 发 O（电机进阻尼，机器人要挂好），再停 bridge
+~/envs/rax-g1/bin/python scripts/r1_check.py hold
+ssh unitree@192.168.0.193 'tmux send-keys -t r1 O'
+ssh unitree@192.168.0.193 'pkill -INT -f "services[.]r1sonic[.]bridge_real"'
+```
+
+**做完的（真机，机器人挂着）：**
+
+| 检查 | 结果 |
+|---|---|
+| status（只读） | 26 个关节、IMU、两个夹爪宽度都有，倾斜 3° |
+| 头 `head 0.5` | 测到 0.48 rad；开始推流的那一下很平滑，其它关节不动，脚不动 |
+| 右夹爪关/开 | 测到 2.2 mm / 69.8 mm（命令 0 / 70 mm） |
+| 右手伸到 (0.30, −0.21, −0.02) | 误差 5.3 mm；但第一下差 3.7 cm，靠 backend 的闭环修正修回来，修正量 4.5 cm（上限 5 cm） |
+| 右手收回 (0.05, −0.22, −0.20) | 误差 5.2 mm |
+| 左手（没动它） | 右手伸出去以后左手往前漂了约 4 cm 没回来（策略的跟踪误差，空闲的手没有闭环修正） |
+
+**改了的代码（为什么）：** R1 的部署栈只跑 encoder 模式 0（全身关节参考）。3 点 teleop 模式（模式 1）只在 planner 模式里打开，R1 没有 planner，
+所以 bridge 原来发的 3 个点被忽略，手不动（部署栈 sim 里差 31–33 cm）。现在 bridge 自己对两个手腕点做 IK（`kin.ik_point`），发手臂关节；
+RAX 那边的工具、行（row）都不变。部署栈 sim 里右手误差 0.3–0.7 cm。RAX 自己的 sim 能直接用 3 点，是因为它在 Python 里直接跑策略网络，不经过部署程序。
+
+**相机和深度（查清楚了）：**
+- R1 的眼睛相机是接在内部 PC1 上的，Jetson 的 USB 上看不到它。Jetson 能拿到的只有彩色：videohub 快照（JPEG 1280×720）或
+  `rtsp://192.168.123.161:8551/video`（H.264 1280×720 30 fps，鱼眼）。两个都依赖 app 里的 `video_hub` 服务开着。
+- **现在拿不到深度。** Unitree 文档（R1 developer → Video_streaming_service_interface）说深度要 PC1 上的 Stereo Patch 推流服务 + Jetson 上的
+  `sudo unitree_depth_start`（得到 `/dev/video-dep`，544×448，16 位毫米，10 fps）。这台 R1 的 app「服务状态」里没有 Stereo Patch 服务，
+  Jetson 上也没有 `unitree_depth_start`；文档要求 R1 Stereo Patch PC1 ≥ 0.0.1.42 等版本，不满足就找 Unitree 技术支持升级。固件升级会动运动相关服务，先问实验室。
+- 所以先走 **RGB-only + 标定**（和上游 RAX 的 RB-Y1 / Franka 无深度时一样）：相机标定（内参 + 鱼眼畸变）+ 头部关节算相机位姿，
+  像素变成一条射线，和已知高度的桌面求交得到 3D 点。session 用 `--observation-profile rgb-only`。
+- 没有找到 ZED：Jetson 上没有 Stereolabs 设备，也没装 ZED SDK。
+
+**停在这里：** 相机标定还没做。标定板已经生成好（`~/r1_checkerboard_A4_25mm.pdf`，A4，25 mm 方格，6×9 内角点），
+采集脚本已经在 Jetson 上（只读，不需要开部署栈，但 `video_hub` 要开着）：
+
+```bash
+ssh -t unitree@192.168.0.193 'cd ~/rax_bridge && ~/MA-Teleop/.venv-r1/bin/python r1_cam_calib.py capture --out ~/r1_calib'
+ssh unitree@192.168.0.193 'cd ~/rax_bridge && ~/MA-Teleop/.venv-r1/bin/python r1_cam_calib.py solve --out ~/r1_calib --square-m 0.025'
+```
+
+**还没做的（按顺序）：**
+
+1. 相机标定：打印标定板（100% 比例，量一下方格是不是 25 mm），采 25 张，solve（rms < 0.5 px 算好）；量桌面离地高度。
+2. bridge 接相机：用 RTSP 流，去鱼眼，每帧带 `K` 和相机位姿；写 `rgb-only-r1sonic/object-localization` 技能（照上游 rgb-only-rby1：射线和桌面求交，或者三角化）。
+3. 相机位姿核对：开部署栈，标定板平放在桌上卷尺量好的位置，两个头部俯仰角各看一次；然后用卷尺核对像素算出来的点（8.4 的第 7 项，2 cm 以内）。
+4. 不走路的任务版本（今天决定这个任务不走路）：`tasks/puppy_box_r1.md` 现在要走到桌前、搬运时也走路（`r1_carry_release`）。
+   要写一个版本：人把 R1 摆在桌边，小狗和箱子都在右手够得到的地方，用手横移代替走路搬运；backend 里拒绝 `r1_walk` / `r1_carry_release`。
+   注意小狗被夹起来以后身体垂在手下约 15 cm，箱子沿高 14 cm，手要在桌面上方约 30 cm 才能过箱沿，先用 `r1_check.py hand` 确认够得到。
+5. 夹持测试（8.4 第 6 项，不需要相机）：先把手移到桌沿、夹爪打开，人把小狗的后腿放进两指之间（夹腿杆，爪子往上约 3 cm），
+   `gripper right 0.0` 关上（宽度 0.031–0.035 m 是夹在腿杆上，≥ 0.040 是夹在爪子球上会滑），沿弧线每次抬 4 cm 抬到 10 cm，停 60 s 看宽度。
+6. 够得到的范围：在桌面高度附近打一个网格测 `hand right`，记下哪些点被拒（修正量超 5 cm）。第一下差 4 cm 可能是关节零位或 PiPER 安装的偏差，要查。
+7. bridge 断开的安全测试：手伸出去时停掉 bridge，确认机器人保持姿态（部署栈不会自己停）；再重启 bridge。
+8. 开 RAX session（8.5），用不走路的任务、`--observation-profile rgb-only`，先不给钥匙跑一遍，确认 agent 能连上、能 observe、operator 回复能用。
+9. 走路：今天没测，这个任务不需要。左手夹爪 bridge 也还没接（任务只用右手）。
+
+**用完要还原：** app 里 `video_hub` 保持开着（实验室的 PICO 视频也用它）。今天试过关掉它，关了以后 RTSP 和 videohub 都没图。
