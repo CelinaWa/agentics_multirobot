@@ -8,11 +8,12 @@ STATUS, OBSERVE, PIXEL_TO_POSITION = "r1_status", "r1_observe", "r1_pixel_to_pos
 MOVE_HAND, MOVE_JOINTS, GRIPPER, HEAD, HOLD = "r1_move_hand", "r1_move_joints", "r1_gripper", "r1_head", "r1_hold"
 WALK = "r1_walk"
 GRASP_PAW, PLACE_IN_BOX = "r1_grasp_paw", "r1_place_in_box"
-LEG_LIFT, CARRY_RELEASE = "r1_leg_lift", "r1_carry_release"
+LEG_LIFT, CARRY_RELEASE, CARRY_HAND = "r1_leg_lift", "r1_carry_release", "r1_carry_hand"
+WALKING_TOOLS = frozenset({"r1_walk", "r1_carry_release"})   # refused when the backend runs with no_walk
 ROBOT_TOOLS = (STATUS, OBSERVE, PIXEL_TO_POSITION, MOVE_HAND, MOVE_JOINTS, GRIPPER, HEAD, HOLD, WALK, GRASP_PAW, PLACE_IN_BOX,
-               LEG_LIFT, CARRY_RELEASE)
+               LEG_LIFT, CARRY_RELEASE, CARRY_HAND)
 READ_TOOLS = (STATUS, OBSERVE, PIXEL_TO_POSITION)
-MUTATING = frozenset({MOVE_HAND, MOVE_JOINTS, GRIPPER, HEAD, WALK, GRASP_PAW, PLACE_IN_BOX, LEG_LIFT, CARRY_RELEASE})
+MUTATING = frozenset({MOVE_HAND, MOVE_JOINTS, GRIPPER, HEAD, WALK, GRASP_PAW, PLACE_IN_BOX, LEG_LIFT, CARRY_RELEASE, CARRY_HAND})
 
 ARMS = ("left", "right")
 # joints the agent commands (the legs stand on SONIC's default stance; the head yaw stays 0)
@@ -152,6 +153,20 @@ def tool_definitions(geometry=True):
              "lower_m": {"type": "number", "description": "lower the hand this much before opening (default 0, 0-0.12)"},
              "advance_m": {"type": "number", "description": "first move the loaded hand this much forward, servo off (default 0, 0-0.08); 0.06 cut the carry to two steps in sim"},
              "release": {"type": "boolean", "description": "open the gripper at the end (default true)"}}}},
+        {"name": CARRY_HAND, "description": (
+            "Carry without walking, to call right after a successful r1_leg_lift with NO other motion in between: moves "
+            "the holding hand in a straight line to target_position (pelvis frame; z optional, default: keep the current "
+            "hand height) in steps of at most step_m, keeping the gripper's orientation, servo off, checking the gripper "
+            "width after each step; then optionally lowers by lower_m and opens. Stops still holding (released=false) if a "
+            "waypoint is out of reach or the width starts falling (the leg is sliding out), and reports dropped=true if "
+            "the puppy fell. target_position is where the HAND must be for the hanging body (~15 cm below the hand) to "
+            "be over the box interior. Needs operator arming."),
+         "inputSchema": {"type": "object", "additionalProperties": False, "required": ["target_position"], "properties": {
+             "target_position": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 3,
+                                 "description": "hand goal (x, y[, z]) in the pelvis frame"},
+             "step_m": {"type": "number", "description": "largest step of the hand (default 0.04, 0.02-0.06)"},
+             "lower_m": {"type": "number", "description": "lower the hand this much before opening (default 0, 0-0.12)"},
+             "release": {"type": "boolean", "description": "open the gripper at the end (default true)"}}}},
         {"name": PLACE_IN_BOX, "description": (
             "With a paw held (after r1_grasp_paw), lower the puppy over the box opening and release so it drops in. One "
             "blocking call. The box must be under your holding hand first: ask the operator to slide the table so the "
@@ -249,6 +264,14 @@ def validate_request(name, arguments):
         _range(arguments, "step_m", 0.04, 0.10)
         if "max_steps" in arguments:
             reject_unless(type(arguments["max_steps"]) is int and 1 <= arguments["max_steps"] <= 8, "max_steps must be 1-8")
+        _range(arguments, "lower_m", 0.0, 0.12)
+        reject_unless(type(arguments.get("release", True)) is bool, "release must be a boolean")
+    elif name == CARRY_HAND:
+        _only(arguments, ("target_position", "step_m", "lower_m", "release"))
+        t = arguments.get("target_position")
+        reject_unless(isinstance(t, (list, tuple)) and len(t) in (2, 3)
+                      and all(isinstance(v, (int, float)) and math.isfinite(v) for v in t), "target_position must be (x, y[, z])")
+        _range(arguments, "step_m", 0.02, 0.06)
         _range(arguments, "lower_m", 0.0, 0.12)
         reject_unless(type(arguments.get("release", True)) is bool, "release must be a boolean")
     elif name == PIXEL_TO_POSITION:

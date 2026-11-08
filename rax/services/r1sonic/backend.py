@@ -53,6 +53,7 @@ DEFAULTS = {
     'runaway_steps': 6, 'runaway_window_s': 6.0,   # between calls: this many steps in the window disarms (fault 'runaway')
     'head_pitch': 0.5,                # the head pitch held from the start (looking down at a table in front)
     'agent_image_width': 640,
+    'no_walk': False,                 # the robot is placed at the table: r1_walk and r1_carry_release are refused
 }
 
 
@@ -103,10 +104,13 @@ class R1SonicBackend:
 
     # ----- tools ----------------------------------------------------------------------------------------------------
     def tools(self):
-        return T.tool_definitions(geometry=self.depth)
+        tools = T.tool_definitions(geometry=self.depth)
+        return [t for t in tools if t['name'] not in T.WALKING_TOOLS] if self.options['no_walk'] else tools
 
     def validate(self, name, arguments):
         T.validate_request(name, arguments)
+        if self.options['no_walk'] and name in T.WALKING_TOOLS:
+            raise RejectedBeforeAction(f'{name} is off in this task: the robot does not walk (r1_carry_hand carries by moving the hand)')
         if name in T.MUTATING and not (name == T.MOVE_HAND and arguments.get('preview_only')):
             self._require_armed()
         if name == T.PIXEL_TO_POSITION:
@@ -151,6 +155,9 @@ class R1SonicBackend:
                     return self._carry_release(arguments.get('target_forward_m'), arguments.get('step_m', 0.07),
                                                arguments.get('max_steps', 5), arguments.get('lower_m', 0.0),
                                                arguments.get('release', True), arguments.get('advance_m', 0.0)), []
+                if name == T.CARRY_HAND:
+                    return self._carry_hand(arguments['target_position'], arguments.get('step_m', 0.04),
+                                            arguments.get('lower_m', 0.0), arguments.get('release', True)), []
             finally:
                 self._motion = False
                 self.step_id += 1
@@ -531,6 +538,51 @@ class R1SonicBackend:
             except (RejectedBeforeAction, MotionStopped) as exc:
                 result['lower_note'] = str(exc)[:120]
             result['width_before_release_m'] = round(self._width(), 4)
+        self._gripper('right', 0.07, 1.0)
+        time.sleep(1.0)
+        return {**result, 'released': True, **self._hand_report()}
+
+    def _carry_hand(self, target_position, step_m=0.04, lower_m=0.0, release=True):
+        """The no-walk carry: the loaded hand moves in a straight line, orientation kept, servo off, width checked per step."""
+        s = self._state()
+        self.kin.set({**s['qd'], **self.cmd})            # the commanded hand pose: what the steps continue from
+        h0, R = self.kin.site('right_grasp')
+        appr, fing = R[:, 2].tolist(), R[:, 1].tolist()
+        t = np.asarray(target_position, dtype=float)
+        goal = np.array([t[0], t[1], t[2] if len(t) > 2 else h0[2]])
+        n = max(1, int(np.ceil(np.linalg.norm(goal - h0) / float(step_m))))
+        w0 = self._width(); widths = [round(w0, 4)]; peak = w0
+        result = {'steps_planned': n, 'widths_m': widths, 'released': False, 'dropped': False}
+        for i in range(1, n + 1):
+            wp = (h0 + (goal - h0) * i / n).tolist()
+            waist = None
+            for w_ in (False, True):
+                if self._move_hand('right', wp, approach=appr, fingers=fing, use_waist=w_, preview_only=True)['reachable']:
+                    waist = w_; break
+            if waist is None:
+                return {**result, 'steps_done': i - 1, 'reason': f'waypoint {i}/{n} {np.round(wp, 3).tolist()} is out of reach: '
+                        'still holding; release here only if the body is over the box', **self._hand_report()}
+            try:
+                self._move_hand('right', wp, approach=appr, fingers=fing, use_waist=waist, secs=1.0, servo=False)
+            except (RejectedBeforeAction, MotionStopped) as exc:
+                return {**result, 'steps_done': i - 1, 'reason': str(exc)[:160], **self._hand_report()}
+            w = self._width(); widths.append(round(w, 4)); peak = max(peak, w)
+            if w < 0.012:
+                return {**result, 'steps_done': i, 'dropped': True, **self._hand_report()}
+            if w < w0 - 0.004 or peak - w > 0.008:
+                return {**result, 'steps_done': i, 'width_falling': True,
+                        'reason': 'width falling: the leg is sliding out; lower it onto the table or into the box now', **self._hand_report()}
+        result['steps_done'] = n
+        if not release:
+            return {**result, **self._hand_report()}
+        if lower_m > 0:
+            h = np.asarray(self._grasp_points(self._state()['qd'])['right'])
+            try:
+                self._move_hand('right', [float(h[0]), float(h[1]), float(h[2] - lower_m)], approach=appr, fingers=fing,
+                                secs=1.5, servo=False)
+            except (RejectedBeforeAction, MotionStopped) as exc:
+                result['lower_note'] = str(exc)[:120]
+        result['width_before_release_m'] = round(self._width(), 4)
         self._gripper('right', 0.07, 1.0)
         time.sleep(1.0)
         return {**result, 'released': True, **self._hand_report()}
