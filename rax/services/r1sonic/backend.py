@@ -89,6 +89,7 @@ class R1SonicBackend:
         self.correction = {'left': np.zeros(3), 'right': np.zeros(3)}   # servo offsets on the wrist points (pelvis frame)
         self.grip = {'left': 0.07, 'right': 0.07}
         self._stack_resets = None             # the stack's reset count seen last (sim); see _resync_after_reset
+        self._synced = False                  # the first motion of this process starts from the measured pose
         self.head_pitch = o['head_pitch']
         self.step_id = 0
         self.last_feedback = None
@@ -321,17 +322,22 @@ class R1SonicBackend:
     def _resync_after_reset(self, s0):
         """After an operator reset (the stack reports a new reset count, or the measured arm sits far from the last
         command) the commanded pose is stale: streaming from it would fling the arm back to where it was before the
-        reset with the gripper still closed (seen in sim, 2026-11-05). Start from the measured pose instead."""
+        reset with the gripper still closed (seen in sim, 2026-11-05). Start from the measured pose instead. The first
+        motion of a process always does: the command state starts at DEFAULT_UPPER, and a new backend (r1_check.py runs
+        one per command) would otherwise stream from there - a jump of up to the 0.5 rad threshold."""
         qd = s0.get('qd', {})
         resets = s0.get('resets')
         deviation = max((abs(qd[j] - self.cmd[j]) for j in self.cmd if j in qd), default=0.0)
         stale = (resets is not None and self._stack_resets is not None and resets != self._stack_resets) or deviation > 0.5
-        if stale:
+        first = not self._synced
+        self._synced = True
+        if stale or first:
             self.cmd = {j: float(qd.get(j, self.cmd[j])) for j in self.cmd}
             widths = s0.get('gripper_width_m') or {}
             self.grip = {a: (0.07 if widths.get(a, 0.07) > 0.05 else float(widths.get(a, 0.07))) for a in self.grip}
             self.correction = {a: np.zeros(3) for a in T.ARMS}
-            self._event('command state re-synced to the measured pose', resets=resets, deviation_rad=round(deviation, 3))
+            self._event('command state re-synced to the measured pose', resets=resets, deviation_rad=round(deviation, 3),
+                        first_motion=first)
         self._stack_resets = resets
 
     def _wait(self, duration):

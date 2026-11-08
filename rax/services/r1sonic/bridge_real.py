@@ -170,6 +170,10 @@ class RealStack:
         self.heading0 = None                    # reference heading (yaw at start), set on the first telemetry
         self.odom = np.zeros(3)                 # pelvis position in the reference frame (no odometry source yet)
         self.last = None                        # last decoded telemetry
+        self.last_rx = None                     # monotonic time it arrived
+        self.created = time.monotonic()
+        self.tick_ms = []                       # recent tick durations (ms), for state()
+        self.overruns = 0                       # ticks longer than the control period
         self.joint_names = MUJOCO_JOINTS        # telemetry order
         self.started = False
         self.frame = 0                          # pose-topic frame_index
@@ -239,8 +243,11 @@ class RealStack:
         return jp
 
     def measured_row(self, q: dict | None = None) -> np.ndarray:
-        """The three points of the measured joints (FK, pelvis frame) as a stream row; grippers open, head 0."""
-        if q is None:
+        """The three points of the measured joints (FK, pelvis frame) as a stream row; grippers open, head 0 -
+        except from live telemetry (q None), where the head keeps its measured pitch and a closed right gripper stays
+        closed (a bridge restarted while holding must not drop the object or jerk the head)."""
+        live = q is None
+        if live:
             t = self.last
             q = dict(zip(self.joint_names, np.asarray(t.get('body_q_measured', t['body_q']), dtype=float)))
         row = np.zeros(24)
@@ -249,6 +256,11 @@ class RealStack:
         for k, (p, qw) in enumerate(pts):
             row[7 * k:7 * k + 3] = p; row[7 * k + 3:7 * k + 7] = qw
         row[21] = row[22] = 0.07
+        if live:
+            row[23] = float(q.get('head_pitch_joint', 0.0))
+            w = self.piper_right.width_m if self.piper_right is not None else None
+            if w is not None and w < PiperClient.CLOSE_BELOW_M:
+                row[22] = 0.0
         return row
 
     # ---- telemetry ----
@@ -259,14 +271,20 @@ class RealStack:
             while True:
                 msg = self.sub.recv(flags=zmq.NOBLOCK)
                 self.last = msgpack.unpackb(msg[len(self.out_topic):], raw=False)
+                self.last_rx = time.monotonic()
         except zmq.Again:
             pass
+
+    TELEMETRY_MAX_AGE_S, STARTUP_WAIT_S = 0.3, 1.5
 
     def state(self) -> dict:
         self.poll_telemetry()
         t = self.last
         if t is None:
             raise RuntimeError('no telemetry from the deploy stack yet (is it running with --output zmq?)')
+        age = time.monotonic() - self.last_rx
+        if age > self.TELEMETRY_MAX_AGE_S:     # the deploy stopped publishing: never report a frozen state as live
+            raise RuntimeError(f'deploy telemetry is {age:.2f} s old (stopped or crashed?)')
         q = np.asarray(t['body_q'], dtype=float); dq = np.asarray(t['body_dq'], dtype=float)
         base = np.asarray(t['base_quat'], dtype=float)                  # VERIFY order: assumed wxyz
         yaw = _yaw_wxyz(base)
@@ -281,7 +299,9 @@ class RealStack:
                 'command_row': np.round(self.row if self.row is not None else np.zeros(24), 5).tolist(),
                 'queued': len(self.queue), 'measured_points_row': np.round(self.measured_row()[:21], 5).tolist(),
                 'fallen': bool(_tilt_deg(rel) > 60.0), 'tilt_deg': round(_tilt_deg(rel), 2),
-                'odometry_xy_m': np.round(self.odo_xy, 3).tolist(), 'walking': self.walk_plan is not None}
+                'odometry_xy_m': np.round(self.odo_xy, 3).tolist(), 'walking': self.walk_plan is not None,
+                'telemetry_age_s': round(age, 3), 'tick_ms_mean': round(float(np.mean(self.tick_ms)), 2) if self.tick_ms else None,
+                'tick_ms_max': round(float(np.max(self.tick_ms)), 2) if self.tick_ms else None, 'tick_overruns': int(self.overruns)}
 
     def _right_width(self) -> float:
         if self.piper_right is None:
@@ -328,9 +348,24 @@ class RealStack:
         self.poll_telemetry()
         with self.lock:
             if self.row is None:
-                # the deploy publishes telemetry only after start; its INIT has put the robot in the nominal standing
-                # pose, so the first reference is the three points of that pose (then the arms stay where they are)
-                self.row = self.measured_row(dict(zip(ISAAC_JOINTS, ISAAC_NOMINAL)))
+                # A deploy that is already running (bridge restarted) publishes telemetry: start from the MEASURED pose,
+                # or the first reference would pull an extended arm back to the standing pose. A freshly started deploy
+                # publishes only after start; its INIT has put the robot in the nominal standing pose, so after a short
+                # wait for telemetry the first reference is that pose.
+                waited = time.monotonic() - self.created
+                if self.last is None and waited < self.STARTUP_WAIT_S:
+                    return
+                if (self.last is not None and self.piper_right is not None and self.piper_right.width_m is None
+                        and waited < 2 * self.STARTUP_WAIT_S):
+                    self.piper_right.tick(0.0)   # poll its events; a closed trigger never sends 'start' (so never opens)
+                    return                                          # know the gripper's width before the first reference
+                if self.last is not None:
+                    self.row = self.measured_row()
+                    qm = dict(zip(self.joint_names, np.asarray(self.last.get('body_q_measured', self.last['body_q']), dtype=float)))
+                    self.upper_q = {n: float(qm[n]) for n in self.upper_q}     # IK warm start on the measured branch
+                    print('first reference: the measured pose (deploy already running)', flush=True)
+                else:
+                    self.row = self.measured_row(dict(zip(ISAAC_JOINTS, ISAAC_NOMINAL)))
             if self.queue:
                 self.row = self.queue.pop(0)
             row = self.row.copy()
@@ -524,7 +559,10 @@ def serve(stack: RealStack, port: int, bind: str = '127.0.0.1') -> None:
                 stack.tick()
             except Exception as exc:  # noqa: BLE001
                 print('tick error:', exc, flush=True)
-            time.sleep(max(0.0, period - (time.monotonic() - t0)))
+            dt = time.monotonic() - t0
+            stack.tick_ms = (stack.tick_ms + [dt * 1000.0])[-500:]
+            stack.overruns += dt > period
+            time.sleep(max(0.0, period - dt))
     threading.Thread(target=loop, daemon=True).start()
     print(json.dumps({'ready': True, 'port': port, 'bridge': 'real'}), flush=True)
     while not stop.is_set():

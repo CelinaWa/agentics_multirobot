@@ -684,4 +684,17 @@ ssh unitree@192.168.0.193 'cd ~/rax_bridge && ~/MA-Teleop/.venv-r1/bin/python r1
 - **真机上要做的：** 把 `rax/services/r1sonic/bridge_real.py` 和 `kin.py` 拷到 Jetson 上 `~/rax_bridge` 里副本原来的位置，
   重启 bridge；然后重做第一天的 `r1_check.py hand right 0.30 -0.21 -0.02`，看第一下的偏差和修正量，再试一个斜着接近的点。
 
+**2026-11-07 可靠性修复（部署栈 sim 里验证，真机还没测）：**
+
+| 问题 | 修之前（同一测试） | 修之后 |
+|---|---|---|
+| 手伸出、夹着东西时 bridge 重启 | 手臂被拉回站立姿态（手移动 34 cm），夹爪松开，头抬回 0 | 手不动（< 0.5 cm），夹爪保持闭合，头保持 0.54 |
+| 新进程的第一个动作（`r1_check.py` 每条命令都是新进程） | 从默认姿态开始规划，偏差 < 0.5 rad 时手臂会先跳一下 | 一律从实测姿态开始，手平滑出发（最大 0.2 m/s） |
+| 部署程序停了 | bridge 继续返回最后一帧旧数据 | 遥测超过 0.3 s 没更新，`state` 就报错，动作停下 |
+| bridge 循环耗时 | 看不到 | `state` 里有 `tick_ms_mean / tick_ms_max / tick_overruns`（DGX 上平均 3.9 ms，最长 15 ms；**Jetson 上要看一下**） |
+
+**mode 1 补丁（要实验室同意）：** `r1/deploy_patch/protocol1_vr_position_mode1.patch`，一行：协议 1 的消息带 `vr_position` 时用 encoder mode 1。
+打了以后 bridge 加 `--send-vr-points`。部署栈 sim 对比：mode 1 伸手 0.3–1.8 cm 不靠修正；mode 0 第一下要修 4–5 cm。
+mode 0 下大步能走（16 次没倒），但 0.14 m 的短步只走 −1.5 到 +3.4 cm，带 0.6 kg 的搬运链 4/4 卡住；mode 1 下短步正常，搬运链 20/22。
+
 **用完要还原：** app 里 `video_hub` 保持开着（实验室的 PICO 视频也用它）。今天试过关掉它，关了以后 RTSP 和 videohub 都没图。

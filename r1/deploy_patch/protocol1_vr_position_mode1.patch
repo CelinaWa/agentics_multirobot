@@ -1,0 +1,26 @@
+diff --git a/gear_sonic_deploy/src/g1/g1_deploy_onnx_ref/include/input_interface/zmq_endpoint_interface.hpp b/gear_sonic_deploy/src/g1/g1_deploy_onnx_ref/include/input_interface/zmq_endpoint_interface.hpp
+index bccb083..b817946 100644
+--- a/gear_sonic_deploy/src/g1/g1_deploy_onnx_ref/include/input_interface/zmq_endpoint_interface.hpp
++++ b/gear_sonic_deploy/src/g1/g1_deploy_onnx_ref/include/input_interface/zmq_endpoint_interface.hpp
+@@ -36,7 +36,8 @@
+  * ## Optional Fields (all versions)
+  *
+  *   - `left_hand_joints`, `right_hand_joints` – 7-DOF Dex3 joint values.
+- *   - `vr_position` (9 doubles) – enables VR 3-point tracking mode.
++ *   - `vr_position` (9 doubles) – enables VR 3-point tracking mode; with protocol 1 it selects encoder
++ *     mode 1 (teleop) for that message, without it mode 0.
+  *   - `vr_orientation` (12 doubles) – defaults used if absent.
+  *   - `vr_compliance` (3 doubles) – **IGNORED** (compliance is keyboard-controlled).
+  *   - `catch_up` (bool, default true) – controls gap tolerance for motion sync.
+@@ -1720,7 +1721,10 @@ private:
+         
+         // Convert MergeResult to DecodeResult
+         if (active_protocol_version_ == 1) {
+-            merge_result.motion->SetEncodeMode(0);  // Protocol 1: joint-based
++            // Protocol 1: joint-based (mode 0); with vr_position, teleop (mode 1): the lower-body joints of this
++            // stream plus the 3-point targets, which the sender gives root-local with the link offsets applied.
++            // Robots without a planner (R1) have no other route to mode 1.
++            merge_result.motion->SetEncodeMode(has_vr_position ? 1 : 0);
+         } else if (active_protocol_version_ == 2 || active_protocol_version_ == 3) {
+             // Protocol versions 2 and 3 both use encoder mode 2 (SMPL-based)
+             merge_result.motion->SetEncodeMode(2);
