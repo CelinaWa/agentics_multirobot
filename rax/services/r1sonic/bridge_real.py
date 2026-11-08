@@ -24,7 +24,8 @@ What the R1 deploy stack expects (src/g1/g1_deploy_onnx_ref, include/input_inter
     inside ZMQManager::handlePlannerInput, i.e. in PLANNER mode, which R1 never has: with vr_position in the pose
     message (and in a planner message) the deploy stayed in mode 'g1' and held the arms at the nominal pose
     (deploy-sim runs 2026-11-06). So the bridge solves the row's two wrist points to ARM JOINT targets itself
-    (kin.ik_point, warm-started) and streams them in joint_pos; the points still ride along for a planner build.
+    (kin.ik_row: waist + arms, position and orientation of all three points, warm-started) and streams them in
+    joint_pos; the points themselves are sent only with --send-vr-points.
   * telemetry: ZMQOutputHandler BINDS a PUB on zmq_out_port (lab: 6557), topic "g1_debug", msgpack map every tick.
     body_q / body_q_measured are in MuJoCo joint order (MUJOCO_JOINTS below; verified against the deploy's own
     target), base_quat is wxyz.
@@ -153,7 +154,7 @@ class RealStack:
 
     def __init__(self, stack_in_port: int, stack_out_port: int, out_topic: str, bind_host: str = '*',
                  piper_right: str | None = None, veer_deg: float = 0.0, camera_port: int | None = None,
-                 camera_intrinsics: list | None = None):
+                 camera_intrinsics: list | None = None, send_vr_points: bool = False):
         self.ctx = zmq.Context.instance()
         self.pub = self.ctx.socket(zmq.PUB)
         self.pub.bind(f'tcp://{bind_host}:{stack_in_port}')
@@ -173,15 +174,16 @@ class RealStack:
         self.started = False
         self.frame = 0                          # pose-topic frame_index
         self.piper_right = PiperClient(piper_right) if piper_right else None
-        from services.r1sonic.kin import Kinematics, ARM
+        from services.r1sonic.kin import Kinematics, ARM, WAIST
         from services.r1sonic.backend import MODEL
         self.kin = Kinematics(MODEL)
         self.okin = Kinematics(MODEL)           # odometry FK and the arm IK, used only by the tick thread
         self.isaac_index = {n: i for i, n in enumerate(ISAAC_JOINTS)}
         self.arm_names = ARM
-        self.arm_q = {s: {n: float(ISAAC_NOMINAL[self.isaac_index[n]]) for n in ARM[s]} for s in ('left', 'right')}
-        self.arm_err = {'left': 0.0, 'right': 0.0}   # IK position error of the last solve (m), for state()
-        self.arm_key = None                     # the wrist points the cached solution is for
+        self.upper_q = {n: float(ISAAC_NOMINAL[self.isaac_index[n]]) for n in WAIST + ARM['left'] + ARM['right']}
+        self.arm_err = {'left': 0.0, 'right': 0.0, 'torso': 0.0}   # IK position error of the last solve (m)
+        self.arm_key = None                     # the row the cached solution is for
+        self.send_vr_points = send_vr_points
         self.veer_deg = veer_deg
         self.cam = None
         if camera_port is not None:
@@ -203,8 +205,8 @@ class RealStack:
                                                    ('planner', 'u8', [1], struct.pack('B', 0))]))
 
     def send_pose(self, row: np.ndarray, jp: np.ndarray, jv: np.ndarray, yaw: np.ndarray) -> None:
-        """One protocol-1 pose message: LOOK lower-body frames from this tick on (IsaacLab order) + the row's three
-        points (encoder mode 1, teleop). The deploy samples 10 frames 5 apart from its current frame."""
+        """One protocol-1 pose message: LOOK whole-body joint frames from this tick on (IsaacLab order; encoder mode 0)
+        + the head. The deploy samples 10 frames 5 apart from its current frame."""
         pos = np.concatenate([row[0:3], row[7:10], row[14:17]])          # L wrist, R wrist, torso (reference frame)
         quat = np.concatenate([row[3:7], row[10:14], row[17:21]])        # wxyz, as the deploy expects
         n = len(jp)
@@ -213,26 +215,27 @@ class RealStack:
                   ('joint_vel', 'f32', [n, 26], f32(jv)),
                   ('body_quat', 'f32', [n, 4], f32(bq)),
                   ('frame_index', 'i64', [n], np.arange(self.frame, self.frame + n, dtype='<i8').tobytes()),
-                  ('vr_position', 'f32', [9], f32(pos)),
                   # head pitch (row[23]); applied only by a deploy started with --r1-head-tracking (pitch range <= 0.5)
-                  ('r1_head', 'f64', [3], struct.pack('<3d', float(row[23]), 0.0, time.monotonic())),
-                  ('vr_orientation', 'f32', [12], f32(quat))]
+                  ('r1_head', 'f64', [3], struct.pack('<3d', float(row[23]), 0.0, time.monotonic()))]
+        if self.send_vr_points:     # only for a deploy that uses them (planner build, or a patched mode-1 build)
+            fields += [('vr_position', 'f32', [9], f32(pos)), ('vr_orientation', 'f32', [12], f32(quat))]
         self.pub.send(packed_message(b'pose', fields))
         self.frame += 1
 
     def _arm_frames(self, jp: np.ndarray, row: np.ndarray) -> np.ndarray:
-        """The row's two wrist points as ARM joint targets in every look-ahead frame (mode 0 tracks whole-body joints,
-        see the header). Position-only IK on the teleop point, warm-started from the last solution so the arm stays
-        on its branch; solved again only when the points change (between streams the row is constant)."""
-        key = (tuple(np.round(row[0:3], 4)), tuple(np.round(row[7:10], 4)))
+        """The row's three points as WAIST + ARM joint targets in every look-ahead frame (mode 0 tracks whole-body joints,
+        see the header). kin.ik_row matches position AND orientation of all three points, so the jaw direction and the
+        waist the backend planned survive (position-only IK on the wrist points left up to 134 deg of wrist error and
+        dropped the waist); warm-started from the last solution so the arms stay on their branch, solved again only
+        when the row changes (between streams it is constant)."""
+        key = tuple(np.round(row[0:21], 4))
         if key != self.arm_key:
-            for side, goal in (('left', row[0:3]), ('right', row[7:10])):
-                self.arm_q[side], self.arm_err[side] = self.okin.ik_point(side, goal, q0=self.arm_q[side])
+            with _MJ_LOCK:
+                self.upper_q, self.arm_err, _ = self.okin.ik_row(row, q0=self.upper_q)
             self.arm_key = key
         jp = jp.copy()
-        for side in ('left', 'right'):
-            for n, v in self.arm_q[side].items():
-                jp[:, self.isaac_index[n]] = v
+        for n, v in self.upper_q.items():
+            jp[:, self.isaac_index[n]] = v
         return jp
 
     def measured_row(self, q: dict | None = None) -> np.ndarray:
@@ -571,6 +574,8 @@ def main():
     ap.add_argument('--piper-right', default=None,
                     help='command that runs MA-Teleop tools/r1/piper_can_bridge.py --serve for the right gripper, e.g. '
                          '"ssh -o BatchMode=yes unitree@192.168.123.164 python3 -u <MA-Teleop>/tools/r1/piper_can_bridge.py --serve"')
+    ap.add_argument('--send-vr-points', action='store_true',
+                    help='also send vr_position/vr_orientation (the stock R1 deploy ignores them: protocol 1 is mode 0)')
     ap.add_argument('--veer-deg', type=float, default=0.0,
                     help='left heading bias for forward walks if the robot veers (the RAX sim needed 20; the deploy sim 0)')
     ap.add_argument('--camera-port', type=int, default=None,
@@ -579,7 +584,7 @@ def main():
     a = ap.parse_args()
     K = [float(v) for v in a.camera_intrinsics.split(',')] if a.camera_intrinsics else None
     serve(RealStack(a.stack_in, a.stack_out, a.out_topic, piper_right=a.piper_right, veer_deg=a.veer_deg,
-                    camera_port=a.camera_port, camera_intrinsics=K), a.port, a.bind)
+                    camera_port=a.camera_port, camera_intrinsics=K, send_vr_points=a.send_vr_points), a.port, a.bind)
 
 
 if __name__ == '__main__':

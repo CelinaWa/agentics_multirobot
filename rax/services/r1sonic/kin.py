@@ -26,7 +26,7 @@ class Kinematics:
         for j in list(pelvis.joints):        # floating base -> fixed at the origin: everything is in the pelvis frame
             spec.delete(j)
         pelvis.pos = [0, 0, 0]
-        for name, (body, off) in zip(("left_teleop", "right_teleop"), POINTS[:2]):   # the stream's wrist points as sites
+        for name, (body, off) in zip(("left_teleop", "right_teleop", "torso_teleop"), POINTS):   # the stream's points as sites
             spec.body(body).add_site(name=name, pos=list(off))
         self.m = spec.compile()
         self.d = mujoco.MjData(self.m)
@@ -158,6 +158,44 @@ class Kinematics:
             d.qpos[qa] = np.clip(d.qpos[qa] + np.clip(dq, -0.2, 0.2), lo, hi)
         mujoco.mj_kinematics(m, d)
         return {n: float(d.qpos[a]) for n, a in zip(names, qa)}, float(np.linalg.norm(goal - d.site_xpos[site]))
+
+    def ik_row(self, row, q0=None, iters=30, rot_weight=0.3, margin=0.02):
+        """Waist + both arms (12 joints) whose FK reproduces a stream row: the three teleop points (rows 0-20: pos +
+        wxyz, pelvis frame), position AND orientation. A row from the backend is the FK of real joint angles, so an
+        exact solution exists; position-only IK (ik_point) loses the jaw direction and the waist. Warm start Q0 keeps
+        the arms on their branch. Returns (q dict, {'left','right','torso': position error m}, max angle error deg)."""
+        m, d = self.m, self.d
+        if q0 is not None:
+            self.set(q0)
+        names = WAIST + ARM["left"] + ARM["right"]
+        dofs = [m.jnt_dofadr[self.jid[n]] for n in names]
+        qa = [m.jnt_qposadr[self.jid[n]] for n in names]
+        lo = np.array([self.lower[n] + margin for n in names]); hi = np.array([self.upper[n] - margin for n in names])
+        row = np.asarray(row, float)
+        goals = [(m.site(f"{k}_teleop").id, row[o:o + 3], Rotation.from_quat(row[o + 3:o + 7][[1, 2, 3, 0]]).as_matrix())
+                 for k, o in (("left", 0), ("right", 7), ("torso", 14))]
+        jp = np.zeros((3, m.nv)); jr = np.zeros((3, m.nv))
+        for _ in range(iters):
+            mujoco.mj_kinematics(m, d); mujoco.mj_comPos(m, d)
+            err, J = [], []
+            for sid, p_goal, R_goal in goals:
+                R = d.site_xmat[sid].reshape(3, 3)
+                mujoco.mj_jacSite(m, d, jp, jr, sid)
+                err += [p_goal - d.site_xpos[sid], rot_weight * 0.5 * sum(np.cross(R[:, i], R_goal[:, i]) for i in range(3))]
+                J += [jp[:, dofs].copy(), rot_weight * jr[:, dofs].copy()]
+            e = np.concatenate(err)
+            if np.linalg.norm(e) < 1e-5:
+                break
+            Jm = np.vstack(J)
+            dq = Jm.T @ np.linalg.solve(Jm @ Jm.T + 1e-4 * np.eye(len(e)), e)
+            d.qpos[qa] = np.clip(d.qpos[qa] + np.clip(dq, -0.2, 0.2), lo, hi)
+        mujoco.mj_kinematics(m, d)
+        perr, aerr = {}, 0.0
+        for (sid, p_goal, R_goal), k in zip(goals, ("left", "right", "torso")):
+            perr[k] = float(np.linalg.norm(p_goal - d.site_xpos[sid]))
+            R = d.site_xmat[sid].reshape(3, 3)
+            aerr = max(aerr, float(np.degrees(Rotation.from_matrix(R_goal.T @ R).magnitude())))
+        return {n: float(d.qpos[a]) for n, a in zip(names, qa)}, perr, aerr
 
     def all_q(self):
         return {n: float(self.d.qpos[self.m.jnt_qposadr[i]]) for n, i in self.jid.items() if self.m.jnt_type[i] != 0}

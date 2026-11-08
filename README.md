@@ -663,4 +663,25 @@ ssh unitree@192.168.0.193 'cd ~/rax_bridge && ~/MA-Teleop/.venv-r1/bin/python r1
 8. 开 RAX session（8.5），用不走路的任务、`--observation-profile rgb-only`，先不给钥匙跑一遍，确认 agent 能连上、能 observe、operator 回复能用。
 9. 走路：今天没测，这个任务不需要。左手夹爪 bridge 也还没接（任务只用右手）。
 
+**2026-11-07 bridge 更新（部署栈 sim 里验证过，真机还没测）：**
+
+- 第一天之前的 sim 结果大多不适用于真机：之前的部署 sim 用了一个没提交的本地补丁（带 `vr_position` 时切 mode 1），
+  真机的部署栈没有这个补丁。8.2 里的伸手、搬运、走路数字都是 mode 1 测的；
+  现在 bridge 默认不发 `vr_position`（`--send-vr-points` 才发），sim 和真机都走 mode 0。
+- bridge 的手臂 IK 从"只对两个手腕点的位置"改成 `kin.ik_row`：腰和双臂 12 个关节一起解，三个点的位置和朝向都对上
+  （backend 发来的每一行本来就是真实关节角的 FK，所以能精确还原）。部署栈 sim，mode 0，各 2 次：
+
+  | 目标 | 原来（只对位置） | 现在（`ik_row`） |
+  |---|---|---|
+  | 需要转腰的点 (0.40, −0.08, 0) | 偏 9.3 cm（腰没动，修正量顶到 5 cm） | 偏 0.9–1.0 cm，腰实测 0.56 rad |
+  | 沿腿斜 ±20° 接近 | 夹爪朝向差 19–21° | 差 10.5–11.6° |
+  | 正前方、高处 | 位置差 0.3–1.4 cm | 位置差 0.7–1.3 cm |
+
+- 没解决的：mode 0 下策略跟手臂关节有 2–10° 的稳态误差，第一下伸手要靠 backend 的闭环修正，sim 里修正量常常顶到上限 5 cm
+  （真机第一天 4.5 cm）。试过在 bridge 里做关节积分补偿，策略不跟这个偏置，误差反而变大，已删掉。
+  不走路的任务里如果伸手被拒（修正量超限），可以在 `~/r1_real_options.json` 里把 `max_servo_correction_m` 放宽到 0.07
+  （5 cm 的上限是为走路时伺服追着机器人跑设的）。空闲的左手漂移同理没有修。
+- **真机上要做的：** 把 `rax/services/r1sonic/bridge_real.py` 和 `kin.py` 拷到 Jetson 上 `~/rax_bridge` 里副本原来的位置，
+  重启 bridge；然后重做第一天的 `r1_check.py hand right 0.30 -0.21 -0.02`，看第一下的偏差和修正量，再试一个斜着接近的点。
+
 **用完要还原：** app 里 `video_hub` 保持开着（实验室的 PICO 视频也用它）。今天试过关掉它，关了以后 RTSP 和 videohub 都没图。
