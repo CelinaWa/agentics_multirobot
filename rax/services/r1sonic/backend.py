@@ -159,7 +159,8 @@ class R1SonicBackend:
     def _walk(self, forward_m, turn_deg=0.0):
         """Walk on the legs via the stack's gait; the arms hold their last command. Returns the measured outcome."""
         reply = self.stack.walk(float(forward_m), float(turn_deg))
-        out = {k: reply.get(k) for k in ('walked_m', 'turn_deg', 'pelvis', 'tilt_deg', 'fallen') if k in reply}
+        out = {k: reply.get(k) for k in ('walked_m', 'turn_deg', 'turned_deg', 'lateral_m', 'pelvis', 'tilt_deg', 'fallen', 'note')
+               if k in reply}   # turned_deg / lateral_m / note: the real bridge's measured turn, side drift, stride note
         return out
 
     def _grasp_paw(self):
