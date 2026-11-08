@@ -570,7 +570,9 @@ def serve(stack: RealStack, port: int, bind: str = '127.0.0.1') -> None:
         op = req.get('op')
         try:
             if op == 'state':
-                out = {**stack.state(), 'resets': stack.resets, 'mode': 'teleop'}
+                out = {**stack.state(), 'resets': stack.resets,
+                       # what the bridge sends; the deploy's telemetry does not say which encoder mode it runs
+                       'mode': 'teleop' if stack.send_vr_points else 'joint-reference'}
             elif op == 'stream':
                 stack.stream([np.asarray(r, dtype=float) for r in req['rows']]); out = {}
             elif op == 'hold':
@@ -613,7 +615,9 @@ def main():
                     help='command that runs MA-Teleop tools/r1/piper_can_bridge.py --serve for the right gripper, e.g. '
                          '"ssh -o BatchMode=yes unitree@192.168.123.164 python3 -u <MA-Teleop>/tools/r1/piper_can_bridge.py --serve"')
     ap.add_argument('--send-vr-points', action='store_true',
-                    help='also send vr_position/vr_orientation (the stock R1 deploy ignores them: protocol 1 is mode 0)')
+                    help='mode 1: also send the three points (vr_position/vr_orientation). Needs the deploy built with '
+                         'r1/deploy_patch (protocol 1 + vr_position -> encoder mode 1); the stock R1 deploy ignores them '
+                         'and stays in mode 0, where the IK\'d arm joints, still sent, keep the arms right')
     ap.add_argument('--veer-deg', type=float, default=0.0,
                     help='left heading bias for forward walks if the robot veers (the RAX sim needed 20; the deploy sim 0)')
     ap.add_argument('--camera-port', type=int, default=None,

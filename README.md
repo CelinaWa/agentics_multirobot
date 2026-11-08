@@ -693,8 +693,34 @@ ssh unitree@192.168.0.193 'cd ~/rax_bridge && ~/MA-Teleop/.venv-r1/bin/python r1
 | 部署程序停了 | bridge 继续返回最后一帧旧数据 | 遥测超过 0.3 s 没更新，`state` 就报错，动作停下 |
 | bridge 循环耗时 | 看不到 | `state` 里有 `tick_ms_mean / tick_ms_max / tick_overruns`（DGX 上平均 3.9 ms，最长 15 ms；**Jetson 上要看一下**） |
 
-**mode 1 补丁（要实验室同意）：** `r1/deploy_patch/protocol1_vr_position_mode1.patch`，一行：协议 1 的消息带 `vr_position` 时用 encoder mode 1。
-打了以后 bridge 加 `--send-vr-points`。部署栈 sim 对比：mode 1 伸手 0.3–1.8 cm 不靠修正；mode 0 第一下要修 4–5 cm。
-mode 0 下大步能走（16 次没倒），但 0.14 m 的短步只走 −1.5 到 +3.4 cm，带 0.6 kg 的搬运链 4/4 卡住；mode 1 下短步正常，搬运链 20/22。
+**mode 1（真机要先在 Jetson 上编一个打了补丁的部署程序）：**
+
+- **RAX 这边不变。** backend 发给 bridge 的永远是三个点 + 夹爪 + 头。mode 0 时 bridge 用 IK 把三个点换成腰和手臂关节发给部署程序；
+  mode 1 时 bridge 另外把三个点原样发过去（IK 的关节照样发，部署程序没打补丁时照样按 mode 0 走）。`r1_status` 的 `stack.controller`
+  显示 bridge 发的是哪种：`joint-reference`（mode 0）或 `teleop`（mode 1）。
+- **部署 sim 对比（2026-11-07，同一个部署程序，只换 mode）：**
+
+| 测试 | mode 0 | mode 1 |
+|---|---|---|
+| 伸手 3 个目标（经过伺服修正后的误差） | 0.4–0.8 cm，修正 4.3 / 1.8 / 0.7 cm | 0.3–0.8 cm，修正 3.7 / 2.6 / 0.8 cm |
+| 夹着东西小步走（手腕 0.6 kg，目标 0.21 m） | 3/3 卡住，每次只挪 2–3 cm | 3/3 成功，两步走约 0.29 m 后放下 |
+| 手伸出、夹爪闭合时重启 bridge | 手不动，夹爪不松 | 手不动，夹爪不松 |
+
+  伸手精度两者差不多（之前写的"mode 1 不靠修正就 0.3–1.8 cm"是错的，那是修正后的误差；mode 0 原来差 4–5 cm 是旧的只对位置的 IK）。
+  差别主要在小步走，以及和 RAX sim（一直是 mode 1）一致。
+- **补丁：** `r1/deploy_patch/protocol1_vr_position_mode1.patch`，一行：协议 1 的消息带 `vr_position` 时用 encoder mode 1。
+  基于实验室 MA-Teleop junjie 分支的子模块版本 `50aec78`（`git apply --check` 通过）。**没有提交到实验室的仓库。**
+- **Jetson 上的步骤**（不改实验室仓库：补丁只在编译时打上，编完马上还原；官方的 `r1_deploy_onnx_ref` 不动，另存一个 `_mode1`）：
+
+```bash
+# 把脚本和补丁拷到 Jetson
+scp r1/deploy_patch/jetson_mode1.sh r1/deploy_patch/protocol1_vr_position_mode1.patch unitree@192.168.0.193:~/rax_bridge/
+ssh unitree@192.168.0.193 '~/rax_bridge/jetson_mode1.sh check'    # 源码版本对、干净、补丁能打上
+ssh unitree@192.168.0.193 '~/rax_bridge/jetson_mode1.sh build'    # 编到 build/rax-mode1，产出 target/release/r1_deploy_onnx_ref_mode1
+# 终端 A：和上面的部署栈命令完全一样，只把 target/release/r1_deploy_onnx_ref 换成 target/release/r1_deploy_onnx_ref_mode1
+# 终端 B：bridge 加 --send-vr-points（run_bridge.sh 里 python 那一行末尾加上）
+# 终端 C：r1_check.py status 里 stack.controller 应该是 teleop；先在支架上测 hand / walk 小步
+# 不要了：ssh unitree@192.168.0.193 '~/rax_bridge/jetson_mode1.sh remove'
+```
 
 **用完要还原：** app 里 `video_hub` 保持开着（实验室的 PICO 视频也用它）。今天试过关掉它，关了以后 RTSP 和 videohub 都没图。

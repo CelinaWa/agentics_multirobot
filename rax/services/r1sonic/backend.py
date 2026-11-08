@@ -737,9 +737,11 @@ class R1SonicBackend:
     def status(self):
         o = self.options
         value = {'robot': ROBOT, 'motion': arming.read(self.config.root),
-                 'control': 'SONIC_R1 100K teleop mode: three point targets (left wrist, right wrist, torso) from the IK '
-                            'of the commanded arm/waist joints; default standing legs; head held at the commanded pitch; '
-                            'PiPER grippers position-commanded',
+                 'control': 'SONIC_R1 100K: three point targets (left wrist, right wrist, torso) from the FK of the '
+                            'commanded arm/waist joints; default standing legs; head held at the commanded pitch; PiPER '
+                            'grippers position-commanded. stack.controller: teleop = the controller tracks the three '
+                            'points (encoder mode 1); joint-reference = the bridge solves arm/waist joints for them (IK) '
+                            'and the controller tracks those (mode 0, looser)',
                  'stack': {'endpoint': self.stack.endpoint, 'requests': self.stack.requests, 'failures': self.stack.failures},
                  'commandable_joints': list(T.UPPER),
                  'limits': {k: o[k] for k in ('joint_limit_margin_rad', 'max_ik_error_m', 'max_servo_correction_m',
