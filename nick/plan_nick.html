@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>body{margin:0}</style>
+<title>Coordinator vs RAX</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one column, read like a code review: plan sections in order, rows marked reused / new / edit, each checkpoint paired with what can be tested. */
+:root {
+  --bg: #f7f8f6; --surface: #ffffff; --fg: #1b2420; --muted: #5d6b64; --line: #d9dfda;
+  --keep: #5d6b64; --keep-bg: #eef1ee;
+  --add: #17703f; --add-bg: #e2f4e8;
+  --edit: #8a5a00; --edit-bg: #fbf0d3;
+  --later: #3d5a8a; --later-bg: #e6edf8;
+  --sans: "IBM Plex Sans", system-ui, sans-serif; --mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121715; --surface: #1a211e; --fg: #e6ece8; --muted: #9aa8a0; --line: #2e3833;
+  --keep: #9aa8a0; --keep-bg: #232b27; --add: #6fd596; --add-bg: #173323;
+  --edit: #e6bd5c; --edit-bg: #3a2f12; --later: #9db8ea; --later-bg: #1c2740; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #121715; --surface: #1a211e; --fg: #e6ece8; --muted: #9aa8a0; --line: #2e3833;
+  --keep: #9aa8a0; --keep-bg: #232b27; --add: #6fd596; --add-bg: #173323;
+  --edit: #e6bd5c; --edit-bg: #3a2f12; --later: #9db8ea; --later-bg: #1c2740; color-scheme: dark }
+body { background: var(--bg); color: var(--fg); font: 15px/1.5 var(--sans);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 56px; }
+main { max-width: 920px; margin: 0 auto; display: flex; flex-direction: column; gap: 36px; }
+h1 { font-size: 26px; font-weight: 600; margin: 0 0 6px; text-wrap: balance; }
+h2 { font-size: 18px; font-weight: 600; margin: 0 0 4px; }
+p { margin: 0; max-width: 70ch; }
+.sub { color: var(--muted); }
+code { font: 13px var(--mono); overflow-wrap: anywhere; }
+nav { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 14px; font-size: 14px; }
+nav a { color: var(--later); }
+a:focus-visible { outline: 2px solid var(--later); outline-offset: 2px; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 12px; }
+.chip { font: 500 12px var(--mono); padding: 2px 8px; border-radius: 3px; white-space: nowrap; }
+.keep { color: var(--keep); background: var(--keep-bg); }
+.add { color: var(--add); background: var(--add-bg); }
+.edit { color: var(--edit); background: var(--edit-bg); }
+.later { color: var(--later); background: var(--later-bg); }
+.rows { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--surface); margin-top: 12px; }
+.row { display: grid; grid-template-columns: 30px 86px minmax(0, 1fr); gap: 12px; padding: 11px 14px; border-top: 1px solid var(--line); align-items: start; }
+.row:first-child { border-top: 0; }
+.row.a { background: var(--add-bg); }
+.row.e { background: var(--edit-bg); }
+.sign { font: 500 14px var(--mono); text-align: center; }
+.row.a .sign { color: var(--add); } .row.e .sign { color: var(--edit); } .row.k .sign { color: var(--keep); }
+.what { min-width: 0; }
+.what b { font-weight: 600; }
+.what small { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; overflow-wrap: anywhere; }
+.row.a .what small, .row.e .what small { color: var(--fg); opacity: .8; }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-top: 12px; }
+.col { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px; min-width: 0; }
+.col h3 { font-size: 14px; font-weight: 600; margin: 0 0 8px; }
+.col ul, .test ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 5px; }
+.col li, .test li { overflow-wrap: anywhere; }
+.scroll { overflow-x: auto; margin-top: 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 640px; }
+th, td { text-align: left; vertical-align: top; padding: 10px 14px; border-top: 1px solid var(--line); }
+th { font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); border-top: 0; }
+td.n { font: 500 13px var(--mono); white-space: nowrap; }
+tr.gate td { background: var(--add-bg); }
+.loop { display: flex; flex-wrap: wrap; gap: 6px 4px; align-items: center; margin-top: 12px; }
+.loop span { background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 4px 9px; font-size: 13.5px; }
+.loop i { color: var(--muted); font-style: normal; }
+pre { margin: 12px 0 0; padding: 14px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; overflow-x: auto; font: 13px/1.55 var(--mono); }
+@media (max-width: 520px) { .row { grid-template-columns: 22px minmax(0, 1fr); } .row .chip { grid-column: 2; justify-self: start; } .row .what { grid-column: 2; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>What RAX already does, and what the coordinator adds</h1>
+    <p class="sub">Plan for branch <code>nick</code>. Goal: several robots working together from one high-level instruction such as "clean the house". Three stages: task decomposition (this plan), orchestration, self-improvement. Nothing here is built yet.</p>
+    <nav>
+      <a href="#approach">Approach</a><a href="#stages">Stages and tests</a><a href="#checkpoints">Stage 1 checkpoints</a><a href="#flow">Run, step by step</a><a href="#files">By file</a><a href="#plan">The plan it outputs</a><a href="#folder">nick/ folder</a>
+    </nav>
+  </header>
+
+  <section id="approach">
+    <h2>Approach</h2>
+    <p>The decomposer runs as an ordinary RAX session with a new role, "coordinator". RAX already starts a sandboxed Claude agent with instructions, tools, memory, a skill library and a channel to a human. The coordinator reuses all of that. The decomposition logic is written in Markdown; the only new Python is a small set of read-only tools.</p>
+    <p style="margin-top:10px">"Skill" on this page means a robot behaviour for one subtask: a controller RAX built into a robot's skill library, or a trained policy. A single-robot skill belongs to one robot name, a multi-robot skill to several.</p>
+    <p style="margin-top:10px">Nothing is fixed to two or three robots, or to the robot types in the repo today. The fleet file lists any number of robots, and a multi-robot task names as many as it needs. RAX has no single file describing what each robot can do, so each robot type gets one small capability card, <code>robots/&lt;type&gt;.json</code>, with free-form capability tags. Adding a robot type means adding a card, with no code change; one individual robot can override tags in the fleet file.</p>
+    <div class="loop" aria-label="Closed loop inside one decomposition session">
+      <span>read goal</span><i>→</i><span>look up fleet and trained skills</span><i>→</i><span>propose task tree</span><i>→</i><span>split until each leaf is one skill</span><i>→</i><span>check</span><i>→</i><span>repair</span><i>→</i><span>second opinion</span><i>→</i><span>ask human if unclear</span><i>→</i><span>submit plan</span>
+    </div>
+  </section>
+
+  <section id="stages">
+    <h2>Three stages and what each one lets you test</h2>
+    <div class="scroll"><table>
+      <tr><th>Stage</th><th>Delivers</th><th>Testable when done</th></tr>
+      <tr><td class="n">1 · now</td><td><b>Decomposition.</b> Goal in, plan out: essential subtasks, robots assigned, trained skills reused, task files for skills still to build.</td><td class="test"><ul><li>Three example goals, each run three times, every run passes the fixed checks and that goal's expectations</li><li>Registering a new trained skill changes the next plan to use it</li><li>An emitted task file starts a normal RAX session</li></ul>No robot needed.</td></tr>
+      <tr><td class="n">2 · later</td><td><b>Orchestration.</b> The coordinator starts robot sessions from the plan, watches them, answers their requests, switches tasks and replans.</td><td class="test"><ul><li>2.1, no robots: a plan runs end to end against fake skills; order follows dependencies; independent tasks run at once on different robots; an injected failure causes a retry, a switch to another robot, or a replan</li><li>2.2, simulation: one plan drives a G1 session and an R1 session to completion</li><li>2.3, real robots with your collaborator's skills</li></ul></td></tr>
+      <tr><td class="n">3 · last</td><td><b>Self-improvement.</b> Failures traced to a bad split or assignment become lessons the coordinator applies next time.</td><td class="test"><ul><li>3.1: replay a logged failure; rerunning the same goal no longer repeats the mistake</li><li>3.2: the stage 1 expectations are scored before and after learning; no goal gets worse</li></ul></td></tr>
+    </table></div>
+  </section>
+
+  <section id="checkpoints">
+    <h2>Stage 1 checkpoints</h2>
+    <p class="sub">Each row is one commit-sized step with something you can run. The highlighted row is the acceptance test for the stage.</p>
+    <div class="scroll"><table>
+      <tr><th>#</th><th>Built</th><th>Testable when done</th></tr>
+      <tr><td class="n">1.0</td><td>Branch <code>nick</code>, the <code>nick/</code> folder with the plan and this page</td><td>Open <code>nick/plan_nick.html</code> from the repo; it shows the plan</td></tr>
+      <tr><td class="n">1.1</td><td>Plan checks, skill catalog, a capability card per robot type, two sample skill folders showing how a trained policy is registered</td><td>Unit tests: every check rejects a deliberately broken plan; the sample folders pass RAX's own skill validation. A command prints every trained skill found in the two shipped bundles plus the samples, with robot names, status and success counts</td></tr>
+      <tr><td class="n">1.2</td><td>Coordinator role inside RAX: the four tools, the registry line, its own instruction set</td><td>The whole existing test suite still passes, so robot sessions are unaffected. A dry run builds the coordinator's workspace without calling a model</td></tr>
+      <tr><td class="n">1.3</td><td>Coordinator instructions, example goals</td><td>One live run on "clean the house" ends with <code>plan.json</code>, a readable <code>plan.md</code>, task files and start commands; the checks report no problems</td></tr>
+      <tr class="gate"><td class="n">1.4</td><td>Expectations for three goals, an evaluator, the how-to document</td><td><b>Acceptance.</b> Each goal run three times. Every run must show: essential tasks present; an object too heavy for one robot gets a multi-robot task; "puppy into box" uses the existing G1 skill; no floor pick-up goes to the G1; no robot in two tasks at once; the nearer capable robot is chosen when the scene says so. One goal uses a fleet of five robots with a three-robot task and a robot type that exists only as a card</td></tr>
+      <tr><td class="n">1.5</td><td>Hand-off to your collaborator</td><td>Add a skill folder for a new policy, rerun: the plan uses it. One emitted task file is accepted by a normal RAX session (mock robot; G1 in simulation if that host is available)</td></tr>
+    </table></div>
+    <p class="sub" style="margin-top:10px">Live runs need the RAX Claude login set up on this machine.</p>
+  </section>
+
+  <section id="flow">
+    <h2>One decomposition run, step by step</h2>
+    <div class="legend">
+      <span><span class="chip keep">reused</span> exists in RAX, unchanged</span>
+      <span><span class="chip add">new</span> new file, touches nothing existing</span>
+      <span><span class="chip edit">edit</span> small additive change to an existing file</span>
+    </div>
+    <div class="rows">
+      <div class="row a"><span class="sign">+</span><span class="chip add">new</span><div class="what"><b>Write the goal</b> as a Markdown file, same shape as today's task files (goal paragraph, prose <code>## Scene</code>).<small>tasks/coordinator/clean_house.md · the format itself is reused</small></div></div>
+      <div class="row a"><span class="sign">+</span><span class="chip add">new</span><div class="what"><b>List the available robots</b> in a fleet file (id, robot type, where it stands).<small>fleet.json, passed through the existing <code>--backend-options</code></small></div></div>
+      <div class="row k"><span class="sign">·</span><span class="chip keep">reused</span><div class="what"><b>Install trained skills</b> from exported bundles into per-robot skill libraries.<small>scripts/import_experience.sh · experience/*/skill-library-*.bundle</small></div></div>
+      <div class="row k"><span class="sign">·</span><span class="chip keep">reused</span><div class="what"><b>Register a trained policy</b> as a skill folder: description, robot, status, a small entry file, recorded runs. RAX's validation, bundling and import work on it as they do for agent-built skills.<small>skill-library/&lt;robot&gt;/skills/&lt;name&gt;/ · multi-robot skills go in skill-library/multi/ with one extra line, <code>robots: [...]</code></small></div></div>
+      <div class="row k"><span class="sign">·</span><span class="chip keep">reused</span><div class="what"><b>Create the session</b>: directory, config, budgets, session clock.<small>scripts/configure_session.py, now called with <code>--robot coordinator</code></small></div></div>
+      <div class="row e"><span class="sign">~</span><span class="chip edit">edit</span><div class="what"><b>Register the coordinator role</b> so RAX accepts it as a "robot".<small>one line in services/backends.py · one entry in ROBOT_FACTS (services/workspace/setup.py)</small></div></div>
+      <div class="row k"><span class="sign">·</span><span class="chip keep">reused</span><div class="what"><b>Launch a sandboxed Claude Code agent</b> with login relay, usage-limit waits, resume and audit log.<small>scripts/start_agent.sh · harness/claude_cli/launcher.py</small></div></div>
+      <div class="row e"><span class="sign">~</span><span class="chip edit">edit</span><div class="what"><b>Pick which instructions the agent gets.</b> Today every session gets the robot-control set; the coordinator gets its own.<small>a second recipe in services/workspace/recipes.py and its one call site in the launcher · robot sessions unchanged</small></div></div>
+      <div class="row a"><span class="sign">+</span><span class="chip add">new</span><div class="what"><b>Coordinator instructions</b>: read the goal, find the essential tasks, split until each leaf is one skill.<small>coordinator_agent/AGENTS.md, START_PROMPT.md</small></div></div>
+      <div class="row a"><span class="sign">+</span><span class="chip add">new</span><div class="what"><b>Four instruction files for the coordinator agent</b>: task decomposition, robot assignment (capability, proximity, when two or three robots are needed), reuse of trained skills, plan format.<small>agent_skills/coordinator/*/SKILL.md · guidance for the agent, not robot skills</small></div></div>
+      <div class="row a"><span class="sign">+</span><span class="chip add">new</span><div class="what"><b>Tool: <code>fleet</code></b> returns each robot with its tool list and a short card of facts the checker needs (how it moves, what it cannot reach).<small>services/coordinator/backend.py · robots/&lt;type&gt;.json, one card per robot type, any number of types · tool lists read live from each robot's backend where one exists · the existing robot-interface guides are copied in as reading</small></div></div>
+      <div class="row a"><span class="sign">+</span><span class="chip add">new</span><div class="what"><b>Tool: <code>skill_catalog</code></b> lists every trained skill with its robot name(s), status and success counts.<small>services/coordinator/catalog.py · reads the existing per-robot skill libraries with RAX's own parsers · trained policies are registered in the same library format; multi-robot ones in one shared library</small></div></div>
+      <div class="row k"><span class="sign">·</span><span class="chip keep">reused</span><div class="what"><b>Second opinion on the draft plan</b> from a subagent, and questions to a human when the goal is unclear.<small><code>--subagents</code> · <code>request_operator</code> tool</small></div></div>
+      <div class="row a"><span class="sign">+</span><span class="chip add">new</span><div class="what"><b>Tool: <code>plan_check</code></b> runs fixed rules on the plan and returns problems for the agent to repair: robots exist and can do the job, bound skills match the assigned robots, no robot in two parallel tasks, every task has a checkable success condition.<small>services/coordinator/plan.py</small></div></div>
+      <div class="row a"><span class="sign">+</span><span class="chip add">new</span><div class="what"><b>Tool: <code>plan_submit</code></b> writes the result: <code>plan.json</code>, a readable <code>plan.md</code>, one task file per skill still to be built, and the commands to start each robot session. Nothing is launched.<small>&lt;session&gt;/plan/ · task files follow the existing tasks/*.md structure</small></div></div>
+      <div class="row a"><span class="sign">+</span><span class="chip add">new</span><div class="what"><b>Score the plan</b> against what a good plan for that goal must contain.<small>services/coordinator/evaluate.py · tasks/coordinator/*.expect.json</small></div></div>
+      <div class="row k"><span class="sign">·</span><span class="chip keep">reused</span><div class="what"><b>Build each missing skill</b> on its robot, one RAX session per task file.<small>configure_session.py + start_agent.sh, exactly as today</small></div></div>
+      <div class="row k"><span class="sign">·</span><span class="chip keep">reused</span><div class="what"><b>Keep notes and lessons</b> between sessions: progress, tips, a skill library for the coordinator itself.<small>workspace memory/ · skill_library.py creates a <code>coordinator</code> library automatically · export_experience.sh</small></div></div>
+    </div>
+  </section>
+
+  <section id="files">
+    <h2>By file</h2>
+    <div class="cols">
+      <div class="col">
+        <h3><span class="chip add">new</span></h3>
+        <ul>
+          <li><code>rax/services/coordinator/</code> backend, catalog, plan checks, evaluator</li>
+          <li><code>robots/</code> one capability card per robot type (G1, R1, RBY1 to start)</li>
+          <li><code>rax/coordinator_agent/</code> instructions template</li>
+          <li><code>rax/agent_skills/coordinator/</code> 4 instruction files</li>
+          <li><code>rax/local_tests/unit/test_coordinator.py</code></li>
+          <li><code>tasks/coordinator/</code> 3 example goals, their expectations, example fleet, 2 sample skill folders</li>
+          <li><code>docs/COORDINATOR.md</code></li>
+          <li><code>nick/plan_nick.md</code>, <code>nick/plan_nick.html</code></li>
+        </ul>
+      </div>
+      <div class="col">
+        <h3><span class="chip edit">edit</span></h3>
+        <ul>
+          <li><code>rax/services/backends.py</code> +1 line</li>
+          <li><code>rax/services/workspace/setup.py</code> +1 entry</li>
+          <li><code>rax/services/workspace/recipes.py</code> +1 recipe, chosen by role</li>
+          <li><code>rax/harness/claude_cli/launcher.py</code> 1 call passes the role</li>
+          <li><code>rax/agent_skills/README.md</code>, root <code>README.md</code> pointers</li>
+        </ul>
+      </div>
+      <div class="col">
+        <h3><span class="chip keep">reused</span> &nbsp;untouched</h3>
+        <ul>
+          <li>All robot backends: g1sonic, r1sonic, rby1</li>
+          <li>All robot skills, task files and experience exports</li>
+          <li>Launcher, relay, sandbox, dashboard, operator console</li>
+          <li>Skill library format, validation, import and export scripts</li>
+          <li>Robot tool lists and robot-interface guides</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="plan">
+    <h2>The plan it outputs</h2>
+    <p class="sub">One entry per subtask. This is the contract your collaborator's training and the later orchestration stage read. Illustrative values.</p>
+<pre>{
+  "id": "t3",
+  "title": "Carry the bench to the hallway",
+  "parent": "t1",              "depends_on": ["t2"],
+  "kind": "multi",             "robots": ["g1-a", "r1-a"],
+  "assignment_reason": "too long for one robot; both are in the living room",
+  "alternatives": [["g1-a", "rby1-a"]],
+  "required_capabilities": ["walk_while_holding", "two_hand_grip"],
+  "skill": {"status": "to_build"},
+  "preconditions": ["bench is clear of objects"],
+  "success_condition": "bench stands in the hallway, both robots standing, hands open",
+  "resources": ["bench", "living-room doorway"],
+  "on_failure": "set the bench down, ask the operator"
+}</pre>
+    <p style="margin-top:10px">When a trained skill exists, <code>skill</code> names it instead, with where it came from, its status and its recorded success counts. A trained multi-robot policy is registered with the header RAX skills already use, plus one line:</p>
+<pre>skill-library/multi/skills/bench-carry-2/SKILL.md
+---
+name: bench-carry-2
+description: two robots lift a bench by its ends and carry it up to 3 m
+status: verified
+robot: multi
+robots: [g1sonic, r1sonic]     # the one added line
+entry: code/run.py
+---
+evidence/runs.jsonl            one line per run: success or failure, unattended or not</pre>
+  </section>
+
+  <section id="folder">
+    <h2>The nick/ folder</h2>
+    <div class="rows">
+      <div class="row a"><span class="sign">+</span><span class="chip add">new</span><div class="what"><b><code>nick/plan_nick.md</code></b> is the current plan. It is updated in the same commit as each step, with a status per checkpoint: not started, or done with the date and how it was tested.</div></div>
+      <div class="row a"><span class="sign">+</span><span class="chip add">new</span><div class="what"><b><code>nick/plan_nick.html</code></b> is this page as a single self-contained file. Anyone with the repo opens it in a browser by double-clicking; no server or build step. It is regenerated whenever the plan changes.</div></div>
+    </div>
+  </section>
+</main>
+</body>
+</html>
