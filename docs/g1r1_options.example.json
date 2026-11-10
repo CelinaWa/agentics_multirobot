@@ -1,0 +1,16 @@
+{
+  "g1": {
+    "zmq_host": "127.0.0.1",
+    "pose_port": 5556,
+    "state_host": "127.0.0.1",
+    "state_port": 5557
+  },
+  "r1": {
+    "stack_host": "127.0.0.1",
+    "stack_port": 5591
+  },
+  "team": {
+    "start_poses": {"g1": [0.0, 0.0, 0.0], "r1": [1.6, 0.0, 180.0]},
+    "min_gap_m": 0.3
+  }
+}

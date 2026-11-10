@@ -293,3 +293,43 @@ def test_experience_must_be_an_existing_directory(tmp_path):
         configuration(tmp_path, experience_from=str(tmp_path/'missing'))
     with pytest.raises(ValueError, match='experience_from'):
         configuration(tmp_path, experience_from='relative/dir')
+
+
+def test_every_robot_of_a_team_has_its_hosts_denied(tmp_path):
+    from harness.claude_cli import launcher
+    config = configuration(tmp_path, backend_options={'g1': {'state_host': '10.1.1.5', 'camera_host': '10.1.1.6'},
+                                                      'r1': {'stack_host': '10.1.2.7'}, 'team': {'min_gap_m': 0.4}})
+    assert {'10.1.1.5', '10.1.1.6', '10.1.2.7'} <= set(launcher.denied_hosts(config))
+
+
+def test_a_team_session_reads_each_robots_own_skill_library(tmp_path):
+    from harness.claude_cli import launcher
+    from services import skill_library
+    config = configuration(tmp_path, robot='g1r1')
+    g1 = skill_library.ensure_library(skill_library.library_path(config).parent/'g1sonic', 'g1sonic')
+    (g1/'skills'/'walk-to-table').mkdir()
+    (g1/'skills'/'walk-to-table'/'SKILL.md').write_text('walk')
+    skill_library._git('add', '-A', cwd=g1)
+    skill_library._git('commit', '-q', '-m', 'a skill', cwd=g1)
+    workspace = config.root/'agent-workspace'
+    workspace.mkdir(parents=True)
+    built = launcher.populate_workspace(config, workspace, gemini=False)
+    assert built['member_libraries']['g1']['skills'] == 1 and built['member_libraries']['r1'] is None
+    reference = workspace/'.agents/robots/g1/skill-library'
+    assert (reference/'skills/walk-to-table/SKILL.md').read_text() == 'walk' and not (reference/'.git').exists()
+    assert (workspace/'skill-library/.git').is_dir()            # the team's own library, where this session writes
+    assert (workspace/'.agents/robots/r1/skills/robot-interface/SKILL.md').is_file()
+
+
+def test_resume_refreshes_each_robots_own_skills_in_a_team(tmp_path):
+    config, d = _deploy(tmp_path, robot='g1r1')
+    workspace, home = d['workspace'], d['claude_home']
+    own = workspace/'.agents/robots/g1/skills'
+    (own/'robot-interface/SKILL.md').write_text('old')
+    (own/'old-skill').mkdir()
+    (home/'projects'/'ws').mkdir(parents=True)
+    (home/'projects'/'ws'/'conversation-1.jsonl').write_text('{}\n')
+    redeployed = launcher.redeploy(config, claude=d['claude'])
+    assert '.agents/robots/g1/skills' in redeployed['refreshed']
+    assert 'semantic40' in (own/'robot-interface/SKILL.md').read_text() and not (own/'old-skill').exists()
+    assert (workspace/'.agents/skills/multi-robot-task/SKILL.md').is_file()

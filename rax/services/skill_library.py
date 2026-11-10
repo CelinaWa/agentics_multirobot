@@ -132,6 +132,24 @@ def checkout(config, workspace):
             'skills': len(list((clone/'skills').glob('*/SKILL.md')))}
 
 
+def reference(config, robot, destination):
+    """The files of another robot's library (its main, no git) for a team session to read and run: a team holds that
+    robot, so the skills it learned in its own sessions call tools this session has. None when it has no library."""
+    library = library_path(config).parent/robot
+    if not (library/'.git').is_dir():
+        return None
+    archive = subprocess.run(['git', '--git-dir', str(library/'.git'), 'archive', 'main'], capture_output=True,
+                             timeout=60, env={**os.environ, **GIT_ENV})
+    if archive.returncode:
+        raise LibraryError(f'git archive of the {robot} library: {archive.stderr.decode(errors="replace").strip()[:300]}')
+    destination = Path(destination)
+    if destination.exists():
+        shutil.rmtree(destination)
+    destination.mkdir(parents=True)
+    subprocess.run(['tar', '-x', '-C', str(destination)], input=archive.stdout, check=True, timeout=60)
+    return {'robot': robot, 'files': str(destination), 'skills': len(list((destination/'skills').glob('*/SKILL.md')))}
+
+
 # ----- validation (files of a commit, read as data) --------------------------------------------
 def _frontmatter(text):
     match = re.match(r'^---\n(.*?)\n---\n', text, re.S)

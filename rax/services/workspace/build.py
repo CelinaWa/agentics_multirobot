@@ -4,14 +4,22 @@ build() copies the recipe's template and skill layers, drops skills the setup do
 use, renders every markdown source against the setup, and writes the tool contract.
 Callers add the session's extras (TASK.md, CLI entry files) around it.
 """
+from dataclasses import replace
+import os
 from pathlib import Path
+import re
 import shutil
 
 from .contract_files import write_contract
 from .recipe import SKILL_SOURCE
+from .setup import ROBOT_FACTS
 from .templates import render
 
 IGNORE = shutil.ignore_patterns('__pycache__', '*.pyc')
+# A team's workspace keeps each robot's own control and perception skills under .agents/robots/<robot>/skills/, so two
+# robots' skills of the same name (robot-interface, object-localization) stay apart and their links to each other hold.
+MEMBER_SKILLS = '.agents/robots/{member}/skills'
+MEMBER_LAYERS = ('perception/{perception}-{robot}', 'control/{robot}')
 # Templates may hold machine-local runtime/ state; never copy it.
 TEMPLATE_IGNORE = shutil.ignore_patterns('__pycache__', '*.pyc', 'runtime')
 
@@ -68,6 +76,50 @@ def render_sources(recipe, setup, workspace):
     return blocks
 
 
+def install_members(recipe, setup, workspace):
+    """For a team: each robot's own skills, rendered against that robot's facts; returns the blocks they used."""
+    blocks = {}
+    for member, key in ROBOT_FACTS[setup.robot].get('members', {}).items():
+        member_setup = replace(setup, robot=key)
+        relative = MEMBER_SKILLS.format(member=member)
+        skills = workspace / relative
+        install_skills(skills, [layer.format(**member_setup.axes()) for layer in MEMBER_LAYERS])
+        if not skills.is_dir():
+            continue
+        for path in sorted(p for p in skills.rglob('*') if p.is_file() and p.suffix in ('.md', '.py')):
+            _no_link(path, 'skills')
+            original = text = path.read_text()
+            if path.suffix == '.md':
+                used = set()
+                text = render(text, member_setup, vocab=recipe.vocab, used=used)
+                if used:
+                    blocks[path.relative_to(workspace).as_posix()] = sorted(used)
+            text = text.replace('.agents/skills/', relative + '/')   # the paths a single robot's workspace has
+            if path.suffix == '.md':
+                text = _relink(text, path, skills, workspace / '.agents/skills')
+            if text != original:
+                path.write_text(text)
+    return blocks
+
+
+def _relink(text, path, skills, shared):
+    """A robot's skill links a shared skill as its neighbour (../experience-memory/SKILL.md); in a team the shared
+    skills are in .agents/skills/, so such a link is pointed there. Links between the robot's own skills stay."""
+    def fix(match):
+        link = match.group(2)
+        target = (path.parent / link.split('#')[0])
+        if target.exists() or not link.startswith('.'):
+            return match.group(0)
+        try:
+            elsewhere = shared / target.resolve().relative_to(skills.resolve())
+        except ValueError:
+            return match.group(0)
+        if not elsewhere.exists():
+            return match.group(0)
+        return f'{match.group(1)}({os.path.relpath(elsewhere, path.parent)})'
+    return re.sub(r'(\[[^\]]*\])\(([^)\s]+)\)', fix, text)
+
+
 def manifest(recipe, setup, workspace, blocks):
     """Provenance of a built workspace (operator side, never in the workspace)."""
     import hashlib
@@ -91,5 +143,6 @@ def build(recipe, setup, workspace, *, copy_template=True):
         shutil.copytree(recipe.template, workspace, dirs_exist_ok=True, ignore=TEMPLATE_IGNORE)
     apply_role(recipe, setup, workspace)
     blocks = render_sources(recipe, setup, workspace)
+    blocks.update(install_members(recipe, setup, workspace))
     write_contract(workspace, setup)
     return manifest(recipe, setup, workspace, blocks)

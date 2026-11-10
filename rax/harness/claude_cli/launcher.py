@@ -140,12 +140,15 @@ def protected_paths(config):
 def denied_hosts(config):
     """DENIED_HOSTS plus the hosts of the session's backend options that reach robot software."""
     hosts = list(DENIED_HOSTS)
-    for option in HOST_OPTIONS:
-        address = config.backend_options.get(option)
-        if address:
-            host = (str(address).rpartition(':')[0] or str(address)).strip('[]')
-            if host not in hosts:
-                hosts.append(host)
+    # a team's options hold one object of options per robot: their hosts count too
+    groups = [config.backend_options, *(v for v in config.backend_options.values() if isinstance(v, dict))]
+    for options in groups:
+        for option in HOST_OPTIONS:
+            address = options.get(option)
+            if address:
+                host = (str(address).rpartition(':')[0] or str(address)).strip('[]')
+                if host not in hosts:
+                    hosts.append(host)
     return hosts
 
 
@@ -237,6 +240,17 @@ def inherit_experience(source, workspace):
     return {'source': str(source), 'session': session, 'files': copied}
 
 
+def member_libraries(config, workspace):
+    """A team session reads the skills each of its robots learned in that robot's own sessions: the files of each
+    robot's library under .agents/robots/<robot>/skill-library/ (replaced at every launch)."""
+    from services import skill_library
+    from services.workspace.setup import ROBOT_FACTS
+    copied = {}
+    for member, robot in ROBOT_FACTS[config.robot].get('members', {}).items():
+        copied[member] = skill_library.reference(config, robot, workspace/'.agents'/'robots'/member/'skill-library')
+    return copied
+
+
 def populate_workspace(config, workspace, *, gemini=True):
     """Template, skills, TASK.md and the contract for a new agent workspace."""
     from services.workspace import Setup, build, recipe_for
@@ -251,7 +265,9 @@ def populate_workspace(config, workspace, *, gemini=True):
         # cross-robot: experience from another robot keeps the task layer and sets the body layer aside
         from services import embodiment
         src_robot = embodiment.source_robot(config.experience_from)
-        if src_robot and src_robot != config.robot:
+        from services.workspace.setup import ROBOT_FACTS
+        # a team that has the source robot keeps its body knowledge: that robot is still in the session
+        if src_robot and src_robot != config.robot and src_robot not in ROBOT_FACTS[config.robot].get('members', {}).values():
             experience['cross'] = embodiment.prepare_cross(
                 workspace, experience['session'], config.experience_from, src_robot, config.robot)
     model = robot_model_dir(config)
@@ -272,6 +288,7 @@ def populate_workspace(config, workspace, *, gemini=True):
     (workspace/'.claude/skills').symlink_to('../.agents/skills', target_is_directory=True)
     from services import skill_library  # the persistent, agent-written task skills (separate from .agents/skills)
     built['skill_library'] = skill_library.checkout(config, workspace)
+    built['member_libraries'] = member_libraries(config, workspace)
     built['experience'] = experience
     return built
 
@@ -352,10 +369,15 @@ def refresh_harness(config, deployed):
         fresh.mkdir()
         from services.workspace import Setup, build, recipe_for
         build(recipe_for(), Setup.from_config(config, gemini=gemini), fresh)
-        for name in HARNESS_OWNED:
+        from services.workspace.build import MEMBER_SKILLS
+        from services.workspace.setup import ROBOT_FACTS
+        # a team's workspace also holds each robot's own skills (harness-owned too)
+        owned = [*HARNESS_OWNED, *(MEMBER_SKILLS.format(member=member) for member in ROBOT_FACTS[config.robot].get('members', {}))]
+        for name in owned:
             source, target = fresh/name, workspace/name
             if not source.exists():
                 continue
+            target.parent.mkdir(parents=True, exist_ok=True)
             if target.is_dir() and not target.is_symlink():
                 shutil.rmtree(target)
             elif target.exists() or target.is_symlink():
@@ -372,7 +394,8 @@ def refresh_harness(config, deployed):
     if not (workspace/'skill-library'/'.git').is_dir():
         from services import skill_library
         skill_library.checkout(config, workspace)
-    return [*HARNESS_OWNED, 'settings.json', 'model-relay.json']
+    member_libraries(config, workspace)
+    return [*owned, 'settings.json', 'model-relay.json']
 
 
 def redeploy(config, claude=None):

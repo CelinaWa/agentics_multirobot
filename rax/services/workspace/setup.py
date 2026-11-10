@@ -191,6 +191,60 @@ ROBOT_FACTS = {
              'stream': None, 'look_around': None, 'safety': (), 'first_reads': (), 'model_dir': None, 'read_tools': ('mock_observe',),
              'model_note': None},
 }
+def _team(name, body, members, labels):
+    """Facts of a team backend (services/team): its robots' own facts side by side, and the team tools on top.
+    members: robot name in the team -> its ROBOT_FACTS key; labels: robot name -> how the text names it."""
+    from services.team.tools import READ_TOOLS, TEAM_TOOLS
+    facts = {member: ROBOT_FACTS[key] for member, key in members.items()}
+    either = lambda field: '` / `'.join(f[field] for f in facts.values())  # noqa: E731  inside backticks in the sources
+    first = next(iter(facts.values()))
+    prefixes = ', '.join(f"`{f['status'].split('_')[0]}_*`" for f in facts.values())
+    return {
+        'name': name, 'members': dict(members), 'status': 'team_status', 'observe': 'team_observe',
+        'move': either('move'), 'gripper': either('gripper'), 'pixel': either('pixel'), 'move_joints': either('move_joints'),
+        'tools': (*TEAM_TOOLS, *(tool for f in facts.values() for tool in f['tools'])),
+        'read_tools': (*READ_TOOLS, *(tool for f in facts.values() for tool in f['read_tools'])),
+        'overview_camera': first['overview_camera'],
+        'overview': '; '.join(f"{labels[m]}: {f['overview']}" for m, f in facts.items()),
+        'cameras': tuple(camera for f in facts.values() for camera in f['cameras']),
+        'body': body, 'tracking_skill': 'robot-interface',
+        'neutral': '; '.join(f"{labels[m]}: {f['neutral']}" for m, f in facts.items()),
+        'motion_example': first['motion_example'],
+        'grasp_example': first['grasp_example'],
+        'stream': None,
+        'look_around': 'use the robot whose camera can see there: each robot looks around in its own way, described in '
+                       'its own `robot-interface` under `.agents/robots/`; `team_observe` gives both views at once',
+        'model_dir': None, 'model_note': None,
+        'first_reads': (
+            ('robot-interface', 'the team tools (calls on both robots at once, the shared stop, the team frame), what '
+                                'they guarantee and what they do not, and where each robot\'s own interface and '
+                                'motion skills are'),
+            ('multi-robot-task', 'how to split a task between the robots, the kinds of dependence between subtasks, '
+                                 'how to explore each kind, and how to read a failure of the whole task'),
+        ),
+        'safety': (
+            '**One arming, one stop.** The operator arms and disarms both robots together. A fault that disarms one '
+            'robot (a fall, a robot stepping by itself) stops the other too. `team_stop` stops every running call '
+            'where it is, each robot holding its last command, and leaves the session armed. After a disarm for a '
+            'fault make no motion with either robot: call `request_operator` (kind `help`) and wait.',
+            '**The robots do not see each other.** Neither backend knows where the other robot or its arms are. The '
+            'team frame is dead reckoning from the walks the robots report, and its separation check covers the '
+            'bodies during walks only. Before one robot reaches or walks into space the other may occupy, look '
+            '(`team_observe`), and correct the frame from what you see (`team_set_pose`).',
+            '**One robot\'s numbers are not the other\'s.** Joint angles, reach, hand shapes, gaits and stances '
+            f"belong to one body. Use each robot's own tools ({prefixes}) and its own "
+            'skills; a tool refuses arguments outside its own robot\'s limits.',
+            *(f'{labels[m]}: {rule}' for m, f in facts.items() for rule in f['safety']),
+        )}
+
+
+ROBOT_FACTS['g1r1'] = _team(
+    'Unitree G1 and Unitree R1 team',
+    'of two humanoids** (a Unitree G1 with two three-finger Dex3 hands and a Unitree R1 with two PiPER parallel '
+    'grippers, each balanced by its own frozen SONIC whole-body controller) that work on one task in one workspace, '
+    'each through its own tools and both through the team tools',
+    {'g1': 'g1sonic', 'r1': 'r1sonic'}, {'g1': 'G1', 'r1': 'R1'})
+
 CLIS = ('claude',)
 # What the operator's demonstration images show: the completed task, or a sequence completing it.
 DEMONSTRATION_KINDS = ('terminal_state', 'completion_sequence')

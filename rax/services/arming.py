@@ -7,15 +7,53 @@ motion within one servo period.
 import json
 import os
 from pathlib import Path
+import threading
 import time
+
+# Holds the robot service places on itself (services/team): while one is set, read() reports the session as not
+# armed, so every running motion stops within one tick and holds, the way it does for an operator disarm. A hold never
+# arms anything and never touches the operator's file; it lives in this process and ends with release().
+_HOLDS = {}
+_HOLDS_LOCK = threading.Lock()
 
 
 def arm_file(session_root):
     return Path(session_root)/'operator'/'armed.json'
 
 
-def read(session_root, now=None):
-    """{'armed': bool, ...}; expired or unreadable arming counts as disarmed."""
+def hold(session_root, key, reason):
+    """Stop and refuse motion in this process until release(session_root, key)."""
+    with _HOLDS_LOCK:
+        _HOLDS.setdefault(str(Path(session_root)), {})[key] = str(reason)
+
+
+def release(session_root, key):
+    with _HOLDS_LOCK:
+        reasons = _HOLDS.get(str(Path(session_root)), {})
+        reasons.pop(key, None)
+        if not reasons:
+            _HOLDS.pop(str(Path(session_root)), None)
+
+
+def held(session_root):
+    """{key: reason} of the holds now set on this session by this process."""
+    with _HOLDS_LOCK:
+        return dict(_HOLDS.get(str(Path(session_root)), {}))
+
+
+def read(session_root, now=None, holds=True):
+    """{'armed': bool, ...}; expired or unreadable arming counts as disarmed. holds=False reads the operator's file
+    alone, without this process's own holds."""
+    state = _read_file(session_root, now)
+    if holds and state['armed']:
+        reasons = held(session_root)
+        if reasons:
+            return {'armed': False, 'held': True,
+                    'reason': 'held by the robot service: ' + '; '.join(reasons.values())}
+    return state
+
+
+def _read_file(session_root, now=None):
     path = arm_file(session_root)
     try:
         value = json.loads(path.read_text())

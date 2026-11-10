@@ -112,3 +112,40 @@ def test_agents_md_links_the_rby1_limits_and_posture_skills(tmp_path):
         assert f'.agents/skills/{skill}/SKILL.md' in links
     for tool in ('rby1_fk', 'rby1_check'):
         assert tool in (workspace/'.agents/skills/robot-interface/SKILL.md').read_text()
+
+
+@pytest.mark.parametrize('profile', ['rgbd', 'rgb-only'])
+def test_a_team_workspace_keeps_each_robots_own_skills_apart(tmp_path, profile):
+    workspace = tmp_path/'ws'
+    build(recipe_for(), Setup('g1r1', 'carry_box', 'claude', profile, environment='sim'), workspace)
+    shared, robots = workspace/'.agents/skills', workspace/'.agents/robots'
+    assert {'robot-interface', 'multi-robot-task', 'object-localization', 'manual-robot-control', *METHOD_SKILLS} <= {
+        p.name for p in shared.iterdir()}
+    team = (shared/'robot-interface/SKILL.md').read_text()
+    assert 'team_parallel' in team and 'semantic40' not in team             # the team's interface, not one robot's
+    g1 = (robots/'g1/skills/robot-interface/SKILL.md').read_text()
+    r1 = (robots/'r1/skills/robot-interface/SKILL.md').read_text()
+    assert 'semantic40' in g1 and 'PiPER' in r1 and 'PiPER' not in g1
+    assert '.agents/skills/' not in g1                                     # its paths name its own folder
+    assert ('.agents/robots/g1/skills/robot-interface/scripts/g1_model.py' in g1) == (profile == 'rgbd')
+    assert (robots/'g1/skills/controller-field-guide/SKILL.md').is_file()
+    assert (robots/'r1/skills/object-localization').is_dir() == (profile == 'rgbd')
+    for path in workspace.rglob('*.md'):
+        text = path.read_text()
+        assert '{{' not in text and '{%' not in text, path
+        for link in re.findall(r'\]\(([^)#\s]+\.md)\)', text):
+            if link.startswith('http') or '<' in link:
+                continue
+            target = workspace/link if link.startswith('.agents') else path.parent/link
+            assert target.exists(), (path, link)                            # every link resolves, across the folders
+    contract = json.loads((workspace/'MCP_CONTRACT.json').read_text())
+    assert contract['robot'] == 'g1r1' and {'team_parallel', 'team_stop', 'g1_walk', 'r1_move_hand'} <= set(contract['tools'])
+    agents = (workspace/'AGENTS.md').read_text()
+    assert 'One arming, one stop' in agents and 'G1: **Arming, hold and stop.**' in agents and 'R1: **Arming and hold.**' in agents
+    assert '[multi-robot-task](.agents/skills/multi-robot-task/SKILL.md)' in agents
+
+
+def test_single_robot_workspaces_have_no_team_folders(tmp_path):
+    build(recipe_for(), Setup('g1sonic', 'tidy_table'), tmp_path/'ws')
+    assert not (tmp_path/'ws/.agents/robots').exists()
+    assert not (tmp_path/'ws/.agents/skills/multi-robot-task').exists()

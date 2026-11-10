@@ -13,6 +13,9 @@ owner) and implements:
 Optional: ``mutating`` (set of tool names that can move hardware; a failure in one
 marks control uncertain) and ``validate(name, arguments)`` (raise before any motion).
 
+A team backend (services/team) holds one backend per robot and is itself a backend: the robots keep their own
+tools, and the team adds calls that run on several robots at once, a shared stop and a shared frame.
+
 A robot may also register read-only telemetry for the operator dashboard: a class whose
 ``snapshot()`` returns a JSON-safe dict with ``kind`` and ``ok``. It must never command
 the robot, since it runs next to a session's backend.
@@ -24,6 +27,7 @@ BACKENDS = {
     'rby1': 'services.rby1.backend:Rby1Backend',
     'g1sonic': 'services.g1sonic.backend:G1SonicBackend',
     'r1sonic': 'services.r1sonic.backend:R1SonicBackend',
+    'g1r1': 'services.team.backend:G1R1Backend',   # the G1 and the R1 as one team under one agent
     'mock': 'services.mock_backend:MockBackend',
 }
 
