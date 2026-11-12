@@ -184,7 +184,17 @@ class Brain(S.Sim):
         return meta, rgb, depth
 
     def _reset_robot(self):
-        raise RuntimeError('reset is not available in the two-robot world: restart the simulation')
+        """The stack protocol's `reset`, here: the operator moved the standing R1 by hand (office_sim's place key). Its
+        reference frame starts again from where it now stands, on the default stance, arms where they are."""
+        d = self.real
+        self.root_pos = d.qpos[self.root_q:self.root_q + 3].copy()
+        self.root_quat = wxyz(Rotation.from_euler('z', rot(d.qpos[self.root_q + 3:self.root_q + 7]).as_euler('ZYX')[0]))
+        grip, head = self.row[21:23].copy(), self.row[23]
+        self.queue = []
+        self.row = self.measured_row()[:S.ROW]
+        self.row[21:23], self.row[23] = grip, head
+        self.walking = 0
+        self.resets += 1
 
     def save_gt(self):
         pass

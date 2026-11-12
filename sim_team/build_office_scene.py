@@ -38,7 +38,7 @@ LAYOUT = {
     'desk': {'pos': [1.50, -0.05], 'size': [1.50, 0.75, 0.76], 'top': 0.03},   # far end about 1.2 m short of the fridge
     'chair': {'pos': [1.50, 0.42], 'yaw_deg': -90.0},                      # visitor chair pushed in on the desk's left side, between desk and shelves
     # the moving box (Bankers Box SmoothMove, open top): outer length, width, height; wall thickness; total mass
-    'box': {'size': [0.41, 0.31, 0.26], 'wall': 0.006, 'mass': 1.2},
+    'box': {'size': [0.41, 0.31, 0.26], 'wall': 0.006, 'mass': 1.2},      # plain walls: no hand holes
     # the low table the box may start on (--table): a top just larger than the box, so the robots can stand close
     'table': {'size': [0.47, 0.40], 'top': 0.03},
     'goal': {'pos': [2.85, 0.70]},                     # on the floor beside the trash bin

@@ -31,6 +31,23 @@ def standing(ctx):
         return False
 
 
+def replace_robots(ctx, keys, layout):
+    """Carry both standing robots back to where they started (a person would walk them there): the G1 keeps its
+    heading, the R1 is turned to face the box again and its controller's reference frame restarts from there."""
+    import math
+    import numpy as np
+    sub = ctx.socket(zmq.SUB); sub.setsockopt(zmq.SUBSCRIBE, b''); sub.setsockopt(zmq.RCVTIMEO, 3000); sub.connect('tcp://127.0.0.1:5792')
+    qpos = np.frombuffer(sub.recv(), dtype=np.float64); sub.close()
+    g1, r1 = layout['robots']['g1'], layout['robots']['r1']
+    keys.send_string(f"place=pelvis,{g1['pos'][0]},{g1['pos'][1]},{qpos[2]}"); time.sleep(0.3)
+    h = math.radians(r1['yaw_deg']) / 2
+    r1z = qpos[57 + 2]                                      # the R1's root follows the G1 (50) and the box (7) in qpos
+    keys.send_string(f"place=r1_pelvis,{r1['pos'][0]},{r1['pos'][1]},{r1z},{math.cos(h)},0,0,{math.sin(h)}"); time.sleep(0.1)
+    sock = ctx.socket(zmq.REQ); sock.setsockopt(zmq.LINGER, 0); sock.setsockopt(zmq.RCVTIMEO, 3000); sock.connect('tcp://127.0.0.1:5791')
+    sock.send(json.dumps({'op': 'reset'}).encode()); sock.recv(); sock.close()
+    time.sleep(3.0)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
     ap.add_argument('--session', type=Path, required=True)
@@ -65,8 +82,14 @@ def main():
                 h = math.radians(yaw) / 2
                 keys.send_string(f'place=box,{bx},{by},{bz},{math.cos(h)},0,0,{math.sin(h)}'); time.sleep(2.0)
                 resets += 1
-                text = (f'Reset {resets}/{a.max_resets}: the box is back at its starting place, upright. '
-                        'The robots were not moved: they stand where you left them. Observe before acting.')
+                moved = ''
+                if 'robot' in request['message'].lower() and standing(ctx):
+                    replace_robots(ctx, keys, layout)
+                    moved = (' Both robots are back at their starting places, facing the box, standing as they stood '
+                             '(arms and legs as you left them). Their poses in the team frame are stale: set them again.')
+                text = (f'Reset {resets}/{a.max_resets}: the box is back at its starting place, upright.'
+                        + (moved or ' The robots were not moved (ask for the robots too if you want them put back).')
+                        + ' Observe before acting.')
             elif request['kind'] == 'reset':
                 text = 'No resets are left in this session.'
             elif not arming.read(a.session, holds=False)['armed'] and standing(ctx):
