@@ -1,0 +1,6 @@
+{
+  "g1": {"zmq_host": "127.0.0.1", "pose_port": 5796, "state_host": "127.0.0.1", "state_port": 5797,
+         "camera": "network", "camera_host": "127.0.0.1", "camera_port": 7796},
+  "r1": {"stack_host": "127.0.0.1", "stack_port": 5791},
+  "team": {"start_poses": {"g1": [-0.225, -1.05, 0.0], "r1": [1.025, -1.05, 180.0]}}
+}
