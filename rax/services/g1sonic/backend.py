@@ -224,6 +224,10 @@ class G1SonicBackend:
         elif name == T.FREE_SPACE_MOVE:
             self._require_armed(start=False) if not arguments.get('preview_only') else self._snapshot()
         elif name == T.WALK:
+            if not self.options['walk_any_direction'] and (float(arguments.get('forward_m', 0.0)) < 0
+                                                           or abs(float(arguments.get('left_m', 0.0))) > 1e-6):
+                raise ValueError('g1_walk: backward and sideways walking are not enabled in this session '
+                                 '(forward_m >= 0 only, no left_m)')
             self._require_armed(start=False)
         elif name == T.CROUCH:
             self._require_armed(start=False)

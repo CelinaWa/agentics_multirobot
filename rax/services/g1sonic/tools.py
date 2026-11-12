@@ -22,7 +22,9 @@ CROUCH = "g1_crouch"
 ROBOT_TOOLS = (STATUS, OBSERVE, STEP, FREE_SPACE_MOVE, EXECUTE_PLAN, PIXEL_TO_POSITION, HOLD, WALK, HAND_SHAPE, CROUCH)
 GEOMETRY_TOOLS = frozenset({PIXEL_TO_POSITION})
 MUTATING = frozenset({STEP, FREE_SPACE_MOVE, EXECUTE_PLAN, WALK, CROUCH})
-WALK_LIMITS = {"forward_m": (0.0, 3.0), "turn_deg": (-45.0, 45.0), "speed_mps": (0.1, 0.6), "carry_press_rad": (0.0, 0.4)}
+# (backward and sideways only where the backend runs with walk_any_direction: the backend refuses them otherwise)
+WALK_LIMITS = {"forward_m": (-1.0, 3.0), "left_m": (-1.0, 1.0), "turn_deg": (-45.0, 45.0), "speed_mps": (0.1, 0.6),
+               "carry_press_rad": (0.0, 0.4)}
 WALK_FLAGS = ("carry",)
 # g1_crouch: pelvis drop below the standing height -> knee flexion added to the default stance (rad), with the
 # ankle pitched down by half of it (to its -0.5 rad margin) and the hip taking the rest, so the torso stays
@@ -108,10 +110,12 @@ def tool_definitions(geometry=True):
             "much further inward than measured (start from the press your squeeze commanded past contact). If the robot is still stepping "
             "a few seconds after the walk, the planner keeps balancing it (safe) and the reply's feedback.control says so: "
             "call g1_hold, which tries for about 20 s to bring it to rest and take over (then re-observe: the robot "
-            "moved); if it reports the robot still stepping, ask the operator instead of polling. Needs operator "
+            "moved); if it reports the robot still stepping, ask the operator instead of polling. Backward (forward_m < 0) and sideways (left_m) "
+            "movement, facing kept, works only where the operator enabled it for the session; elsewhere it is refused. Needs operator "
             "arming; a disarm, a stale link or a large tilt stops the walk and the robot stands."),
          "inputSchema": {"type": "object", "additionalProperties": False, "properties": {
-             "forward_m": {"type": "number", "minimum": 0.0, "maximum": 3.0},
+             "forward_m": {"type": "number", "minimum": -1.0, "maximum": 3.0},
+             "left_m": {"type": "number", "minimum": -1.0, "maximum": 1.0},
              "turn_deg": {"type": "number", "minimum": -45, "maximum": 45},
              "speed_mps": {"type": "number", "minimum": 0.1, "maximum": 0.6},
              "carry": {"type": "boolean", "default": False},
@@ -229,8 +233,8 @@ def validate_request(name, arguments):
             if key in arguments:
                 _finite(arguments[key], key)
                 reject_unless(low <= float(arguments[key]) <= high, f"{key} must be in [{low:g}, {high:g}]")
-        reject_unless(any(abs(float(arguments.get(k, 0.0))) > 1e-6 for k in ("forward_m", "turn_deg")),
-                      "g1_walk needs a nonzero forward_m or turn_deg")
+        reject_unless(any(abs(float(arguments.get(k, 0.0))) > 1e-6 for k in ("forward_m", "left_m", "turn_deg")),
+                      "g1_walk needs a nonzero forward_m, left_m or turn_deg")
     elif name == CROUCH:
         _only(arguments, tuple(CROUCH_LIMITS) + CROUCH_FLAGS)
         reject_unless(type(arguments.get("arms_home", True)) is bool, "arms_home must be a boolean")

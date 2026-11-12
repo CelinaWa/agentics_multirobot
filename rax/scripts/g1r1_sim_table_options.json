@@ -7,7 +7,8 @@
     "camera": "network",
     "camera_host": "127.0.0.1",
     "camera_port": 7796,
-    "runaway_m": 0.4
+    "runaway_m": 0.4,
+    "walk_any_direction": true
   },
   "r1": {
     "stack_host": "127.0.0.1",

@@ -613,8 +613,8 @@ def test_walk_drives_sonics_planner_then_holds_the_measured_pose_in_streamed_mot
             backend.validate(T.WALK, {'turn_deg': 60})  # large turns go in several calls
         with pytest.raises(ValueError, match='forward_m'):
             backend.validate(T.WALK, {'forward_m': -0.3})  # the planner walks forward only
-        with pytest.raises(ValueError, match='Unknown arguments'):
-            backend.validate(T.WALK, {'left_m': 0.3})
+        with pytest.raises(ValueError, match='not enabled'):
+            backend.validate(T.WALK, {'left_m': 0.3})  # sideways only where the session enables it
         before = backend.step_id
         value, _ = backend.call(T.WALK, {'forward_m': 0.1, 'turn_deg': 30, 'speed_mps': 0.5})
         fb = value['transition']['feedback']
@@ -680,6 +680,25 @@ def test_a_carrying_walk_presses_the_shoulder_rolls_inward_by_carry_press_rad(se
         assert sent[right] == pytest.approx(measured[right] + 0.2, abs=0.05)
         others = [k for k in range(len(names)) if k not in (left, right)]
         assert np.allclose(sent[others], measured[others], atol=0.05)
+    finally:
+        backend.close()
+
+
+def test_backward_and_sideways_walks_are_refused_unless_the_session_enables_them(session, stack):
+    backend = make_backend(session, stack)
+    try:
+        start_control(backend, session)
+        for arguments in ({'forward_m': -0.3}, {'left_m': 0.2}):
+            with pytest.raises(ValueError, match='not enabled'):
+                backend.validate(T.WALK, arguments)
+    finally:
+        backend.close()
+    backend = make_backend(session, stack, walk_any_direction=True)
+    try:
+        start_control(backend, session)
+        backend.validate(T.WALK, {'forward_m': -0.3, 'carry': True, 'carry_press_rad': 0.2})
+        with pytest.raises(ValueError, match='forward_m'):
+            backend.validate(T.WALK, {'forward_m': -1.5})
     finally:
         backend.close()
 
