@@ -104,8 +104,12 @@ def build(out, box_xy, box_yaw, table_height=0.0):
     bl = L['box']['size'][0]
     c, sn = math.cos(math.radians(box_yaw)), math.sin(math.radians(box_yaw))
     stand = (L['table']['size'][0] / 2 + 0.27) if table_height > 0 else (bl / 2 + 0.42)
-    poses = {'g1': ([box_xy[0] - stand * c, box_xy[1] - stand * sn, 0], box_yaw),
-             'r1': ([box_xy[0] + stand * c, box_xy[1] + stand * sn, 0], box_yaw + 180)}
+    # at the table each robot stands where its own reach was measured to fit (sessions 5-7): the G1's clean lifts had the
+    # box centre 0.44-0.48 m ahead of the crouched pelvis (its crouch slides it back ~5 cm), the R1's side-wall pinch
+    # reaches 0.38-0.43 m ahead at rim height
+    g1_stand, r1_stand = (0.42, 0.41) if table_height > 0 else (stand, stand)
+    poses = {'g1': ([box_xy[0] - g1_stand * c, box_xy[1] - g1_stand * sn, 0], box_yaw),
+             'r1': ([box_xy[0] + r1_stand * c, box_xy[1] + r1_stand * sn, 0], box_yaw + 180)}
     pelvis = s.body('pelvis')                      # the G1 where it starts (start the simulator with the same --spawn)
     pelvis.pos = [poses['g1'][0][0], poses['g1'][0][1], pelvis.pos[2]]
     pelvis.quat = quat_z(poses['g1'][1])
