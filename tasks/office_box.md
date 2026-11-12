@@ -27,13 +27,16 @@ was knocked over. A green patch on the floor marks the spot.
 
 - Nobody has done this before. This session is the first exploration: finding out which parts are feasible is the
   result, as much as doing the whole task.
-- Standing with straight legs, neither robot's hands reach the rim of a box on the floor (the rim is 0.26 m high).
-  The G1 can crouch and lean (`g1_crouch`). The R1 has no crouch: its hands reach down to about 0.75 m in front of it.
-  How the box gets from the floor into both robots' hands is yours to find; the G1 lifting it first to a height the
-  R1 can reach is one candidate. If no way exists with these robots, establish that with evidence and say so.
+- Standing with straight legs, neither robot's hands reach the rim of a box on the floor (the rim is 0.26 m high):
+  the G1's arms and the R1's grippers stop about half a metre above the floor. Both robots can bend their legs: the
+  G1 with `g1_crouch` or its own frames, the R1 through the leg reference of `r1_step`. How the box gets from the
+  floor into both robots' hands is yours to find. If no way exists with these robots, establish that with evidence.
 - The team tools start a group of calls together but do not keep the robots in step during a motion, and neither
   robot follows the force on the box. Walking while both hold the box is the least certain part.
 - Each robot's balance controller is a fixed learned policy; a pull through the box is a disturbance to it.
+
+Use the session: when one way of doing a step fails, record what you measured and try another way; one failed
+attempt is a data point, not the end. Stop early only when going on would put a robot at risk.
 
 Work in this order and report where it stops: (1) each robot alone gets a hold on a rim of the box at a height it can
 reach; (2) both hold the box at once and it stays level off the floor; (3) both move with it a short distance; (4) the

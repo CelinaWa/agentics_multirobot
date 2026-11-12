@@ -56,6 +56,8 @@ DEFAULTS = {
     # r1_step: the largest change of a joint reference between consecutive rows (one 50 Hz tick), and between the
     # current command and a call's first row
     'max_arm_step_rad': 0.12, 'max_leg_step_rad': 0.05, 'max_first_step_rad': 0.25,
+    'max_leg_offset_rad': None,       # operator's cap on how far r1_step may take a leg joint reference from the default
+                                      # stance (None: the joint limits only). Start small on the real robot.
     'no_walk': False,                 # the robot is placed at the table: r1_walk and r1_carry_release are refused
 }
 
@@ -618,6 +620,13 @@ class R1SonicBackend:
             if bad.size:
                 raise RejectedBeforeAction(f'{name} = {values[bad[0], k]:.3f} rad in row {int(bad[0])} is outside its limits '
                                            f'[{low:.3f}, {high:.3f}] (the joint range minus a {margin:g} rad margin)')
+            cap = o['max_leg_offset_rad']
+            if cap is not None and name in T.LEGS:
+                away = np.abs(values[:, k] - T.DEFAULT_LEGS[name])
+                if away.max() > cap:
+                    raise RejectedBeforeAction(f'{name} goes {away.max():.3f} rad from its default stance value '
+                                               f'{T.DEFAULT_LEGS[name]:g} in row {int(away.argmax())}; the operator allows '
+                                               f'{cap:g} rad in this session (backend option max_leg_offset_rad)')
             jump = abs(values[0, k] - current[name])
             if jump > o['max_first_step_rad']:
                 raise RejectedBeforeAction(f"the first row puts {name} at {values[0, k]:.3f} rad, {jump:.3f} from its current "
@@ -806,7 +815,8 @@ class R1SonicBackend:
                  'stack': {'endpoint': self.stack.endpoint, 'requests': self.stack.requests, 'failures': self.stack.failures},
                  'commandable_joints': list(T.UPPER),
                  'limits': {k: o[k] for k in ('joint_limit_margin_rad', 'max_ik_error_m', 'max_servo_correction_m',
-                                              'max_steps_per_motion', 'fall_tilt_deg')},
+                                              'max_steps_per_motion', 'fall_tilt_deg', 'max_arm_step_rad',
+                                              'max_leg_step_rad', 'max_first_step_rad', 'max_leg_offset_rad')},
                  'leg_joints': list(T.LEGS),     # the lower-body reference r1_step takes
                  'joint_limits_rad': {n: [round(self.kin.lower[n], 4), round(self.kin.upper[n], 4)] for n in T.UPPER + T.LEGS},
                  'command': self._command_report(), 'step_id': self.step_id, 'last_feedback': self.last_feedback,

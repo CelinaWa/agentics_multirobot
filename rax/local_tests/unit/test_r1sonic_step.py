@@ -104,3 +104,13 @@ def test_limits_and_jumps_are_refused_before_anything_is_sent(backend):
     arming.write(backend.config.root, False)
     with pytest.raises(PermissionError):
         backend.validate(T.STEP, {'joints': ['left_knee_joint'], 'rows': [[0.31]]})
+
+
+def test_the_operator_can_cap_how_far_the_legs_leave_the_stance(backend):
+    backend.options['max_leg_offset_rad'] = 0.2
+    names, rows = crouch(0.6)
+    with pytest.raises(RejectedBeforeAction, match='the operator allows 0.2 rad'):
+        backend.validate(T.STEP, {'joints': names, 'rows': rows})
+    names, rows = crouch(0.2)
+    backend.validate(T.STEP, {'joints': names, 'rows': rows})
+    assert backend.status()['limits']['max_leg_offset_rad'] == 0.2
