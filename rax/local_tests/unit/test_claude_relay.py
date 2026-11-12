@@ -419,3 +419,33 @@ def test_a_stalled_stream_is_given_up_quickly(tmp_path, monkeypatch, before_head
         router.close()
         upstream.shutdown()
         upstream.server_close()
+
+
+def test_an_agent_that_ends_its_turn_early_is_continued_while_time_is_left(tmp_path, monkeypatch):
+    from harness.claude_cli import launcher as claude
+    monkeypatch.setattr(claude, 'latest_claude_session', lambda home: 'conv')
+    relay, runs, notes, deployed = FakeRelay(), [], [], {'claude_home': tmp_path}
+    def run(prompt, remaining):
+        runs.append(prompt)
+        return 0
+    code = claude.until_usage_resets(run, relay, deployed=deployed, prompt='go', budget=5400, interactive=False,
+                                     min_turn_seconds=0, on_continue=lambda count, remaining: notes.append(count),
+                                     sleep=lambda s: pytest.fail('waited'))
+    assert code == 0 and len(runs) == claude.MAX_CONTINUES + 1 and runs[0] == 'go'
+    assert runs[1].startswith('You ended your turn, but the session is not over: about 89 minutes')
+    assert deployed['resume_session'] == 'conv' and notes[:2] == [1, 2]
+
+
+@pytest.mark.parametrize('case', ['little time left', 'turn ended at once', 'agent failed', 'single turn'])
+def test_no_continuation_without_reason(tmp_path, monkeypatch, case):
+    from harness.claude_cli import launcher as claude
+    monkeypatch.setattr(claude, 'latest_claude_session', lambda home: 'conv')
+    runs = []
+    def run(prompt, remaining):
+        runs.append(prompt)
+        return 1 if case == 'agent failed' else 0
+    claude.until_usage_resets(run, FakeRelay(), deployed={'claude_home': tmp_path}, prompt='go', interactive=False,
+                              budget=300 if case == 'little time left' else 5400,
+                              min_turn_seconds=60 if case == 'turn ended at once' else 0,
+                              keep_going=case != 'single turn')
+    assert runs == ['go']

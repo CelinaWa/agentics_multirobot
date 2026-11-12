@@ -39,6 +39,7 @@ def main():
     a = ap.parse_args()
     layout = json.loads((SIM / 'scene' / 'layout.json').read_text())
     (bx, by), yaw = layout['box_start']['pos'], layout['box_start']['yaw_deg']
+    bz = layout['box_start'].get('z', 0.0) + 0.01      # on the floor, or on the low table it starts on
     ctx = zmq.Context.instance()
     keys = ctx.socket(zmq.PUB); keys.bind(f'tcp://127.0.0.1:{KEYS}'); time.sleep(0.6)
     arming.write(a.session, True, minutes=a.minutes, by='sim operator')
@@ -62,9 +63,9 @@ def main():
             if request['kind'] == 'reset' and resets < a.max_resets:
                 import math
                 h = math.radians(yaw) / 2
-                keys.send_string(f'place=box,{bx},{by},0.01,{math.cos(h)},0,0,{math.sin(h)}'); time.sleep(2.0)
+                keys.send_string(f'place=box,{bx},{by},{bz},{math.cos(h)},0,0,{math.sin(h)}'); time.sleep(2.0)
                 resets += 1
-                text = (f'Reset {resets}/{a.max_resets}: the box is back at its starting place on the floor, upright and empty-handed. '
+                text = (f'Reset {resets}/{a.max_resets}: the box is back at its starting place, upright. '
                         'The robots were not moved: they stand where you left them. Observe before acting.')
             elif request['kind'] == 'reset':
                 text = 'No resets are left in this session.'

@@ -1,0 +1,49 @@
+Two robots carry a box across an office: a Unitree G1 (Dex3 hands) and a Unitree R1 (PiPER grippers). Both robots
+are in the same room with the box, so they can touch the same box and each other.
+
+## The scene
+
+A room about 3.2 m wide and 4 m deep. Looking in from the open side: a wall on the left with a wire shelf and a wooden
+shelf; the back wall with, from the left corner, a white panel, a tall grey cabinet, a black drawer unit, a mini
+fridge with a flower on top, and a floor lamp; a black curtain on the right. A grey rug covers most of the floor. A
+wooden standing desk stands in the middle of the rug, lengthwise toward the back wall, with a chair pushed in on its
+left side. A black trash bin stands on the floor at the foot of the wooden shelf, in front of the white panel.
+
+The box is an open-top cardboard moving box, about 41 x 31 x 26 cm, about 1.2 kg, with thin walls: a robot can pinch
+the rim of a wall. It starts on a low table (about 0.45 m high, its top just larger than the box) near the open
+side of the room, on the right, between the robots: the G1 stands at one short end facing it, the R1 at the other short
+end facing it (and facing the G1). The rim of the box is about 0.71 m above the floor there.
+
+## The task
+
+Carry the box together, each robot holding one end by the rim (the R1 with its grippers, the G1 with its Dex3 hands),
+from where it starts, past the far end of the desk (between the desk and the fridge), to the floor beside the trash
+bin, and put it down there.
+
+Success: the box stands upright on the floor (tilted less than 20 degrees) with its centre within 0.35 m of the spot
+on the floor just in front of the trash bin, both robots are standing, and neither the bin, the chair nor anything else
+was knocked over. A green patch on the floor marks the spot.
+
+## What is known, and what is not
+
+- Nobody has done this before. This session is the first exploration: finding out which parts are feasible is the
+  result, as much as doing the whole task.
+- On the low table the rim is within both robots' reach while they stand. The put-down is on the floor: to lower
+  the box that far both robots have to bend their legs while holding it (the G1 with `g1_crouch` or its own frames,
+  the R1 through the leg reference of `r1_step`).
+- The team tools start a group of calls together but do not keep the robots in step during a motion, and neither
+  robot follows the force on the box. Walking while both hold the box is the least certain part.
+- Each robot's balance controller is a fixed learned policy; a pull through the box is a disturbance to it.
+
+Use the session: when one way of doing a step fails, record what you measured and try another way; one failed
+attempt is a data point, not the end. Stop early only when going on would put a robot at risk.
+
+Work in this order and report where it stops: (1) each robot alone gets a hold on a rim of the box on the table;
+(2) both hold the box at once and lift it level off the table; (3) both move with it a short distance; (4) the route
+and the put-down on the floor.
+
+## The operator
+
+The operator can put the box back at its starting place on the low table (`request_operator` kind `reset`); the robots are
+not moved by a reset. Do not count on other help: nobody holds the box or moves a robot for you. A robot that falls
+ends the session: protect the robots before the task.

@@ -2,7 +2,7 @@
 with the office from the reference videos (rug, desk, cabinet, drawer unit, mini fridge, lamp, curtain partition,
 shelves, trash bin) and the open-top moving box on the floor.
 
-  build_office_scene.py <out dir> [--box-x X --box-y Y --box-yaw DEG]
+  build_office_scene.py <out dir> [--box-x X --box-y Y --box-yaw DEG] [--table HEIGHT_M]
 
 Writes <out dir>/office_g1_r1.xml (one self-contained MJCF, absolute mesh paths) and <out dir>/layout.json.
 Dimensions are estimates from the videos (no tape measure yet): every number is in LAYOUT below, in metres, in the
@@ -39,6 +39,8 @@ LAYOUT = {
     'chair': {'pos': [1.50, 0.42], 'yaw_deg': -90.0},                      # visitor chair pushed in on the desk's left side, between desk and shelves
     # the moving box (Bankers Box SmoothMove, open top): outer length, width, height; wall thickness; total mass
     'box': {'size': [0.41, 0.31, 0.26], 'wall': 0.006, 'mass': 1.2},
+    # the low table the box may start on (--table): a top just larger than the box, so the robots can stand close
+    'table': {'size': [0.47, 0.40], 'top': 0.03},
     'goal': {'pos': [2.85, 0.70]},                     # on the floor beside the trash bin
 }
 GREY, DARK, WOOD, STEEL = [0.62, 0.64, 0.66, 1], [0.08, 0.08, 0.09, 1], [0.80, 0.62, 0.38, 1], [0.55, 0.57, 0.6, 1]
@@ -82,7 +84,7 @@ def chair(world, item):
         box_geom(body, f'chair_arm_post_{k}', [0.14, dy, 0.55], [0.025, 0.025, 0.20], frame)
 
 
-def build(out, box_xy, box_yaw):
+def build(out, box_xy, box_yaw, table_height=0.0):
     L = LAYOUT
     # The G1's own model is the base of the scene, so it comes first and keeps its names and defaults: the SONIC G1
     # simulator addresses it by name and by position (root = qpos[0:7], its motors = the first actuators).
@@ -101,7 +103,7 @@ def build(out, box_xy, box_yaw):
     # the robots stand at the two ends of the box, facing it: the G1 at end a, the R1 (attached last, behind r1_) at end b
     bl = L['box']['size'][0]
     c, sn = math.cos(math.radians(box_yaw)), math.sin(math.radians(box_yaw))
-    stand = bl / 2 + 0.42
+    stand = (L['table']['size'][0] / 2 + 0.27) if table_height > 0 else (bl / 2 + 0.42)
     poses = {'g1': ([box_xy[0] - stand * c, box_xy[1] - stand * sn, 0], box_yaw),
              'r1': ([box_xy[0] + stand * c, box_xy[1] + stand * sn, 0], box_yaw + 180)}
     pelvis = s.body('pelvis')                      # the G1 where it starts (start the simulator with the same --spawn)
@@ -159,7 +161,13 @@ def build(out, box_xy, box_yaw):
     box_geom(w, 'goal', [gx, gy, 0.003], [L['box']['size'][0] + 0.1, L['box']['size'][1] + 0.1, 0.002], [0.2, 0.8, 0.3, 0.5], contype=0, conaffinity=0)
     # the moving box: free body, bottom + four walls, rim edges are what the robots pinch
     bl, bw, bh = L['box']['size']; t = L['box']['wall']; mass = L['box']['mass']
-    box = w.add_body(name='box', pos=[box_xy[0], box_xy[1], 0.002], quat=quat_z(box_yaw))
+    if table_height > 0:      # a low table under the box: top on a centre column and a foot plate, fixed
+        tl, tw = L['table']['size']; tt = L['table']['top']
+        table = w.add_body(name='low_table', pos=[box_xy[0], box_xy[1], 0], quat=quat_z(box_yaw))
+        box_geom(table, 'low_table_top', [0, 0, table_height - tt / 2], [tl, tw, tt], WOOD, friction=[0.9, 0.01, 0.001])
+        box_geom(table, 'low_table_column', [0, 0, (table_height - tt) / 2], [0.10, 0.10, table_height - tt], GREY)
+        box_geom(table, 'low_table_foot', [0, 0, 0.01], [0.30, 0.30, 0.02], GREY)
+    box = w.add_body(name='box', pos=[box_xy[0], box_xy[1], table_height + 0.002], quat=quat_z(box_yaw))
     box.add_freejoint(name='box_free')
     card = dict(rgba=[0.78, 0.62, 0.42, 1], friction=[0.9, 0.01, 0.001], condim=4, solref=[0.01, 1])
     box_geom(box, 'box_bottom', [0, 0, t / 2], [bl, bw, t], mass=mass * 0.45, **card)       # contents ride on the bottom
@@ -173,7 +181,7 @@ def build(out, box_xy, box_yaw):
     model = s.compile()
     out = Path(out); out.mkdir(parents=True, exist_ok=True)
     (out / 'office_g1_r1.xml').write_text(s.to_xml())
-    layout = {**L, 'box_start': {'pos': list(box_xy), 'yaw_deg': box_yaw}, 'robots': {k: {'pos': v[0], 'yaw_deg': v[1]} for k, v in poses.items()}}
+    layout = {**L, 'box_start': {'pos': list(box_xy), 'yaw_deg': box_yaw, 'z': table_height}, 'robots': {k: {'pos': v[0], 'yaw_deg': v[1]} for k, v in poses.items()}}
     (out / 'layout.json').write_text(json.dumps(layout, indent=1))
     print('bodies', model.nbody, 'joints', model.njnt, 'nq', model.nq, 'actuators', model.nu, 'geoms', model.ngeom)
     return model
@@ -183,5 +191,7 @@ if __name__ == '__main__':
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('out'); ap.add_argument('--box-x', type=float, default=0.4); ap.add_argument('--box-y', type=float, default=-1.05)
     ap.add_argument('--box-yaw', type=float, default=0.0)
+    ap.add_argument('--table', type=float, default=0.0, metavar='HEIGHT_M',
+                    help='start the box on a low table of this height instead of on the floor (e.g. 0.45)')
     a = ap.parse_args()
-    build(a.out, (a.box_x, a.box_y), a.box_yaw)
+    build(a.out, (a.box_x, a.box_y), a.box_yaw, a.table)

@@ -91,6 +91,18 @@ RESUME_PROMPT = ("This session was interrupted and has now been resumed in the s
                  "status, and continue from the live state. Do not repeat finished work.")
 USAGE_PROMPT = ("The model usage limit paused this session until it reset. Call status, reread "
                 "memory/PROGRESS.md, and continue from the live state.")
+# A non-interactive agent that ends its turn ends its process. With session time left that is not the end of the
+# session: the launcher continues the same conversation with this prompt, until the time is nearly used up or the
+# agent ends a continued turn at once (it has nothing left that it can do).
+CONTINUE_PROMPT = ("You ended your turn, but the session is not over: about {minutes} minutes of its time are left, and "
+                   "the robot service is still running. Call status and observe: the scene and the arming may have "
+                   "changed while you wrote. If TASK.md's success condition is met and you have verified it, or if "
+                   "going on would put a robot at risk, say so in one line and end. Otherwise take the next untried "
+                   "item from your own notes (memory/PROGRESS.md, handoff/README.md) and keep working: a failed "
+                   "attempt is a measurement, not the end of the session. Keep your notes current as you go.")
+MIN_CONTINUE_SECONDS = 600   # less session time than this left: do not start another turn
+MIN_TURN_SECONDS = 120       # a continued turn shorter than this means the agent declined to go on
+MAX_CONTINUES = 20
 
 
 def claude_binary(path=None):
@@ -509,28 +521,44 @@ def watch(agent, model, timeout, *, stop_on_limit=True):
         time.sleep(1)
 
 
-def until_usage_resets(run, model, *, deployed, prompt, budget, interactive, on_wait=None, sleep=time.sleep):
-    """Run the agent. If the subscription usage window ran out during a run, wait for the reset
-    (off the session clock; the robot service and relay stay up), then continue the agent's own
-    conversation."""
-    began, waited, waits = time.monotonic(), 0.0, 0
+def until_usage_resets(run, model, *, deployed, prompt, budget, interactive, on_wait=None, sleep=time.sleep,
+                       keep_going=True, min_turn_seconds=MIN_TURN_SECONDS, on_continue=None):
+    """Run the agent for the session's time. If the subscription usage window ran out during a run, wait for the
+    reset (off the session clock; the robot service and relay stay up), then continue the agent's own conversation.
+    If a non-interactive agent ends its turn with session time left (keep_going), continue its conversation with
+    CONTINUE_PROMPT: one turn is not the session."""
+    began, waited, waits, continues = time.monotonic(), 0.0, 0, 0
     while True:
-        run_started = time.time()
+        run_started, turn_started = time.time(), time.monotonic()
         returncode = run(prompt, budget - (time.monotonic() - began - waited))
-        if interactive or model.limited_until <= run_started or waits >= MAX_USAGE_WAITS:
+        if interactive:
             return returncode
-        pause = max(0.0, model.limited_until + 60 - time.time())
-        if on_wait:
-            on_wait(model.limited_until, waited)
-        sleep(pause)
-        waited, waits = waited + pause, waits + 1
-        if on_wait:
-            on_wait(None, waited)
-        deployed['resume_session'] = latest_claude_session(deployed['claude_home'])
-        prompt = USAGE_PROMPT
+        if model.limited_until > run_started and waits < MAX_USAGE_WAITS:
+            pause = max(0.0, model.limited_until + 60 - time.time())
+            if on_wait:
+                on_wait(model.limited_until, waited)
+            sleep(pause)
+            waited, waits = waited + pause, waits + 1
+            if on_wait:
+                on_wait(None, waited)
+            deployed['resume_session'] = latest_claude_session(deployed['claude_home'])
+            prompt = USAGE_PROMPT
+            continue
+        remaining = budget - (time.monotonic() - began - waited)
+        turn = time.monotonic() - turn_started
+        if (keep_going and returncode == 0 and model.limited_until <= run_started and continues < MAX_CONTINUES
+                and remaining > MIN_CONTINUE_SECONDS and turn >= min_turn_seconds):
+            continues += 1
+            deployed['resume_session'] = latest_claude_session(deployed['claude_home'])
+            prompt = CONTINUE_PROMPT.format(minutes=int(remaining // 60))
+            if on_continue:
+                on_continue(continues, remaining)
+            continue
+        return returncode
 
 
-def launch(config, deployed, *, prompt, interactive=True, seconds=None, max_model_calls=None, on_wait=None):
+def launch(config, deployed, *, prompt, interactive=True, seconds=None, max_model_calls=None, on_wait=None,
+           keep_going=True, on_continue=None):
     """Start the relay and robot service, run Claude Code in the workspace, clean up."""
     relay_credential(deployed)  # Fail before starting anything.
     started_at = time.time()
@@ -549,7 +577,8 @@ def launch(config, deployed, *, prompt, interactive=True, seconds=None, max_mode
                 watch(agent, model, remaining, stop_on_limit=not interactive)
                 return agent.returncode
             return until_usage_resets(run, model, deployed=deployed, prompt=prompt, budget=budget,
-                                      interactive=interactive, on_wait=on_wait)
+                                      interactive=interactive, on_wait=on_wait, keep_going=keep_going,
+                                      on_continue=on_continue)
         finally:
             stop(agent)
             stop(server, grace=30)
@@ -592,6 +621,8 @@ def main():
     parser.add_argument('--exec-prompt', help='Run non-interactively with this prompt')
     parser.add_argument('--non-interactive', action='store_true', help='Run START_PROMPT.md without a terminal UI')
     parser.add_argument('--resume', action='store_true', help="Continue a stopped session's own conversation")
+    parser.add_argument('--single-turn', action='store_true',
+                        help='End the session when the agent ends its first turn (default: continue it while time is left)')
     args = parser.parse_args()
     config = Configuration.load(args.config)
     signal.signal(signal.SIGTERM, _interrupt)
@@ -642,8 +673,12 @@ def main():
                 write_private_json(record, lifecycle)
             lifecycle['status'] = 'running'
             write_private_json(record, lifecycle)
+            def continued(count, remaining):
+                lifecycle.update(status='running', continued_turns=count)
+                print(f'agent ended a turn with {int(remaining // 60)} min left: continuing its conversation (turn {count + 1})',
+                      file=sys.stderr, flush=True)
             returncode = launch(config, deployed, prompt=prompt, interactive=interactive, seconds=seconds,
-                                on_wait=usage_wait)
+                                on_wait=usage_wait, keep_going=not args.single_turn, on_continue=continued)
             lifecycle.update(status='exited', returncode=returncode)
             raise SystemExit(returncode)
         except KeyboardInterrupt:
