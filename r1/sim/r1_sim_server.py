@@ -228,7 +228,7 @@ class Sim:
                 j = m.body(b).jntadr[0]; a = m.jnt_qposadr[j]; v = m.jnt_dofadr[j]
                 d.qpos[a:a + 7] = q7; d.qvel[v:v + 6] = 0
         self.ticks += 1
-        if d.qpos[2] < 0.45 or self.tilt_deg() > 40:
+        if d.qpos[2] < 0.25 or self.tilt_deg() > 40:     # down: the pelvis near the floor, or tipped over (a crouch holds the pelvis at 0.43-0.48 m)
             self.fallen = True
         if self.gt_path and self.ticks % 5 == 0:
             self.gt.append(np.r_[d.time, d.qpos])

@@ -349,7 +349,9 @@ class R1SonicBackend:
             widths = s0.get('gripper_width_m') or {}
             self.grip = {a: (0.07 if widths.get(a, 0.07) > 0.05 else float(widths.get(a, 0.07))) for a in self.grip}
             self.correction = {a: np.zeros(3) for a in T.ARMS}
-            self.legs = None
+            if first or (resets is not None and self._stack_resets is not None and resets != self._stack_resets):
+                self.legs = None       # a reset put the robot back on its stance; a crouched robot whose arms drifted from
+                                       # their command keeps its leg reference (dropping it stood the robot up mid-move)
             self._event('command state re-synced to the measured pose', resets=resets, deviation_rad=round(deviation, 3),
                         first_motion=first)
         self._stack_resets = resets

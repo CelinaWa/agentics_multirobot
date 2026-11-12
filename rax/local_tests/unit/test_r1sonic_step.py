@@ -114,3 +114,13 @@ def test_the_operator_can_cap_how_far_the_legs_leave_the_stance(backend):
     names, rows = crouch(0.2)
     backend.validate(T.STEP, {'joints': names, 'rows': rows})
     assert backend.status()['limits']['max_leg_offset_rad'] == 0.2
+
+
+def test_a_crouch_survives_arms_that_drifted_from_their_command(backend):
+    names, rows = crouch(0.6)
+    backend.call(T.STEP, {'joints': names, 'rows': rows})
+    backend.stack.q['right_elbow_joint'] += 0.7            # the controller holds the arm elsewhere while crouched
+    backend.call(T.MOVE_JOINTS, {'joints': {'waist_yaw_joint': 0.1}, 'secs': 1.0})
+    sent = backend.stack.streamed[-1]
+    assert sent.shape[1] == 36 and np.allclose(sent[:, 24 + T.LEGS.index('left_knee_joint')], 0.9)
+    assert any('re-synced' in e['what'] for e in backend.events)        # the arms did re-sync; the legs stayed

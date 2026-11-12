@@ -18,6 +18,19 @@ def log(*parts):
     print(time.strftime('%H:%M:%S'), '[operator]', *parts, flush=True)
 
 
+def standing(ctx):
+    """Both robots on their feet, from the simulation itself: the R1's own stack says so, the G1's pelvis is up."""
+    import numpy as np
+    try:
+        r1 = ctx.socket(zmq.REQ); r1.setsockopt(zmq.LINGER, 0); r1.setsockopt(zmq.RCVTIMEO, 3000); r1.connect('tcp://127.0.0.1:5791')
+        r1.send(json.dumps({'op': 'state'}).encode()); state = json.loads(r1.recv_multipart()[0]); r1.close()
+        sub = ctx.socket(zmq.SUB); sub.setsockopt(zmq.SUBSCRIBE, b''); sub.setsockopt(zmq.RCVTIMEO, 3000); sub.connect('tcp://127.0.0.1:5792')
+        qpos = np.frombuffer(sub.recv(), dtype=np.float64); sub.close()
+        return (not state.get('fallen')) and state.get('tilt_deg', 90) < 25 and qpos[2] > 0.35
+    except Exception:
+        return False
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
     ap.add_argument('--session', type=Path, required=True)
@@ -55,6 +68,11 @@ def main():
                         'The robots were not moved: they stand where you left them. Observe before acting.')
             elif request['kind'] == 'reset':
                 text = 'No resets are left in this session.'
+            elif not arming.read(a.session, holds=False)['armed'] and standing(ctx):
+                # a person beside the robots looks, sees both on their feet, and arms again
+                arming.write(a.session, True, minutes=max(1.0, (deadline - time.time()) / 60), by='sim operator')
+                text = ('I looked: both robots are on their feet. The session is armed again. Check each robot\'s status '
+                        'and observe before the next motion; say in your notes what set the fault off.')
             else:
                 text = ('No operator help is available in this simulation beyond putting the box back at its start '
                         '(request kind reset). Nobody can move a robot, hold the box, or change the scene. Continue with '
