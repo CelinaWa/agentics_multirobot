@@ -775,7 +775,8 @@ class G1SonicBackend:
             report['pelvis_height_est_m']['after'] = round(self.pelvis_height_estimate(latest.q, latest.base_quat), 3)
         return value, images
 
-    def _walk(self, forward_m=0.0, turn_deg=0.0, speed_mps=0.3, carry=False, left_m=0.0, carry_press_rad=0.0):
+    def _walk(self, forward_m=0.0, turn_deg=0.0, speed_mps=0.3, carry=False, left_m=0.0, carry_press_rad=0.0,
+              carry_offsets_rad=None):
         """Long walks run as segments of at most `walk_segment_m`, each with its own planner start and stop: the
         planner's reference runs ahead of a lagging robot over a long walk, and the policy then lunges to catch up
         (sim: falls and runaways in 0.9 m walks, none in 99 walks of 0.5 m)."""
@@ -786,7 +787,7 @@ class G1SonicBackend:
             warmed_up = True
             self._event('walk warm-up: +15 / -15 deg turns before the first walk')
             for d in (15.0, -15.0):
-                self._walk_segment(0.0, d, speed_mps, carry, press=carry_press_rad)
+                self._walk_segment(0.0, d, speed_mps, carry, press=carry_press_rad, offsets=carry_offsets_rad)
                 if self.control_mode == 'planner':
                     quiet = self._wait_until_quiet(timeout=self.options['walk_quiet_timeout_s'], raise_on_timeout=False,
                                                    strict=True)
@@ -797,7 +798,8 @@ class G1SonicBackend:
         seg = self.options['walk_segment_m']
         span = math.hypot(forward_m, left_m)
         if seg <= 0 or span <= seg * 1.2:
-            packet = self._walk_segment(forward_m, turn_deg, speed_mps, carry, left_m, press=carry_press_rad)
+            packet = self._walk_segment(forward_m, turn_deg, speed_mps, carry, left_m, press=carry_press_rad,
+                                        offsets=carry_offsets_rad)
             self._walk_notes(packet, warmed_up)
             return packet
         count = int(math.ceil(span / seg))
@@ -805,7 +807,7 @@ class G1SonicBackend:
         start = self.state.latest()
         for k in range(count):
             packet = self._walk_segment(forward_m / count, turn_deg if k == 0 else 0.0, speed_mps, carry, left_m / count,
-                                        press=carry_press_rad)
+                                        press=carry_press_rad, offsets=carry_offsets_rad)
             if self.control_mode == 'planner':  # still stepping: let the next segment's start hand over after quiet
                 quiet = self._wait_until_quiet(timeout=self.options['walk_quiet_timeout_s'], raise_on_timeout=False, strict=True)
                 if quiet is not None:
@@ -851,7 +853,7 @@ class G1SonicBackend:
             odo['xy'] = odo['xy'] - (feet[stance][:2] - odo['feet'][stance][:2])
         odo['feet'], odo['stance'] = feet, stance if stance is not None else odo['stance']
 
-    def _walk_segment(self, forward_m=0.0, turn_deg=0.0, speed_mps=0.3, carry=False, left_m=0.0, press=0.0):
+    def _walk_segment(self, forward_m=0.0, turn_deg=0.0, speed_mps=0.3, carry=False, left_m=0.0, press=0.0, offsets=None):
         """Walk under SONIC's planner, then hold the measured pose in streamed motion again.
 
         The stack's planner frame has x along the heading the robot had when the planner took over, so the
@@ -900,6 +902,10 @@ class G1SonicBackend:
                                 upper[k] -= press
                             elif R.JOINT_NAMES[j] == 'right_shoulder_roll_joint':
                                 upper[k] += press
+                    # the same for any other effort the load takes (a lifted box pulls shoulder pitch and elbow
+                    # 0.2 rad below their commands): the caller names the joints and how far past measured to hold
+                    for k, j in enumerate(UPPER_BODY_INDICES):
+                        upper[k] += float((offsets or {}).get(R.JOINT_NAMES[j], 0.0))
             extra = {'upper_body': upper, 'left_hand': hands[0], 'right_hand': hands[1]} if carry else {}
             self._planner_keepalive, psi = None, 0.0
             self.streamer.keepalive = None  # (the walk sends its own planner messages)

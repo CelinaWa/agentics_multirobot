@@ -670,7 +670,10 @@ def test_a_carrying_walk_presses_the_shoulder_rolls_inward_by_carry_press_rad(se
             backend.validate(T.WALK, {'forward_m': 0.1, 'carry': True, 'carry_press_rad': 0.6})
         backend.call(T.STEP, {'actions': [frame(STANDING.copy()).tolist()] * 10})
         measured = np.asarray(backend.state.latest().q, dtype=float)[list(UPPER_BODY_INDICES)]
-        arguments = {'forward_m': 0.1, 'speed_mps': 0.5, 'carry': True, 'carry_press_rad': 0.2}
+        with pytest.raises(ValueError, match='not an arm joint'):
+            backend.validate(T.WALK, {'forward_m': 0.1, 'carry': True, 'carry_offsets_rad': {'waist_yaw_joint': 0.1}})
+        arguments = {'forward_m': 0.1, 'speed_mps': 0.5, 'carry': True, 'carry_press_rad': 0.2,
+                     'carry_offsets_rad': {'left_elbow_joint': -0.2}}
         backend.validate(T.WALK, arguments)
         backend.call(T.WALK, arguments)
         sent = np.asarray([e for e in stack.planner_extras if e][-1]['upper_body_position'])
@@ -678,7 +681,9 @@ def test_a_carrying_walk_presses_the_shoulder_rolls_inward_by_carry_press_rad(se
         left, right = names.index('left_shoulder_roll_joint'), names.index('right_shoulder_roll_joint')
         assert sent[left] == pytest.approx(measured[left] - 0.2, abs=0.05)
         assert sent[right] == pytest.approx(measured[right] + 0.2, abs=0.05)
-        others = [k for k in range(len(names)) if k not in (left, right)]
+        elbow = names.index('left_elbow_joint')
+        assert sent[elbow] == pytest.approx(measured[elbow] - 0.2, abs=0.05)
+        others = [k for k in range(len(names)) if k not in (left, right, elbow)]
         assert np.allclose(sent[others], measured[others], atol=0.05)
     finally:
         backend.close()

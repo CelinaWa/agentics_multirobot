@@ -26,6 +26,8 @@ MUTATING = frozenset({STEP, FREE_SPACE_MOVE, EXECUTE_PLAN, WALK, CROUCH})
 WALK_LIMITS = {"forward_m": (-1.0, 3.0), "left_m": (-1.0, 1.0), "turn_deg": (-45.0, 45.0), "speed_mps": (0.1, 0.6),
                "carry_press_rad": (0.0, 0.4)}
 WALK_FLAGS = ("carry",)
+CARRY_OFFSET_JOINTS = frozenset(f"{side}_{name}_joint" for side in ("left", "right") for name in (
+    "shoulder_pitch", "shoulder_roll", "shoulder_yaw", "elbow", "wrist_roll", "wrist_pitch", "wrist_yaw"))
 # g1_crouch: pelvis drop below the standing height -> knee flexion added to the default stance (rad), with the
 # ankle pitched down by half of it (to its -0.5 rad margin) and the hip taking the rest, so the torso stays
 # upright. Measured in simulation (3/eng/squat_depth.py): the pelvis sat down beyond +2.0 rad.
@@ -107,7 +109,7 @@ def tool_definitions(geometry=True):
             "again afterwards from the measured pose (g1_step continues from there). The arms are held at their MEASURED "
             "joint angles: a press past contact (an object squeezed between the two hands) is not in them, and such an "
             "object drops as the walk begins. carry_press_rad adds that press back: both shoulder rolls are held this "
-            "much further inward than measured (start from the press your squeeze commanded past contact). If the robot is still stepping "
+            "much further inward than measured (start from the press your squeeze commanded past contact). carry_offsets_rad does the same for any arm joint, by name (e.g. {\"left_shoulder_pitch_joint\": -0.24, \"left_elbow_joint\": -0.2}): each is held that far from its measured angle, signed, on top of carry_press_rad. Under load the measured arm sits below its command; the difference commanded minus measured just before the walk is the effort that holds the load, and without it the load sinks as the walk begins. If the robot is still stepping "
             "a few seconds after the walk, the planner keeps balancing it (safe) and the reply's feedback.control says so: "
             "call g1_hold, which tries for about 20 s to bring it to rest and take over (then re-observe: the robot "
             "moved); if it reports the robot still stepping, ask the operator instead of polling. Backward (forward_m < 0) and sideways (left_m) "
@@ -119,7 +121,8 @@ def tool_definitions(geometry=True):
              "turn_deg": {"type": "number", "minimum": -45, "maximum": 45},
              "speed_mps": {"type": "number", "minimum": 0.1, "maximum": 0.6},
              "carry": {"type": "boolean", "default": False},
-             "carry_press_rad": {"type": "number", "minimum": 0.0, "maximum": 0.4, "default": 0.0}}}},
+             "carry_press_rad": {"type": "number", "minimum": 0.0, "maximum": 0.4, "default": 0.0},
+             "carry_offsets_rad": {"type": "object", "additionalProperties": {"type": "number", "minimum": -0.5, "maximum": 0.5}}}}},
         {"name": HAND_SHAPE, "description": (
             "Set the Dex3 joint targets a hand's closing fraction ([38] left, [39] right in g1_step rows) "
             "interpolates between: `open` (fraction 0) and `closed` (fraction 1), 7 values each in hand_state "
@@ -227,7 +230,13 @@ def validate_request(name, arguments):
                     reject_unless(low - 1e-6 <= float(value) <= high + 1e-6,
                                   f"{key}: {joint} {float(value):.3f} is outside [{low:.3f}, {high:.3f}]")
     elif name == WALK:
-        _only(arguments, tuple(WALK_LIMITS) + WALK_FLAGS)
+        _only(arguments, tuple(WALK_LIMITS) + WALK_FLAGS + ("carry_offsets_rad",))
+        offsets = arguments.get("carry_offsets_rad", {})
+        reject_unless(isinstance(offsets, dict), "carry_offsets_rad must be an object of joint name -> rad")
+        for joint, value in offsets.items():
+            reject_unless(joint in CARRY_OFFSET_JOINTS, f"carry_offsets_rad: {joint!r} is not an arm joint")
+            _finite(value, f"carry_offsets_rad.{joint}")
+            reject_unless(abs(float(value)) <= 0.5, f"carry_offsets_rad.{joint} must be within 0.5 rad")
         reject_unless(type(arguments.get("carry", False)) is bool, "carry must be a boolean")
         for key, (low, high) in WALK_LIMITS.items():
             if key in arguments:
