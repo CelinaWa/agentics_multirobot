@@ -102,7 +102,10 @@ def tool_definitions(geometry=True):
             "the planner during the walk (they swing; "
             "anything held is dropped). With carry=true the waist, both arms and both hands stay at the last "
             "commanded frame for the whole walk and afterwards (carrying a held object). The last frame is held "
-            "again afterwards from the measured pose (g1_step continues from there). If the robot is still stepping "
+            "again afterwards from the measured pose (g1_step continues from there). The arms are held at their MEASURED "
+            "joint angles: a press past contact (an object squeezed between the two hands) is not in them, and such an "
+            "object drops as the walk begins. carry_press_rad adds that press back: both shoulder rolls are held this "
+            "much further inward than measured (start from the press your squeeze commanded past contact). If the robot is still stepping "
             "a few seconds after the walk, the planner keeps balancing it (safe) and the reply's feedback.control says so: "
             "call g1_hold, which tries for about 20 s to bring it to rest and take over (then re-observe: the robot "
             "moved); if it reports the robot still stepping, ask the operator instead of polling. Needs operator "
@@ -111,7 +114,8 @@ def tool_definitions(geometry=True):
              "forward_m": {"type": "number", "minimum": 0.0, "maximum": 3.0},
              "turn_deg": {"type": "number", "minimum": -45, "maximum": 45},
              "speed_mps": {"type": "number", "minimum": 0.1, "maximum": 0.6},
-             "carry": {"type": "boolean", "default": False}}}},
+             "carry": {"type": "boolean", "default": False},
+             "carry_press_rad": {"type": "number", "minimum": 0.0, "maximum": 0.4, "default": 0.0}}}},
         {"name": HAND_SHAPE, "description": (
             "Set the Dex3 joint targets a hand's closing fraction ([38] left, [39] right in g1_step rows) "
             "interpolates between: `open` (fraction 0) and `closed` (fraction 1), 7 values each in hand_state "
