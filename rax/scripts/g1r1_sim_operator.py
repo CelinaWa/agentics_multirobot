@@ -31,6 +31,24 @@ def standing(ctx):
         return False
 
 
+def end_state(ctx, layout):
+    """Where the box is in the simulation itself, against the task's success condition (for the operator's log)."""
+    import math
+    import numpy as np
+    try:
+        sub = ctx.socket(zmq.SUB); sub.setsockopt(zmq.SUBSCRIBE, b''); sub.setsockopt(zmq.RCVTIMEO, 3000); sub.connect('tcp://127.0.0.1:5792')
+        q = np.frombuffer(sub.recv(), dtype=np.float64); sub.close()
+    except Exception as error:
+        return f'no simulation state ({error})'
+    tilt = lambda w, x, y, z: math.degrees(math.acos(max(-1.0, min(1.0, 1 - 2 * (x * x + y * y)))))
+    gx, gy = layout['goal']['pos']
+    distance, box_tilt = math.hypot(q[50] - gx, q[51] - gy), tilt(*q[53:57])
+    up = q[2] > 0.5 and tilt(*q[3:7]) < 25 and q[59] > 0.45 and tilt(*q[60:64]) < 25
+    ok = distance <= 0.35 and box_tilt < 20 and q[52] < 0.05 and up
+    return (f"box at ({q[50]:.2f}, {q[51]:.2f}, {q[52]:.2f}), {distance:.2f} m from the spot, tilt {box_tilt:.0f} deg; "
+            f"robots {'standing' if up else 'NOT both standing'}: {'SUCCESS' if ok else 'not a success'}")
+
+
 def replace_robots(ctx, keys, layout):
     """Carry both standing robots back to where they started (a person would walk them there): the G1 keeps its
     heading, the R1 is turned to face the box again and its controller's reference frame restarts from there."""
@@ -79,6 +97,7 @@ def main():
             log(f"request [{request['kind']}]: {request['message'][:300]}")
             if request['kind'] == 'reset' and resets < a.max_resets:
                 import math
+                log('before the reset: ' + end_state(ctx, layout))
                 h = math.radians(yaw) / 2
                 keys.send_string(f'place=box,{bx},{by},{bz},{math.cos(h)},0,0,{math.sin(h)}'); time.sleep(2.0)
                 resets += 1
