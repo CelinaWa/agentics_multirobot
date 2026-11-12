@@ -26,11 +26,14 @@ from scipy.spatial.transform import Rotation
 R1 = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(R1 / "gr00t-wbc-r1"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from r1_port.runtime.observations import teleop_input, History  # noqa: E402
+from r1_port.runtime.observations import teleop_input, History, LOWER_JOINT_INDICES  # noqa: E402
 from r1kin import Kinematics  # noqa: E402
 
 POINTS = (("left_wrist_roll_link", (0.12, 0, 0)), ("right_wrist_roll_link", (0.12, 0, 0)), ("waist_yaw_link", (0, 0, 0.37)))
 ROW = 24
+LOWER = list(LOWER_JOINT_INDICES)   # the 12 leg joints (left then right: hip pitch, roll, yaw, knee, ankle pitch, roll)
+ROW_LOWER = ROW + len(LOWER)        # a row may carry their reference angles after the 24 values: the policy's
+                                    # lower-body input (without it the legs get the default stance, or the gait)
 HZ, SUBSTEPS = 50, 4
 STROKE = 0.035
 GRIPPER_PAD = 0.004            # finger inner faces at slide 0 are 2 mm off the centre each: width = 2 * slide + 0.004
@@ -166,7 +169,7 @@ class Sim:
             row[7 * k:7 * k + 3] = R0.inv().apply(p - self.root_pos)
             row[7 * k + 3:7 * k + 7] = wxyz(R0.inv() * rot(q))
         if hasattr(self, "row"):
-            row[21:] = self.row[21:]
+            row[21:ROW] = self.row[21:ROW]
         return row
 
     def _set_gripper(self, side, width):
@@ -198,6 +201,11 @@ class Sim:
             self.g_ramp = float(min(1.0, self.gait_i / self.G_RAMP, max(0.0, self.walking / self.G_RAMP)))
         else:
             qg, dqg = np.tile(self.default, (10, 1)), np.zeros((10, 26))
+            if len(row) >= ROW_LOWER:                             # the streamed lower-body reference: now and the next
+                ahead = [row] + [self.queue[min(5 * k - 1, len(self.queue) - 1)] if self.queue else row for k in range(1, 10)]
+                lower = np.array([r[ROW:ROW_LOWER] if len(r) >= ROW_LOWER else row[ROW:ROW_LOWER] for r in ahead])   # 0.9 s of it
+                qg[:, LOWER] = lower
+                dqg[1:, LOWER] = np.diff(lower, axis=0) * (HZ / 5)
         R0 = rot(self.root_quat)
         pts = np.array([R0.apply(row[7 * k:7 * k + 3]) + self.root_pos for k in range(3)])
         quats = np.array([wxyz(R0 * rot(row[7 * k + 3:7 * k + 7])) for k in range(3)])
@@ -613,8 +621,8 @@ class Sim:
 
     def stream(self, rows):
         rows = [np.asarray(r, dtype=float) for r in rows]
-        if any(r.shape != (ROW,) or not np.all(np.isfinite(r)) for r in rows):
-            raise ValueError(f"rows must be finite and {ROW} long")
+        if any(r.shape not in ((ROW,), (ROW_LOWER,)) or not np.all(np.isfinite(r)) for r in rows):
+            raise ValueError(f"rows must be finite and {ROW} long, or {ROW_LOWER} with the lower-body joint reference")
         for r in rows:
             for k in range(3):
                 r[7 * k + 3:7 * k + 7] /= np.linalg.norm(r[7 * k + 3:7 * k + 7])

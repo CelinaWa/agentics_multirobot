@@ -53,6 +53,9 @@ DEFAULTS = {
     'runaway_steps': 6, 'runaway_window_s': 6.0,   # between calls: this many steps in the window disarms (fault 'runaway')
     'head_pitch': 0.5,                # the head pitch held from the start (looking down at a table in front)
     'agent_image_width': 640,
+    # r1_step: the largest change of a joint reference between consecutive rows (one 50 Hz tick), and between the
+    # current command and a call's first row
+    'max_arm_step_rad': 0.12, 'max_leg_step_rad': 0.05, 'max_first_step_rad': 0.25,
     'no_walk': False,                 # the robot is placed at the table: r1_walk and r1_carry_release are refused
 }
 
@@ -86,6 +89,7 @@ class R1SonicBackend:
         self.watch_kin = Kinematics(MODEL)     # the fall watch thread's own copy (Kinematics is not thread-safe)
         self.stack = stack if stack is not None else StackClient(o['stack_host'], o['stack_port'], o['stack_timeout_s'])
         self.cmd = dict(DEFAULT_UPPER)        # commanded upper-body joints (the targets are their FK)
+        self.legs = None                      # the lower-body joint reference r1_step gave; None: the stack's default stance
         self.correction = {'left': np.zeros(3), 'right': np.zeros(3)}   # servo offsets on the wrist points (pelvis frame)
         self.grip = {'left': 0.07, 'right': 0.07}
         self._stack_resets = None             # the stack's reset count seen last (sim); see _resync_after_reset
@@ -114,6 +118,8 @@ class R1SonicBackend:
             raise RejectedBeforeAction(f'{name} is off in this task: the robot does not walk (r1_carry_hand carries by moving the hand)')
         if name in T.MUTATING and not (name == T.MOVE_HAND and arguments.get('preview_only')):
             self._require_armed()
+        if name == T.STEP:
+            self._step_rows(arguments['joints'], arguments['rows'])
         if name == T.PIXEL_TO_POSITION:
             if self._raw is None:
                 raise RejectedBeforeAction('observe first; there is no current observation')
@@ -156,6 +162,8 @@ class R1SonicBackend:
                     return self._carry_release(arguments.get('target_forward_m'), arguments.get('step_m', 0.07),
                                                arguments.get('max_steps', 5), arguments.get('lower_m', 0.0),
                                                arguments.get('release', True), arguments.get('advance_m', 0.0)), []
+                if name == T.STEP:
+                    return self._step(arguments['joints'], arguments['rows'], arguments.get('allow_steps', False)), []
                 if name == T.CARRY_HAND:
                     return self._carry_hand(arguments['target_position'], arguments.get('step_m', 0.04),
                                             arguments.get('lower_m', 0.0), arguments.get('release', True)), []
@@ -274,7 +282,7 @@ class R1SonicBackend:
         q['head_pitch_joint'] = self.head_pitch
         return q
 
-    def _row(self, upper, base_quat, grip=None, head=None, correction=None):
+    def _row(self, upper, base_quat, grip=None, head=None, correction=None, legs=None):
         """A stream row from upper-body joint angles: the FK of the three points (pelvis frame), plus the servo
         corrections, in the reference frame (the measured base orientation relative to the reference heading)."""
         pts = self.kin.points(self._full(upper))
@@ -289,6 +297,9 @@ class R1SonicBackend:
         g = grip or self.grip
         row[21], row[22] = g['left'], g['right']
         row[23] = self.head_pitch if head is None else head
+        legs = self.legs if legs is None else legs
+        if legs is not None:       # the lower-body joint reference rides behind the 24 values (see r1_step)
+            row = np.concatenate([row, [legs[j] for j in T.LEGS]])
         return row
 
     def _limits(self, q):
@@ -336,11 +347,12 @@ class R1SonicBackend:
             widths = s0.get('gripper_width_m') or {}
             self.grip = {a: (0.07 if widths.get(a, 0.07) > 0.05 else float(widths.get(a, 0.07))) for a in self.grip}
             self.correction = {a: np.zeros(3) for a in T.ARMS}
+            self.legs = None
             self._event('command state re-synced to the measured pose', resets=resets, deviation_rad=round(deviation, 3),
                         first_motion=first)
         self._stack_resets = resets
 
-    def _wait(self, duration):
+    def _wait(self, duration, allow_steps=False):
         o = self.options
         deadline = self.clock() + duration + 3.0
         tilt_max, steps, lifted, lift_max = 0.0, 0, False, 0.0
@@ -361,7 +373,7 @@ class R1SonicBackend:
             if not arming.read(self.config.root)['armed']:
                 self.stack.hold()
                 raise MotionStopped('disarmed during the motion: held where it was')
-            if steps > o['max_steps_per_motion']:
+            if steps > o['max_steps_per_motion'] and not allow_steps:
                 self.stack.hold()
                 self._event(f'motion stopped: {steps} steps')
                 return {'stopped': f'the robot took {steps} steps during the motion: held. Its pelvis moved, so '
@@ -593,6 +605,53 @@ class R1SonicBackend:
         time.sleep(1.0)
         return {**result, 'released': True, **self._hand_report()}
 
+    def _step_rows(self, joints, rows):
+        """Check an r1_step request against the joint limits and the step limits; returns the full (upper, legs)
+        command of every row. Raises before anything moves."""
+        o = self.options
+        margin = o['joint_limit_margin_rad']
+        values = np.asarray(rows, dtype=float)
+        current = {**self.cmd, **(self.legs or T.DEFAULT_LEGS)}
+        for k, name in enumerate(joints):
+            low, high = self.kin.lower[name] + margin, self.kin.upper[name] - margin
+            bad = np.nonzero((values[:, k] < low) | (values[:, k] > high))[0]
+            if bad.size:
+                raise RejectedBeforeAction(f'{name} = {values[bad[0], k]:.3f} rad in row {int(bad[0])} is outside its limits '
+                                           f'[{low:.3f}, {high:.3f}] (the joint range minus a {margin:g} rad margin)')
+            jump = abs(values[0, k] - current[name])
+            if jump > o['max_first_step_rad']:
+                raise RejectedBeforeAction(f"the first row puts {name} at {values[0, k]:.3f} rad, {jump:.3f} from its current "
+                                           f"command {current[name]:.3f} (limit {o['max_first_step_rad']:g}): start the rows "
+                                           "from the commanded pose (r1_status -> command) and ramp")
+            limit = o['max_leg_step_rad'] if name in T.LEGS else o['max_arm_step_rad']
+            steps = np.abs(np.diff(values[:, k]))
+            if steps.size and steps.max() > limit:
+                at = int(steps.argmax())
+                raise RejectedBeforeAction(f'{name} changes by {steps.max():.3f} rad between rows {at} and {at + 1}; the limit is '
+                                           f'{limit:g} rad per row (one 50 Hz tick): use more rows')
+        out = []
+        legs_named = any(name in T.LEGS for name in joints) or self.legs is not None
+        for row in values:
+            given = dict(zip(joints, (float(v) for v in row)))
+            upper = {j: given.get(j, self.cmd[j]) for j in self.cmd}
+            legs = {j: given.get(j, current[j]) for j in T.LEGS} if legs_named else None
+            out.append((upper, legs))
+        return out
+
+    def _step(self, joints, rows, allow_steps=False):
+        """The controller's own interface: joint-space reference rows for the upper body (sent as its three points) and
+        the lower body (sent as the leg joint reference), one per tick."""
+        s0 = self._state()
+        self._resync_after_reset(s0)
+        commands = self._step_rows(joints, rows)
+        self.stack.stream([self._row(upper, s0['base_quat_wxyz'], legs=legs) for upper, legs in commands])
+        self.cmd, self.legs = commands[-1]
+        trace = self._wait(len(commands) / self.options['control_hz'], allow_steps=allow_steps)
+        s = trace['state']
+        measured = {j: round(float(s['qd'][j]), 3) for j in joints if j in s.get('qd', {})}
+        return self._report('step', trace, rows=len(commands), measured_joints_rad=measured,
+                            legs_reference=None if self.legs is None else {j: round(v, 3) for j, v in self.legs.items()})
+
     def _move_joints(self, joints, secs):
         s0 = self._state()
         q = self._limits(joints)
@@ -731,6 +790,8 @@ class R1SonicBackend:
     # ----- status ---------------------------------------------------------------------------------------------------
     def _command_report(self):
         return {'upper_joints': {k: round(v, 4) for k, v in self.cmd.items()}, 'gripper_width_m': dict(self.grip),
+                'legs': {k: round(v, 4) for k, v in (self.legs or T.DEFAULT_LEGS).items()},
+                'legs_reference': 'the default stance' if self.legs is None else 'streamed (r1_step)',
                 'head_pitch': round(self.head_pitch, 3),
                 'servo_correction_m': {a: np.round(self.correction[a], 4).tolist() for a in T.ARMS}}
 
@@ -746,7 +807,8 @@ class R1SonicBackend:
                  'commandable_joints': list(T.UPPER),
                  'limits': {k: o[k] for k in ('joint_limit_margin_rad', 'max_ik_error_m', 'max_servo_correction_m',
                                               'max_steps_per_motion', 'fall_tilt_deg')},
-                 'joint_limits_rad': {n: [round(self.kin.lower[n], 4), round(self.kin.upper[n], 4)] for n in T.UPPER},
+                 'leg_joints': list(T.LEGS),     # the lower-body reference r1_step takes
+                 'joint_limits_rad': {n: [round(self.kin.lower[n], 4), round(self.kin.upper[n], 4)] for n in T.UPPER + T.LEGS},
                  'command': self._command_report(), 'step_id': self.step_id, 'last_feedback': self.last_feedback,
                  'fault': self.fault, 'events': self.events[-5:], 'cameras': [CAMERA], 'depth': self.depth}
         try:

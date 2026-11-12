@@ -9,16 +9,23 @@ MOVE_HAND, MOVE_JOINTS, GRIPPER, HEAD, HOLD = "r1_move_hand", "r1_move_joints", 
 WALK = "r1_walk"
 GRASP_PAW, PLACE_IN_BOX = "r1_grasp_paw", "r1_place_in_box"
 LEG_LIFT, CARRY_RELEASE, CARRY_HAND = "r1_leg_lift", "r1_carry_release", "r1_carry_hand"
+STEP = "r1_step"
 WALKING_TOOLS = frozenset({"r1_walk", "r1_carry_release"})   # refused when the backend runs with no_walk
 ROBOT_TOOLS = (STATUS, OBSERVE, PIXEL_TO_POSITION, MOVE_HAND, MOVE_JOINTS, GRIPPER, HEAD, HOLD, WALK, GRASP_PAW, PLACE_IN_BOX,
-               LEG_LIFT, CARRY_RELEASE, CARRY_HAND)
+               LEG_LIFT, CARRY_RELEASE, CARRY_HAND, STEP)
 READ_TOOLS = (STATUS, OBSERVE, PIXEL_TO_POSITION)
-MUTATING = frozenset({MOVE_HAND, MOVE_JOINTS, GRIPPER, HEAD, WALK, GRASP_PAW, PLACE_IN_BOX, LEG_LIFT, CARRY_RELEASE, CARRY_HAND})
+MUTATING = frozenset({MOVE_HAND, MOVE_JOINTS, GRIPPER, HEAD, WALK, GRASP_PAW, PLACE_IN_BOX, LEG_LIFT, CARRY_RELEASE, CARRY_HAND, STEP})
 
 ARMS = ("left", "right")
 # joints the agent commands (the legs stand on SONIC's default stance; the head yaw stays 0)
 UPPER = tuple(f"{s}_{j}_joint" for s in ARMS for j in ("shoulder_pitch", "shoulder_roll", "shoulder_yaw", "elbow",
                                                          "wrist_roll")) + ("waist_roll_joint", "waist_yaw_joint")
+# the lower-body joints the controller takes as a reference (its second input beside the three points), in the
+# order the stream carries them, and the stance it gets when no reference is streamed
+LEGS = tuple(f"{s}_{j}_joint" for s in ARMS for j in ("hip_pitch", "hip_roll", "hip_yaw", "knee", "ankle_pitch", "ankle_roll"))
+DEFAULT_LEGS = {f"{s}_{j}_joint": v for s in ARMS for j, v in (("hip_pitch", -0.1), ("hip_roll", 0.0), ("hip_yaw", 0.0),
+                                                             ("knee", 0.3), ("ankle_pitch", -0.2), ("ankle_roll", 0.0))}
+MAX_STEP_ROWS = 250
 GRIPPER_MAX_M = 0.07
 HEAD_PITCH = (-0.6, 0.6)
 SECS = (0.5, 8.0)
@@ -187,6 +194,25 @@ def tool_definitions(geometry=True):
                      "type": "object", "required": ["u", "v"], "additionalProperties": False, "properties": {
                          "u": {"type": "number"}, "v": {"type": "number"}}}},
                  "depth_window_radius": {"type": "integer", "minimum": 0, "maximum": 5, "default": 1}}}})
+    tools.append(
+        {"name": STEP, "description": (
+            f"The controller's own interface: stream 1..{MAX_STEP_ROWS} reference rows, one per 50 Hz tick. `joints` names "
+            "the joints the rows give (any of the 12 arm and waist joints and the 12 leg joints); each row is one angle "
+            "per named joint, in radians. Joints you do not name keep their commanded value. The frozen SONIC_R1 "
+            "controller takes two inputs: three points (left wrist, right wrist, torso), which this backend computes "
+            "from the arm and waist angles, and a LOWER-BODY JOINT REFERENCE, which is the leg angles you give here. "
+            "Every other tool leaves the legs on the default stance (`r1_status` -> `command` -> `legs`); with this "
+            "tool you shape the legs yourself: a crouch, a shift of weight, a step of your own. The legs keep the last "
+            "reference you gave until you change it, also during the other tools' motions. References are not motor "
+            "targets: the controller balances first, so read the measured joints and tilt in the reply. Refused "
+            "before anything moves: an angle outside a joint's limits, a jump between consecutive rows above the "
+            "per-tick limit, a first row far from the current command. allow_steps=true lets the motion continue when "
+            "the feet step (needed for a walk of your own; otherwise stepping stops the motion and holds). Needs "
+            "operator arming."),
+         "inputSchema": {"type": "object", "additionalProperties": False, "required": ["joints", "rows"], "properties": {
+             "joints": {"type": "array", "minItems": 1, "maxItems": len(UPPER) + len(LEGS), "items": {"type": "string", "enum": list(UPPER + LEGS)}},
+             "rows": {"type": "array", "minItems": 1, "maxItems": MAX_STEP_ROWS, "items": {"type": "array", "items": _number}},
+             "allow_steps": {"type": "boolean", "default": False}}}})
     return tools
 
 
@@ -284,6 +310,17 @@ def validate_request(name, arguments):
             _vec([item["u"], item["v"]], 2, "pixel")
         radius = arguments.get("depth_window_radius", 1)
         reject_unless(type(radius) is int and 0 <= radius <= 5, "depth_window_radius must be 0..5")
+    elif name == STEP:
+        _only(arguments, ("joints", "rows", "allow_steps"))
+        joints, rows = arguments.get("joints"), arguments.get("rows")
+        reject_unless(isinstance(joints, list) and joints and len(set(joints)) == len(joints)
+                      and all(j in UPPER + LEGS for j in joints), "joints must be distinct names of arm, waist or leg joints")
+        reject_unless(isinstance(rows, list) and 1 <= len(rows) <= MAX_STEP_ROWS, f"rows must have 1..{MAX_STEP_ROWS} rows")
+        for k, row in enumerate(rows):
+            reject_unless(isinstance(row, list) and len(row) == len(joints), f"row {k} must have one angle per named joint ({len(joints)})")
+            for v in row:
+                _finite(v, f"row {k}")
+        reject_unless(type(arguments.get("allow_steps", False)) is bool, "allow_steps must be a boolean")
     elif name == WALK:
         _only(arguments, ("forward_m", "turn_deg"))
         _range(arguments, "forward_m", -1.0, 1.0)

@@ -3,6 +3,8 @@ from dataclasses import dataclass
 
 # Words shared sources use for the robot instead of branching on it. Tool names are the
 # backend's MCP tools (services/backends.py); keep them in sync with the backend.
+from services.r1sonic.tools import ROBOT_TOOLS as _R1_TOOLS   # the backend's own list, so the two cannot drift
+
 ROBOT_FACTS = {
     'g1sonic': {
         'name': 'Unitree G1 under SONIC', 'status': 'g1_status', 'observe': 'g1_observe',
@@ -55,8 +57,7 @@ ROBOT_FACTS = {
     'r1sonic': {
         'name': 'Unitree R1 under SONIC_R1', 'status': 'r1_status', 'observe': 'r1_observe',
         'move': 'r1_move_hand', 'gripper': 'r1_gripper', 'pixel': 'r1_pixel_to_position',
-        'tools': ('r1_status', 'r1_observe', 'r1_pixel_to_position', 'r1_move_hand', 'r1_move_joints', 'r1_gripper',
-                  'r1_head', 'r1_hold'),
+        'tools': _R1_TOOLS,
         'overview_camera': 'cam_head', 'overview': 'head camera (RGB-D in the head, tilted by `r1_head`)',
         'cameras': ('cam_head',),
         'body': 'humanoid** (Unitree R1: 26 body joints, 5-joint arms without wrist pitch, two PiPER parallel '

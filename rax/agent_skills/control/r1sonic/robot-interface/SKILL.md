@@ -27,6 +27,7 @@ the operator moves the table or the robot when you ask (`request_operator`).
 | `r1_gripper` | open/close one gripper to a width (0..0.07 m) |
 | `r1_head` | head pitch (-0.6..0.6 rad, positive looks down); yaw stays 0 |
 | `r1_hold` | drop any streaming motion, keep the last command |
+| `r1_step` | the controller's own interface: reference rows of arm, waist and LEG joint angles, one per 50 Hz tick |
 
 From your own code: `ctx.value("r1_move_hand", arm="right", position=[x, y, z], approach=[1, 0, -0.3])`.
 
@@ -89,3 +90,36 @@ wait. Every move ends holding its last command: the robot keeps that pose until 
 `r1_status` -> `limits`: joints stay 0.05 rad inside their limits; `r1_move_hand` refuses goals whose best IK solution
 misses by more than 3 cm; the servo adds at most 5 cm; a motion stops after more than 2 steps; tilt above 30 degrees
 holds and disarms.
+
+## The controller's own interface: `r1_step`
+
+The controller takes two inputs every tick: the **three points** (both wrists and the torso) and a **lower-body
+joint reference** (the twelve leg joints: hip pitch, roll and yaw, knee, ankle pitch and roll on each side). The
+other tools set only the points and leave the legs on the default stance (hip pitch -0.1, knee 0.3, ankle pitch
+-0.2 rad; the rest 0). `r1_step` lets you give both, as joint angles, row by row:
+
+```python
+ctx.value("r1_step", joints=["left_knee_joint", "right_knee_joint", ...], rows=[[...], [...], ...])   # 50 rows = 1 s
+```
+
+- Arm and waist angles are sent as the three points they produce (forward kinematics), as with `r1_move_joints`.
+- Leg angles are sent as the lower-body reference. They are a reference, not motor targets: the controller keeps
+  its balance first and follows them as far as it can. Read `measured_joints_rad` and `tilt_deg` in the reply.
+- The legs keep the last reference you gave, also while you use the other tools afterwards: a crouch stays a crouch
+  during `r1_move_hand`. `r1_status` -> `command` shows it (`legs`, `legs_reference`).
+- Lowering only the torso point does not lower the robot: the legs are still told to stand, the controller cannot
+  reach the point, steps away and falls{% if simulated %} (measured in this simulation: nothing down to 20 cm, a 1.6 m walk-off at 25 cm,
+  a fall at 30 cm){% endif %}. Change the leg reference; the points are relative to the pelvis and come down with it.
+- Nothing here is a ready-made motion. A crouch, a weight shift or a step is yours to build from the reference and
+  to measure: ramp slowly (the backend caps the change per row), try a small amount first, watch the tilt and the
+  feet, and stand back up the way you went down. Without `allow_steps` a motion in which the feet step stops and holds.
+{% if simulated %}
+
+One measurement to start from (this simulation, empty hands; both legs: knee +k, ankle pitch -min(k/2, 0.6), hip
+pitch the rest so the torso stays upright; ramped over 3 s per 0.8 of k): k = 0.8 lowered the pelvis 7 cm (tilt
+1.4 deg), k = 1.6 lowered it 18 cm (tilt 2.5 deg, no steps). Crouched at k = 1.6, `r1_move_hand` with the waist put
+the right grasp point 0.26 m above the floor (tilt 5 deg), and the robot stood back up along the same ramp. The
+ankle pitch limit (-0.82 rad with the margin) is reached near k = 1.25: the hip takes what the ankle cannot. Deeper
+references were only tried past the joint limits, outside this tool: 25 cm at 8 deg of tilt, and a fall at the knee
+limit. These are numbers of the simulation: re-measure on the robot.
+{% endif %}

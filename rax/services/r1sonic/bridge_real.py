@@ -79,6 +79,11 @@ ISAAC_JOINTS = ['left_hip_pitch_joint', 'right_hip_pitch_joint', 'waist_roll_joi
                 'right_ankle_pitch_joint', 'left_shoulder_yaw_joint', 'right_shoulder_yaw_joint', 'left_ankle_roll_joint',
                 'right_ankle_roll_joint', 'left_elbow_joint', 'right_elbow_joint', 'left_wrist_roll_joint',
                 'right_wrist_roll_joint']
+# a stream row is 24 values (three points, two grippers, head pitch); 12 more carry the lower-body joint reference
+ROW = 24
+LOWER = [ISAAC_JOINTS.index(f'{side}_{joint}_joint') for side in ('left', 'right')
+         for joint in ('hip_pitch', 'hip_roll', 'hip_yaw', 'knee', 'ankle_pitch', 'ankle_roll')]
+ROW_LOWER = ROW + len(LOWER)
 ISAAC_NOMINAL = np.array([-0.1, -0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.35, 0.35, 0.3, 0.3, 0.0, 0.18, -0.18,
                           -0.2, -0.2, 0.0, 0.0, 0.0, 0.0, 0.87, 0.87, 0.0, 0.0])
 
@@ -390,7 +395,15 @@ class RealStack:
         """(joint_pos [LOOK,26], joint_vel [LOOK,26], yaw [LOOK]) from this tick: the gait while walking, else stance."""
         p = self.walk_plan
         if p is None:
-            return np.tile(ISAAC_NOMINAL, (self.LOOK, 1)), np.zeros((self.LOOK, 26)), np.full(self.LOOK, self.ref_yaw)
+            jp, jv = np.tile(ISAAC_NOMINAL, (self.LOOK, 1)), np.zeros((self.LOOK, 26))
+            row = self.row
+            if row is not None and len(row) >= ROW_LOWER:   # the streamed lower-body reference, with the queue as look-ahead
+                rows = [row] + self.queue[:self.LOOK - 1]
+                lower = np.array([r[ROW:ROW_LOWER] if len(r) >= ROW_LOWER else row[ROW:ROW_LOWER] for r in rows])
+                lower = np.vstack([lower, np.tile(lower[-1], (self.LOOK - len(lower), 1))])
+                jp[:, LOWER] = lower
+                jv[1:, LOWER] = np.diff(lower, axis=0) * CONTROL_HZ
+            return jp, jv, np.full(self.LOOK, self.ref_yaw)
         last = len(p['q']) - 1
         idx = np.minimum(np.arange(p['i'], p['i'] + self.LOOK), last)
         prev = np.clip(np.arange(p['i'] - 1, p['i'] + self.LOOK - 1), 0, last)
