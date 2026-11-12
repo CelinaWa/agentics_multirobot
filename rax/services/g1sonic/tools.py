@@ -22,7 +22,7 @@ CROUCH = "g1_crouch"
 ROBOT_TOOLS = (STATUS, OBSERVE, STEP, FREE_SPACE_MOVE, EXECUTE_PLAN, PIXEL_TO_POSITION, HOLD, WALK, HAND_SHAPE, CROUCH)
 GEOMETRY_TOOLS = frozenset({PIXEL_TO_POSITION})
 MUTATING = frozenset({STEP, FREE_SPACE_MOVE, EXECUTE_PLAN, WALK, CROUCH})
-WALK_LIMITS = {"forward_m": (0.0, 3.0), "turn_deg": (-45.0, 45.0), "speed_mps": (0.1, 0.6)}
+WALK_LIMITS = {"forward_m": (0.0, 3.0), "turn_deg": (-45.0, 45.0), "speed_mps": (0.1, 0.6), "carry_press_rad": (0.0, 0.4)}
 WALK_FLAGS = ("carry",)
 # g1_crouch: pelvis drop below the standing height -> knee flexion added to the default stance (rad), with the
 # ankle pitched down by half of it (to its -0.5 rad margin) and the hip taking the rest, so the torso stays

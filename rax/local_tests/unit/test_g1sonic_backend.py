@@ -661,6 +661,29 @@ def test_a_carrying_walk_streams_the_measured_arms_and_held_hands_to_the_planner
         backend.close()
 
 
+def test_a_carrying_walk_presses_the_shoulder_rolls_inward_by_carry_press_rad(session, stack):
+    from services.g1sonic.zmq_protocol import UPPER_BODY_INDICES
+    backend = make_backend(session, stack, walk_settle_s=0.2, walk_turn_rate_deg_s=200.0)
+    try:
+        start_control(backend, session)
+        with pytest.raises(ValueError, match='carry_press_rad'):
+            backend.validate(T.WALK, {'forward_m': 0.1, 'carry': True, 'carry_press_rad': 0.6})
+        backend.call(T.STEP, {'actions': [frame(STANDING.copy()).tolist()] * 10})
+        measured = np.asarray(backend.state.latest().q, dtype=float)[list(UPPER_BODY_INDICES)]
+        arguments = {'forward_m': 0.1, 'speed_mps': 0.5, 'carry': True, 'carry_press_rad': 0.2}
+        backend.validate(T.WALK, arguments)
+        backend.call(T.WALK, arguments)
+        sent = np.asarray([e for e in stack.planner_extras if e][-1]['upper_body_position'])
+        names = [R.JOINT_NAMES[j] for j in UPPER_BODY_INDICES]
+        left, right = names.index('left_shoulder_roll_joint'), names.index('right_shoulder_roll_joint')
+        assert sent[left] == pytest.approx(measured[left] - 0.2, abs=0.05)
+        assert sent[right] == pytest.approx(measured[right] + 0.2, abs=0.05)
+        others = [k for k in range(len(names)) if k not in (left, right)]
+        assert np.allclose(sent[others], measured[others], atol=0.05)
+    finally:
+        backend.close()
+
+
 def test_hand_shape_sets_what_the_closing_fraction_interpolates_and_moves_nothing(session, stack):
     backend = make_backend(session, stack)
     try:
