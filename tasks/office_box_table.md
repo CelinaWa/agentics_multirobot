@@ -16,10 +16,11 @@ end facing it (and facing the G1). The rim of the box is about 0.71 m above the 
 
 ## The task
 
-Get the box from where it starts to the floor beside the trash bin, by way of the far end of the desk (between the
-desk and the fridge), and leave it standing there. How is yours to decide: which robot does what, how the box is held
-(the rim of a wall, the sides, from below), whether both robots carry it or one
-carries and the other helps. Use what works and can be repeated.
+The two robots lift the box off the low table and carry it together, each holding one end, by way of the far end of
+the desk (between the desk and the fridge) to the floor beside the trash bin, and put it down there. The box must be
+carried: off the floor and off the table, held by the robots, for the whole way. Pushing or sliding it along the
+floor, or dragging it, does not count. How each robot holds its end is yours to decide (the rim of a wall, the side
+walls, the bottom edge once the box is raised), and so is how the two keep in step.
 
 Success: the box stands upright on the floor (tilted less than 20 degrees) with its centre within 0.35 m of the spot
 on the floor just in front of the trash bin, both robots are standing, and neither the bin, the chair nor anything else
