@@ -24,7 +24,7 @@ def call(name, **a):
     be.validate(name, a); return be.call(name, a)[0]
 try:
     call('g1_hold'); time.sleep(8); keys.send_string('release'); time.sleep(6)
-    for arguments in ({'forward_m': 0.3, 'speed_mps': 0.3}, {'forward_m': -0.6, 'speed_mps': 0.45}, {'forward_m': -0.6, 'speed_mps': 0.6}, {'forward_m': -1.0, 'speed_mps': 0.6}):
+    for arguments in ({'forward_m': -0.5, 'speed_mps': 0.45}, {'left_m': 0.6, 'speed_mps': 0.45}, {'left_m': -0.6, 'speed_mps': 0.45}, {'left_m': 0.8, 'speed_mps': 0.4}, {'left_m': -0.8, 'speed_mps': 0.4}):
         a = qpos()[:3].copy(); out = call('g1_walk', **arguments); time.sleep(2); b = qpos()[:3]
         fb = (out.get('transition') or {}).get('feedback') or {}
         log(arguments, '-> moved x %+.3f y %+.3f, pelvis z %.3f, tilt %.1f' % (b[0] - a[0], b[1] - a[1], b[2], call('g1_status')['tilt_deg']), '| warm-up' if fb.get('warmup') else '')

@@ -31,6 +31,16 @@ def standing(ctx):
         return False
 
 
+def box_height(ctx):
+    import numpy as np
+    try:
+        sub = ctx.socket(zmq.SUB); sub.setsockopt(zmq.SUBSCRIBE, b''); sub.setsockopt(zmq.RCVTIMEO, 3000); sub.connect('tcp://127.0.0.1:5792')
+        q = np.frombuffer(sub.recv(), dtype=np.float64); sub.close()
+        return float(q[52])
+    except Exception:
+        return -1.0
+
+
 def end_state(ctx, layout):
     """Where the box is in the simulation itself, against the task's success condition (for the operator's log)."""
     import math
@@ -99,6 +109,8 @@ def main():
                 import math
                 log('before the reset: ' + end_state(ctx, layout))
                 h = math.radians(yaw) / 2
+                if layout['box_start'].get('z', 0.0) > 0:      # the low table first, then the box on it
+                    keys.send_string(f'place=low_table,{bx},{by},0.0,{math.cos(h)},0,0,{math.sin(h)}'); time.sleep(1.0)
                 keys.send_string(f'place=box,{bx},{by},{bz},{math.cos(h)},0,0,{math.sin(h)}'); time.sleep(2.0)
                 resets += 1
                 moved = ''
@@ -111,6 +123,19 @@ def main():
                         + ' Observe before acting.')
             elif request['kind'] == 'reset':
                 text = 'No resets are left in this session.'
+            elif (layout['box_start'].get('z', 0.0) > 0 and 'table' in request['message'].lower()
+                  and any(w in request['message'].lower() for w in ('remove', 'take', 'away', 'pull'))):
+                # a person beside the robots pulls the low table out from under the lifted box and carries it off
+                state = end_state(ctx, layout)
+                lifted = box_height(ctx) > layout['box_start']['z'] + 0.015
+                if lifted:
+                    keys.send_string('place=low_table,-1.6,-2.6,0.0,1,0,0,0'); time.sleep(1.0)
+                    text = ('I pulled the low table out from under the box and carried it out of the room. It stays '
+                            'away until the next reset, which puts it back with the box on it.')
+                else:
+                    text = ('The box is resting on the table: I take the table away only while the robots hold the box '
+                            'clear of it (at least 1.5 cm above the top). Lift it, hold it, then ask again.')
+                log(f'table request, box lifted: {lifted}; {state}')
             elif not arming.read(a.session, holds=False)['armed'] and standing(ctx):
                 # a person beside the robots looks, sees both on their feet, and arms again
                 arming.write(a.session, True, minutes=max(1.0, (deadline - time.time()) / 60), by='sim operator')
@@ -118,7 +143,7 @@ def main():
                         'and observe before the next motion; say in your notes what set the fault off.')
             else:
                 text = ('No operator help is available in this simulation beyond putting the box back at its start '
-                        '(request kind reset). Nobody can move a robot, hold the box, or change the scene. Continue with '
+                        '(request kind reset) and taking the low table away while the box is held clear of it. Nobody can move a robot or hold the box. Continue with '
                         'what the robots can do, and write down what they cannot.')
             operator.reply(a.session, request['id'], text, done=True, by='sim operator')
             log('replied:', text[:120])

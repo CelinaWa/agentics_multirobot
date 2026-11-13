@@ -165,12 +165,6 @@ def build(out, box_xy, box_yaw, table_height=0.0):
     box_geom(w, 'goal', [gx, gy, 0.003], [L['box']['size'][0] + 0.1, L['box']['size'][1] + 0.1, 0.002], [0.2, 0.8, 0.3, 0.5], contype=0, conaffinity=0)
     # the moving box: free body, bottom + four walls, rim edges are what the robots pinch
     bl, bw, bh = L['box']['size']; t = L['box']['wall']; mass = L['box']['mass']
-    if table_height > 0:      # a low table under the box: top on a centre column and a foot plate, fixed
-        tl, tw = L['table']['size']; tt = L['table']['top']
-        table = w.add_body(name='low_table', pos=[box_xy[0], box_xy[1], 0], quat=quat_z(box_yaw))
-        box_geom(table, 'low_table_top', [0, 0, table_height - tt / 2], [tl, tw, tt], WOOD, friction=[0.9, 0.01, 0.001])
-        box_geom(table, 'low_table_column', [0, 0, (table_height - tt) / 2], [0.10, 0.10, table_height - tt], GREY)
-        box_geom(table, 'low_table_foot', [0, 0, 0.01], [0.30, 0.30, 0.02], GREY)
     box = w.add_body(name='box', pos=[box_xy[0], box_xy[1], table_height + 0.002], quat=quat_z(box_yaw))
     box.add_freejoint(name='box_free')
     card = dict(rgba=[0.78, 0.62, 0.42, 1], friction=[0.9, 0.01, 0.001], condim=4, solref=[0.01, 1])
@@ -181,6 +175,15 @@ def build(out, box_xy, box_yaw, table_height=0.0):
     for name, x in (('box_rim_a', -bl / 2 + t / 2), ('box_rim_b', bl / 2 - t / 2)):           # where each robot holds: middle of each end's rim
         box.add_site(name=name, pos=[x, 0, bh], size=[0.01, 0.01, 0.01], rgba=[1, 0.2, 0.2, 1])
     attach('r1_', R1_XML, 'r1')
+    if table_height > 0:      # a low table under the box: top on a centre column and a foot plate. Heavy (25 kg) and
+        # free, so the operator can take it away once the box is lifted off it (place=low_table,...); added after the
+        # R1 so that its 7 coordinates come last and the G1 / box / R1 indices do not move
+        tl, tw = L['table']['size']; tt = L['table']['top']
+        table = w.add_body(name='low_table', pos=[box_xy[0], box_xy[1], 0], quat=quat_z(box_yaw))
+        table.add_freejoint(name='low_table_free')
+        box_geom(table, 'low_table_top', [0, 0, table_height - tt / 2], [tl, tw, tt], WOOD, friction=[0.9, 0.01, 0.001], mass=3.0)
+        box_geom(table, 'low_table_column', [0, 0, (table_height - tt) / 2], [0.10, 0.10, table_height - tt], GREY, mass=4.0)
+        box_geom(table, 'low_table_foot', [0, 0, 0.01], [0.30, 0.30, 0.02], GREY, mass=18.0)
     w.add_camera(name='overview', pos=[-1.5, -0.3, 2.7], mode=mujoco.mjtCamLight.mjCAMLIGHT_TARGETBODY, targetbody='box')   # third-person recording
     model = s.compile()
     out = Path(out); out.mkdir(parents=True, exist_ok=True)
