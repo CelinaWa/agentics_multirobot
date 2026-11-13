@@ -81,6 +81,9 @@ def main():
     ap.add_argument('--session', type=Path, required=True)
     ap.add_argument('--minutes', type=float, default=120)
     ap.add_argument('--max-resets', type=int, default=12)
+    ap.add_argument('--allow-table-removal', action='store_true',
+                    help='a person may take the low table away while the box is held clear of it (off by default: '
+                         'getting round obstacles is the task)')
     a = ap.parse_args()
     layout = json.loads((SIM / 'scene' / 'layout.json').read_text())
     (bx, by), yaw = layout['box_start']['pos'], layout['box_start']['yaw_deg']
@@ -123,7 +126,7 @@ def main():
                         + ' Observe before acting.')
             elif request['kind'] == 'reset':
                 text = 'No resets are left in this session.'
-            elif (layout['box_start'].get('z', 0.0) > 0 and 'table' in request['message'].lower()
+            elif (a.allow_table_removal and layout['box_start'].get('z', 0.0) > 0 and 'table' in request['message'].lower()
                   and any(w in request['message'].lower() for w in ('remove', 'take', 'away', 'pull'))):
                 # a person beside the robots pulls the low table out from under the lifted box and carries it off
                 state = end_state(ctx, layout)
@@ -143,7 +146,7 @@ def main():
                         'and observe before the next motion; say in your notes what set the fault off.')
             else:
                 text = ('No operator help is available in this simulation beyond putting the box back at its start '
-                        '(request kind reset) and taking the low table away while the box is held clear of it. Nobody can move a robot or hold the box. Continue with '
+                        '(request kind reset). Nobody can move a robot, hold the box, or move the furniture: getting round it is part of the task. Continue with '
                         'what the robots can do, and write down what they cannot.')
             operator.reply(a.session, request['id'], text, done=True, by='sim operator')
             log('replied:', text[:120])
