@@ -94,6 +94,8 @@ DEFAULTS = {
                                       # per walk vs ground truth; the planned base advanced while the robot stood still)
     'walk_odometry_extend_s': 4.0,
     'walk_odometry_lead_m': 0.02,     # stop commanding this short of the distance: the robot keeps stepping briefly
+    'hidden_tools': (),               # tool names not offered to the agent in this session (e.g. g1_crouch: it then
+                                      # builds its own leg motions from g1_step rows)
     'walk_any_direction': False,      # g1_walk: allow backward (forward_m < 0) and sideways (left_m) movement while facing
                                       # ahead (SONIC's planner takes movement and facing directions separately)
     'walk_ramp_s': 0.0,               # g1_walk: ramp the commanded speed between 0.1 m/s and speed_mps over this long
@@ -212,9 +214,13 @@ class G1SonicBackend:
 
     # ----- tools ----------------------------------------------------------------------------
     def tools(self):
-        return T.tool_definitions(geometry=self.depth)
+        hidden = set(self.options['hidden_tools'])
+        return [t for t in T.tool_definitions(geometry=self.depth) if t['name'] not in hidden]
 
     def validate(self, name, arguments):
+        if name in self.options['hidden_tools']:
+            raise RejectedBeforeAction(f'{name} is not offered in this session (the operator hid it): build the motion '
+                                       f'from {T.STEP} rows')
         T.validate_request(name, arguments)
         if name == T.PIXEL_TO_POSITION and not self.depth:
             raise RejectedBeforeAction('pixel_to_position needs the rgbd observation profile')

@@ -708,6 +708,16 @@ def test_backward_and_sideways_walks_are_refused_unless_the_session_enables_them
         backend.close()
 
 
+def test_hidden_tools_are_neither_listed_nor_callable(session, stack):
+    backend = make_backend(session, stack, hidden_tools=[T.CROUCH])
+    try:
+        assert T.CROUCH not in [t['name'] for t in backend.tools()] and T.STEP in [t['name'] for t in backend.tools()]
+        with pytest.raises(Exception, match='not offered'):
+            backend.validate(T.CROUCH, {'pelvis_drop_m': 0.1})
+    finally:
+        backend.close()
+
+
 def test_hand_shape_sets_what_the_closing_fraction_interpolates_and_moves_nothing(session, stack):
     backend = make_backend(session, stack)
     try:
