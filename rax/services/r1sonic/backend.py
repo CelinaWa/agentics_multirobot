@@ -152,7 +152,7 @@ class R1SonicBackend:
                 if name == T.HEAD:
                     return self._head(arguments['pitch'], arguments.get('secs', 1.0)), []
                 if name == T.WALK:
-                    return self._walk(arguments.get('forward_m', 0.0), arguments.get('turn_deg', 0.0)), []
+                    return self._walk(arguments.get('forward_m', 0.0), arguments.get('turn_deg', 0.0), arguments.get('left_m', 0.0)), []
                 if name == T.GRASP_PAW:
                     return self._grasp_paw(), []
                 if name == T.PLACE_IN_BOX:
@@ -174,9 +174,9 @@ class R1SonicBackend:
                 self.step_id += 1
         raise ValueError(f'unknown tool {name}')
 
-    def _walk(self, forward_m, turn_deg=0.0):
+    def _walk(self, forward_m=0.0, turn_deg=0.0, left_m=0.0):
         """Walk on the legs via the stack's gait; the arms hold their last command. Returns the measured outcome."""
-        reply = self.stack.walk(float(forward_m), float(turn_deg))
+        reply = self.stack.walk(float(forward_m), float(turn_deg), float(left_m))
         out = {k: reply.get(k) for k in ('walked_m', 'turn_deg', 'turned_deg', 'lateral_m', 'pelvis', 'tilt_deg', 'fallen', 'note')
                if k in reply}   # turned_deg / lateral_m / note: the real bridge's measured turn, side drift, stride note
         return out

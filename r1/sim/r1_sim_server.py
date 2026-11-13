@@ -105,6 +105,14 @@ class Sim:
         self.LHP, self.LKN, self.LAN = n.index("left_hip_pitch_joint"), n.index("left_knee_joint"), n.index("left_ankle_pitch_joint")
         self.RHP, self.RKN, self.RAN = n.index("right_hip_pitch_joint"), n.index("right_knee_joint"), n.index("right_ankle_pitch_joint")
         self.g_phase = 0.0; self.g_ramp = 0.0; self.g_hipscale = 1.0
+        # side step: the swing leg is carried sideways by the hip roll (both hip rolls turn about the same forward
+        # axis, so one sign moves either leg to the left), the knee lifts it as in the forward gait, no hip swing
+        self.LHR, self.RHR = n.index("left_hip_roll_joint"), n.index("right_hip_roll_joint")
+        self.A_ROLL = float(os.environ.get("R1SIM_SIDE_ROLL", "0.12"))
+        self.G_SIDE_SPEED = float(os.environ.get("R1SIM_SIDE_SPEED", "0.003"))   # m sideways per tick at full amplitude
+        self.walk_lat = 0.0                       # +1 stepping to the robot's left, -1 to its right, 0 the forward gait
+        self.SIDE_LEG = float(os.environ.get("R1SIM_SIDE_LEG", "0.62"))   # hip-to-foot length: a roll swing of +-a steps 2*a*leg sideways
+        self.side_roll, self.side_speed = self.A_ROLL, self.G_SIDE_SPEED
 
     def _gait_pose(self, phase):
         """One gait pose (26-dim joint target): legs oscillate forward-walk, both legs half a cycle apart."""
@@ -113,6 +121,13 @@ class Sim:
             q[hp] = self.default[hp] - self.A_HIP * self.g_hipscale * np.cos(ph) * self.walk_sign   # hip-swing sign sets propulsion direction (+1 fwd, -1 back); scaled down during pure turns
             q[kn] = self.default[kn] + self.A_KNEE * max(0.0, -np.sin(ph))  # knee flexes through the swing
             q[an] = self.default[an] - self.A_ANK * np.sin(ph)
+        if self.walk_lat:
+            # the leading leg (on the side stepped to) swings out from the stance and its stance phase pulls the
+            # pelvis after it; the trailing leg's stance pushes and its swing closes up. Every cycle starts and
+            # ends in the standing stance (the walk starts the phase so that the leading leg swings first)
+            for ph, hr, lead in ((phase, self.LHR, self.walk_lat > 0), (phase + np.pi, self.RHR, self.walk_lat < 0)):
+                swing = (1 + np.cos(ph)) if lead else -(1 - np.cos(ph))
+                q[hr] = self.default[hr] + self.side_roll * self.walk_lat * swing
         return q
 
     # ----- robot --------------------------------------------------------------------------------------------------
@@ -192,7 +207,7 @@ class Sim:
                 self.root_quat = wxyz(rot(self.root_quat) * Rotation.from_euler("z", self.walk_turn * r))
                 c, s2 = np.cos(self.walk_turn * r), np.sin(self.walk_turn * r)
                 self.walk_dir[:2] = [c * self.walk_dir[0] - s2 * self.walk_dir[1], s2 * self.walk_dir[0] + c * self.walk_dir[1]]
-            self.root_pos[:2] += self.walk_dir[:2] * self.G_SPEED * r * self.walk_advance
+            self.root_pos[:2] += self.walk_dir[:2] * (self.side_speed if self.walk_lat else self.G_SPEED) * r * self.walk_advance
             phs = self.g_phase + np.arange(10) * 5 * self.G_DPHASE
             qg = np.array([self.default + r * (self._gait_pose(p) - self.default) for p in phs])
             dqg = np.vstack([np.zeros((1, 26)), np.diff(qg, axis=0)]) * (HZ / 5)
@@ -236,7 +251,7 @@ class Sim:
     def tilt_deg(self):
         return float(np.degrees(np.arccos(np.clip(rot(self.d.qpos[3:7]).as_matrix()[2, 2], -1, 1))))
 
-    def walk(self, forward_m, turn_deg=0.0):
+    def walk(self, forward_m, turn_deg=0.0, left_m=0.0):
         """Walk forward_m along the current heading (negative = backward) with an optional turn. Blocks until the
         walk finishes and the robot is still, then holds the measured pose. Closed loop on the distance along the
         starting heading: the scripted gait under the balancing policy covers 20-140 % of the commanded distance in
@@ -248,6 +263,8 @@ class Sim:
             p0 = self.d.qpos[:2].copy()
             yaw0 = Rotation.from_quat(np.asarray(self.d.qpos[3:7])[[1, 2, 3, 0]]).as_euler("ZYX")[0]
             head = np.array([np.cos(yaw0), np.sin(yaw0)])
+        if abs(float(left_m)) > 0.005:
+            return self._side_walk(float(left_m), p0, yaw0, head)
         translating = abs(float(forward_m)) > 0.02
         fwd_left, turn_left = float(forward_m), float(turn_deg)
         for i in range(3):
@@ -270,7 +287,25 @@ class Sim:
         out.update({"walked_m": round(walked, 3), "lateral_m": round(lateral, 3), "turned_deg": round(turned, 1), "passes": i + 1})
         return out
 
-    def _walk_once(self, forward_m, turn_deg=0.0, direction=None):
+    def _side_walk(self, left_m, p0, yaw0, head):
+        """Step sideways (left_m > 0: to the robot's left), facing kept, arms holding their streamed targets. Closed
+        loop on the sideways distance: one correction pass for a residual of 3 cm or more."""
+        left = np.array([-head[1], head[0]])
+        remaining = left_m
+        for i in range(int(os.environ.get("R1SIM_SIDE_PASSES", "3"))):
+            out = self._walk_once(0.0, 0.0, direction=left * np.sign(remaining), side_m=max(0.06, abs(remaining)))
+            with self.lock:
+                p = self.d.qpos[:2].copy()
+                yaw = Rotation.from_quat(np.asarray(self.d.qpos[3:7])[[1, 2, 3, 0]]).as_euler("ZYX")[0]
+            lateral, walked = float(np.dot(p - p0, left)), float(np.dot(p - p0, head))
+            remaining = left_m - lateral
+            if out["fallen"] or abs(remaining) < 0.03:
+                break
+        turned = float(np.degrees((yaw - yaw0 + np.pi) % (2 * np.pi) - np.pi))
+        out.update({"walked_m": round(walked, 3), "lateral_m": round(lateral, 3), "turned_deg": round(turned, 1), "passes": i + 1})
+        return out
+
+    def _walk_once(self, forward_m, turn_deg=0.0, direction=None, side_m=0.0):
         """One open-loop gait pass: advance the reference root at the gait speed along `direction` (default: the
         reference heading) while the leg gait steps and the arms hold their streamed targets; wait until still."""
         with self.lock:
@@ -285,13 +320,23 @@ class Sim:
             self.walk_dir = np.array([np.cos(head_yaw), np.sin(head_yaw), 0.0]) * sgn
             self.walk_sign = sgn                                      # backward: run the gait cycle in reverse (time-reversed forward walk)
             self.walk_fwd = self.walk_dir[:2].copy()
-            self.walk_advance = 1.0 if abs(float(forward_m)) > 0.02 else 0.0   # 0 => turn in place
-            self.g_hipscale = 1.0 if self.walk_advance else 0.30              # smaller stride when only turning (step in place)
+            self.walk_advance = 1.0 if (abs(float(forward_m)) > 0.02 or side_m) else 0.0   # 0 => turn in place
+            self.g_hipscale = float(os.environ.get("R1SIM_SIDE_HIP", "0.06")) if side_m else (1.0 if self.walk_advance else 0.30)   # smaller stride when only turning (step in place); none sideways
+            self.walk_lat = 0.0
+            if side_m:                                                # sideways: `direction` is the side stepped to
+                yaw_now = Rotation.from_quat(np.asarray(self.root_quat)[[1, 2, 3, 0]]).as_euler("ZYX")[0]
+                self.walk_lat = float(np.sign(np.cos(yaw_now) * direction[1] - np.sin(yaw_now) * direction[0]))
+                self.walk_dir = np.array([direction[0], direction[1], 0.0]); self.walk_sign = 1.0
             dist_ticks = int(round(abs(float(forward_m)) / self.G_SPEED))
             turn_ticks = int(round(abs(float(turn_deg)) / 0.8))               # ~0.8 deg/tick (~40 deg/s)
             n = max(1, max(dist_ticks + 12, turn_ticks + 2 * self.G_RAMP))
+            if side_m:   # whole gait cycles (one cycle = both legs step once = one side step), the roll swing sized to the distance
+                cycles = max(1, int(np.ceil(side_m / (2 * self.A_ROLL * self.SIDE_LEG))))
+                self.side_roll = side_m / (cycles * 2 * self.SIDE_LEG)
+                n = cycles * self.G_PERIOD + 2 * self.G_RAMP
+                self.side_speed = side_m / (n - self.G_RAMP)          # the reference root covers side_m over the ramped pass
             self.walk_turn = np.radians(float(turn_deg)) / n
-            self.g_phase = 0.0; self.g_ramp = 0.0; self.gait_i = 0; self.walking = n
+            self.g_phase = (np.pi if self.walk_lat > 0 else 0.0); self.g_ramp = 0.0; self.gait_i = 0; self.walking = n
         t0 = time.monotonic()
         while self.walking > 0 and time.monotonic() - t0 < 25:   # wait out the gait (reference advances the commanded distance, no further)
             time.sleep(0.01)
@@ -753,7 +798,7 @@ def serve(sim, port, stop):
         op = req.get("op")
         try:
             if op == "walk":                       # handled outside the lock: it blocks while the tick thread (which holds the lock) steps
-                out = sim.walk(float(req["forward_m"]), float(req.get("turn_deg", 0.0)))
+                out = sim.walk(float(req.get("forward_m", 0.0)), float(req.get("turn_deg", 0.0)), float(req.get("left_m", 0.0)))
                 sock.send(json.dumps({"ok": True, **out}).encode()); continue
             if op == "grasp_paw":                  # blocking manipulation primitives (outside the lock, like walk)
                 out = sim.grasp_paw(float(req.get("cmdopen", 0.05)), float(req.get("wedge", 0.06)), float(req.get("liftz", 0.20)))

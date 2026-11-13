@@ -110,10 +110,18 @@ def tool_definitions(geometry=True):
             "while your arms hold their last commanded pose; you translate only by stepping. Blocks until you finish "
             "and are standing again, then reports the actual distance walked (walked_m), the new pelvis position and "
             "tilt. The commanded distance is approximate (0.2-0.5 m per call works best; larger overshoots), so "
-            "re-observe and walk again to fine-tune. You move, so measure the scene again afterwards. Needs operator arming."),
+            "re-observe and walk again to fine-tune. left_m (alone, without forward_m or turn_deg) steps sideways with the "
+            "facing kept: positive to your left, at most 0.3 m per call; the reply's lateral_m is the measured side "
+            "travel (positive left), walked_m the forward drift, turned_deg the turn. It undershoots and varies: measured "
+            "in simulation, arms free, 26 calls: 0.05 m commanded gave 0.04-0.05 m; 0.10 m gave 0.03-0.09 m (most "
+            "0.07-0.09); 0.20 m gave 0.06-0.21 m; steps to the left often turn the robot 4-8 deg to its right; "
+            "forward/back drift up to 0.1 m; tilt under 2 deg, no fall. Use the reply, not the command, and "
+            "repeat. Never tested with something held, and not available "
+            "on the real robot yet (refused there). You move, so measure the scene again afterwards. Needs operator arming."),
          "inputSchema": {"type": "object", "additionalProperties": False, "properties": {
              "forward_m": {"type": "number", "minimum": -1.0, "maximum": 1.0, "default": 0.0},
-             "turn_deg": {"type": "number", "minimum": -180.0, "maximum": 180.0, "default": 0.0}}}},
+             "turn_deg": {"type": "number", "minimum": -180.0, "maximum": 180.0, "default": 0.0},
+             "left_m": {"type": "number", "minimum": -0.3, "maximum": 0.3, "default": 0.0}}}},
         {"name": GRASP_PAW, "description": (
             "Grasp the plush puppy by its nearest hind paw and lift it partially. One blocking call that locates the "
             "nearest hind leg, picks the arm on that side, servos the gripper onto the leg (width-feedback) and clamps, "
@@ -322,8 +330,12 @@ def validate_request(name, arguments):
                 _finite(v, f"row {k}")
         reject_unless(type(arguments.get("allow_steps", False)) is bool, "allow_steps must be a boolean")
     elif name == WALK:
-        _only(arguments, ("forward_m", "turn_deg"))
+        _only(arguments, ("forward_m", "turn_deg", "left_m"))
         _range(arguments, "forward_m", -1.0, 1.0)
+        _range(arguments, "left_m", -0.3, 0.3)
+        if abs(float(arguments.get("left_m", 0.0))) > 1e-9:
+            reject_unless(abs(float(arguments.get("forward_m", 0.0))) < 1e-9 and abs(float(arguments.get("turn_deg", 0.0))) < 1e-9,
+                          "left_m is a side step on its own: give it without forward_m or turn_deg")
         _range(arguments, "turn_deg", -180.0, 180.0)
     elif name == GRASP_PAW:
         _only(arguments, ())

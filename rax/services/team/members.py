@@ -39,7 +39,8 @@ def _g1_result(tool, arguments, value):
 
 def _r1_motion(tool, arguments):
     if tool == 'r1_walk':
-        return float(arguments.get('forward_m', 0.0)), 0.0, float(arguments.get('turn_deg', 0.0))
+        return (float(arguments.get('forward_m', 0.0)), float(arguments.get('left_m', 0.0)),
+                float(arguments.get('turn_deg', 0.0)))
     if tool == 'r1_carry_release':   # steps forward with the hand held, up to max_steps of step_m
         reach = max(float(arguments.get('target_forward_m', 0.0)),
                     float(arguments.get('step_m', 0.07)) * int(arguments.get('max_steps', 5)))
@@ -53,8 +54,12 @@ def _r1_result(tool, arguments, value):
     if tool == 'r1_walk':
         walked = value.get('walked_m')
         turned = value.get('turned_deg', value.get('turn_deg'))
-        forward, _, commanded_turn = _r1_motion(tool, arguments)
+        forward, left, commanded_turn = _r1_motion(tool, arguments)
         measured = walked is not None
+        if left:   # a side step: its measured side travel is the motion (sim stack: positive to the robot's left)
+            lateral = value.get('lateral_m')
+            return (float(walked if measured else 0.0), float(lateral if lateral is not None else left),
+                    float(turned if turned is not None else 0.0), measured and lateral is not None, 0.03)
         # the side drift's sign is the bridge's own: it widens the uncertainty instead of moving the entry
         return (float(walked if measured else forward), 0.0, float(turned if turned is not None else commanded_turn),
                 measured, abs(float(value.get('lateral_m') or 0.0)))

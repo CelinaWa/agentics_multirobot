@@ -44,13 +44,16 @@ class StackClient:
             raise StackError(reply.get('error', 'the r1 stack refused the request'))
         return reply, parts[1:]
 
-    def walk(self, forward_m, turn_deg=0.0):
+    def walk(self, forward_m, turn_deg=0.0, left_m=0.0):
         """A walk blocks for the gait duration plus a settle; use a long receive timeout for this call only."""
         with self.lock:
             sock = self._socket()
             sock.setsockopt(zmq.RCVTIMEO, 40000)
             try:
-                sock.send(json.dumps({'op': 'walk', 'forward_m': float(forward_m), 'turn_deg': float(turn_deg)}).encode())
+                request = {'op': 'walk', 'forward_m': float(forward_m), 'turn_deg': float(turn_deg)}
+                if left_m:   # (only sent when asked for: an older stack ignores the field and would walk forward 0)
+                    request['left_m'] = float(left_m)
+                sock.send(json.dumps(request).encode())
                 parts = sock.recv_multipart()
             except zmq.ZMQError as exc:
                 self.sock.close(); self.sock = None; self.failures += 1

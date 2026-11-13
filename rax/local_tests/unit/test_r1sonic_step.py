@@ -124,3 +124,21 @@ def test_a_crouch_survives_arms_that_drifted_from_their_command(backend):
     sent = backend.stack.streamed[-1]
     assert sent.shape[1] == 36 and np.allclose(sent[:, 24 + T.LEGS.index('left_knee_joint')], 0.9)
     assert any('re-synced' in e['what'] for e in backend.events)        # the arms did re-sync; the legs stayed
+
+
+def test_a_side_step_is_a_walk_argument_on_its_own():
+    from services.r1sonic import tools as T
+    T.validate_request(T.WALK, {'left_m': 0.1})
+    T.validate_request(T.WALK, {'forward_m': 0.2, 'turn_deg': 10})
+    for bad in ({'left_m': 0.5}, {'left_m': 0.1, 'forward_m': 0.2}, {'left_m': -0.1, 'turn_deg': 5}):
+        with pytest.raises(ValueError):
+            T.validate_request(T.WALK, bad)
+
+
+def test_the_team_frame_takes_a_side_steps_measured_travel():
+    from services.team import members as M
+    assert M._r1_motion('r1_walk', {'left_m': -0.1}) == (0.0, -0.1, 0.0)
+    out = M._r1_result('r1_walk', {'left_m': -0.1}, {'walked_m': 0.02, 'lateral_m': -0.08, 'turned_deg': 1.0})
+    assert out[:4] == (0.02, -0.08, 1.0, True)
+    out = M._r1_result('r1_walk', {'forward_m': 0.3}, {'walked_m': 0.28, 'lateral_m': 0.05, 'turned_deg': 2.0})
+    assert out[:2] == (0.28, 0.0) and out[4] == 0.05

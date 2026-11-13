@@ -590,8 +590,10 @@ def serve(stack: RealStack, port: int, bind: str = '127.0.0.1') -> None:
                 stack.stream([np.asarray(r, dtype=float) for r in req['rows']]); out = {}
             elif op == 'hold':
                 stack.hold(); out = {'held': True}
+            elif op == 'walk' and abs(float(req.get('left_m', 0.0))) > 1e-9:
+                raise ValueError('side steps (left_m) are not available on the real R1 yet: the gait exists in simulation only')
             elif op == 'walk':
-                out = stack.walk(float(req['forward_m']), float(req.get('turn_deg', 0.0)))
+                out = stack.walk(float(req.get('forward_m', 0.0)), float(req.get('turn_deg', 0.0)))
             elif op == 'head':
                 with stack.lock:
                     stack.row[23] = float(req['pitch'])
