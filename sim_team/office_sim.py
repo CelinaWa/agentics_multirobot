@@ -115,6 +115,8 @@ def main():
                 return np.concatenate([f, torque])
             band.Advance = advance
         print(f"[sim_headless] robot spawned at {x}, {y}, yaw {yaw}", flush=True)
+    band = getattr(env, "elastic_band", None)
+    g1_home = {"qpos": env.mj_data.qpos[:G1_NQ].copy(), "band": None if band is None else band.length}
 
     def keys():
         while True:
@@ -153,6 +155,18 @@ def main():
                 env.mj_data.qpos[env.mj_model.jnt_qposadr[joint.id]] = float(value)
                 env.mj_data.qvel[env.mj_model.jnt_dofadr[joint.id]] = 0.0
                 print(f"[sim_headless] set {name} to {value}", flush=True)
+            elif key.startswith("g1_home=") and band is not None:
+                # g1_home=x,y: after a fall the operator hangs the G1 back on its gantry at x,y in its spawn pose
+                # (spawn heading, joints as spawned, band as at the start) and the physics runs again until the
+                # restarted deploy stack's control ticks arrive
+                x, y = (float(v) for v in key[8:].split(","))
+                env.mj_data.qpos[:G1_NQ] = g1_home["qpos"]
+                env.mj_data.qpos[0:2] = [x, y]
+                env.mj_data.qvel[:G1_NQ - 1] = 0.0
+                band.point = np.array([x, y, band.point[2]])
+                band.length, band.enable = g1_home["band"], True
+                env.lockstep_restart = True
+                print(f"[sim_headless] G1 back on the gantry at {x}, {y}", flush=True)
             elif key.startswith("place="):  # place=<free body>,x,y,z[,qw,qx,qy,qz]: the operator puts an object back, at rest
                 name, *values = key[6:].split(",")
                 body = env.mj_model.body(name)
@@ -185,6 +199,9 @@ def main():
         SimulatorFactory.start_simulator(sim, as_thread=False, enable_image_publish=False)
         return
     run_lockstep(sim, env, ctx, args)
+
+
+G1_NQ = 50  # the G1's free joint and joints come first in qpos (the box's free joint follows at 50)
 
 
 def skip_r1_joints():
@@ -268,6 +285,9 @@ def run_lockstep(sim, env, ctx, args):
     while sim._running:
         got = ticks.poll(timeout=int(sim.sim_dt * 1000))
         now = time.monotonic()
+        if getattr(env, "lockstep_restart", False):  # the G1 hangs on the gantry again: real time until new ticks
+            env.lockstep_restart, ever_locked, locked = False, False, False
+            print("[sim_headless] lockstep: waiting for a restarted deploy stack; physics in real time", flush=True)
         if got:
             n = 0
             while True:  # every pending tick
