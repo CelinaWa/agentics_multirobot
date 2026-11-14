@@ -4,6 +4,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
 import socket
+import subprocess
 import threading
 import time
 from pathlib import Path
@@ -448,4 +449,36 @@ def test_no_continuation_without_reason(tmp_path, monkeypatch, case):
                               budget=300 if case == 'little time left' else 5400,
                               min_turn_seconds=60 if case == 'turn ended at once' else 0,
                               keep_going=case != 'single turn')
+    assert runs == ['go']
+
+
+def test_the_last_minutes_are_the_hand_over(tmp_path, monkeypatch):
+    from harness.claude_cli import launcher as claude
+    monkeypatch.setattr(claude, 'latest_claude_session', lambda home: 'conv')
+    runs, reviews = [], []
+    def run(prompt, remaining):
+        runs.append((prompt, remaining))
+        if len(runs) == 1:
+            raise subprocess.TimeoutExpired('claude', remaining)  # still working when robot time ran out
+        return 0
+    deployed = {'claude_home': tmp_path}
+    code = claude.until_usage_resets(run, FakeRelay(), deployed=deployed, prompt='go', budget=5400, interactive=False,
+                                     review_seconds=720, on_review=reviews.append, sleep=lambda s: pytest.fail('waited'))
+    assert code == 0 and runs[0][0] == 'go' and 4670 < runs[0][1] <= 4680
+    assert runs[1][0].startswith('Robot work for this session is over: about 12 minutes') and runs[1][1] > 700
+    assert deployed['resume_session'] == 'conv' and reviews == [720]
+
+
+@pytest.mark.parametrize('case', ['interactive', 'no review', 'short session'])
+def test_no_hand_over_without_one(tmp_path, monkeypatch, case):
+    from harness.claude_cli import launcher as claude
+    monkeypatch.setattr(claude, 'latest_claude_session', lambda home: 'conv')
+    runs = []
+    def run(prompt, remaining):
+        runs.append(prompt)
+        raise subprocess.TimeoutExpired('claude', remaining)
+    with pytest.raises(subprocess.TimeoutExpired):
+        claude.until_usage_resets(run, FakeRelay(), deployed={'claude_home': tmp_path}, prompt='go',
+                                  interactive=case == 'interactive', budget=1200 if case == 'short session' else 5400,
+                                  review_seconds=0 if case == 'no review' else 720)
     assert runs == ['go']

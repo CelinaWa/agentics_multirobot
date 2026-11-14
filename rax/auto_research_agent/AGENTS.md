@@ -31,10 +31,14 @@ the conversation resumed. Then read `skill-library/INDEX.md`: skills earlier ses
 learned on this robot, with code and evidence. Reuse the ones that match before
 inventing your own ([continual-learning](.agents/skills/continual-learning/SKILL.md)).
 
-If `handoff/README.md` or `memory/history/` exists at the start, an earlier session on this
-task (possibly in simulation, or in a differently laid-out scene) left them for you: read
-`handoff/README.md` and `memory/TIPS.md` before planning, and treat `memory/history/*/PROGRESS.md`
-as that session's story, not your state. Its scene, its robot's calibration and its numbers
+If `memory/CURRENT.md`, `handoff/README.md` or `memory/history/` exists at the start, earlier
+sessions on this task (possibly in simulation, or in a differently laid-out scene) left them for
+you. `memory/CURRENT.md` is the curated state of knowledge: read it first; read the longer notes
+(`handoff/README.md`, `memory/TIPS.md`, `memory/archive/`) only for the parts you need. Before the
+first motion, have a fresh subagent write `memory/STRATEGY.md` from the whole history and the funnel
+(`python -m api.attempts`), and decide the session's plan from it
+([strategy-review](.agents/skills/strategy-review/SKILL.md)): the last session's "next step" is one
+option, not the plan. Treat `memory/history/*/PROGRESS.md` as that session's story, not your state. Its scene, its robot's calibration and its numbers
 can differ from yours: verify every inherited position and parameter with your own observation
 before relying on it, and record where it held and where it did not
 ([inherited-experience](.agents/skills/inherited-experience/SKILL.md)).
@@ -50,6 +54,7 @@ its references when needed rather than reading the entire workspace first. The m
 skills say how to run the work on a robot that gives you few attempts: count outcomes and
 replay archived attempts ([evidence-and-regression](.agents/skills/evidence-and-regression/SKILL.md)),
 account for every attempt by stage ([prioritize-by-funnel](.agents/skills/prioritize-by-funnel/SKILL.md)),
+practise the stage that fails from its own start state ([practice-by-stage](.agents/skills/practice-by-stage/SKILL.md)),
 spend the session's budgets deliberately ([spend-the-budget](.agents/skills/spend-the-budget/SKILL.md)),
 map incidents ([learn-from-incidents](.agents/skills/learn-from-incidents/SKILL.md)), verify
 actions you cannot take back ([verify-committal-actions](.agents/skills/verify-committal-actions/SKILL.md))
@@ -91,10 +96,16 @@ commanding the robot at a time (normally you), and decide from what they report.
    Chain steps without looking only where their checks have proved reliable. Prefer
    simple motion functions and heuristics. See
    [autonomous-control](.agents/skills/autonomous-control/SKILL.md).
-3. **Test it end to end on the real scene.** Ask the operator for a scene reset with
-   `request_operator` (kind `reset`), run the controller with your checkpoints, read its
-   report and the checkpoint frames, fix the code and repeat on varied layouts. Record
-   every run in `memory/RUNS.md`, including where you looked and what you decided.
+3. **Test it end to end on the real scene, and practise what fails.** Ask the operator for a
+   scene reset with `request_operator` (kind `reset`), run the controller with your
+   checkpoints, read its report and the checkpoint frames, fix the code and repeat on varied
+   layouts. Record every try of every stage with `api/attempts.py` (the funnel is computed
+   from it, across sessions) and keep the story of each run in `memory/RUNS.md`, including
+   where you looked and what you decided. When whole attempts keep failing at one stage, stop
+   running whole attempts: practise that stage from its own start state, scripted and repeated,
+   alone, as a one-robot stand-in or with every robot it needs, until it is reliable
+   ([practice-by-stage](.agents/skills/practice-by-stage/SKILL.md)). When a tool cannot do what a
+   stage needs, write it in `memory/TOOL_REQUESTS.md` with the numbers.
    There is no formal evaluation; aim for repeated clean successes. Use
    `request_operator` (kind `help`) when you are blocked by something you cannot fix
    through the tools.
@@ -142,7 +153,14 @@ paths, remaining budgets and the next concrete step. Keep reusable robot tips in
 [experience-memory](.agents/skills/experience-memory/SKILL.md).
 
 Your context is compacted automatically. Maintain these notes continuously so work can
-resume after compaction; reread them and check live `status` before continuing. In
+resume after compaction; reread them and check live `status` before continuing.
+
+The harness ends robot work 12 minutes before the session's time is up (plan robot work to end by then:
+a motion still running is stopped where it is) and asks you to
+hand over: rewrite `memory/CURRENT.md` (at most 30 KB: the state of knowledge a next session
+can work from alone), move superseded long notes under `memory/archive/`, update
+`memory/TOOL_REQUESTS.md` and the skill library's success rates
+([strategy-review](.agents/skills/strategy-review/SKILL.md)). In
 your final report, give the controller path and run command, what it covers, the test
 runs and their outcomes, the skill-library skills you added or changed and their merge
 result, unresolved issues and artifact pointers. Merge the skill library before you

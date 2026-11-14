@@ -100,6 +100,19 @@ CONTINUE_PROMPT = ("You ended your turn, but the session is not over: about {min
                    "going on would put a robot at risk, say so in one line and end. Otherwise take the next untried "
                    "item from your own notes (memory/PROGRESS.md, handoff/README.md) and keep working: a failed "
                    "attempt is a measurement, not the end of the session. Keep your notes current as you go.")
+# The last minutes of a non-interactive session are for the hand-over, not for the robot: robot work stops then (the
+# agent is stopped mid-turn if it is still working; the robots hold their last command) and the launcher continues the
+# conversation once more with this prompt. The next session reads what it writes first.
+REVIEW_PROMPT = ("Robot work for this session is over: about {minutes} minutes are left for the hand-over. If a robot "
+                 "is holding something or was stopped mid-motion, first bring it to a safe rest (put the object down, "
+                 "release, stand) with the fewest motions, then make no more motions. Then hand over as the "
+                 "strategy-review skill says: run `python -m api.attempts` and make sure every try of this session is "
+                 "recorded; rewrite memory/CURRENT.md (at most 30 KB, the state of knowledge a next session can work "
+                 "from alone: stage graph and funnel numbers, what works with its run command, what does not and why, "
+                 "the bottleneck and the recommended next step with its alternative); move superseded long notes under "
+                 "memory/archive/ with a pointer; update memory/TOOL_REQUESTS.md; put measured success rates into the "
+                 "skill-library skills you used and merge. End with a short report.")
+REVIEW_SECONDS = 720         # the hand-over at the end of a non-interactive session
 MIN_CONTINUE_SECONDS = 600   # less session time than this left: do not start another turn
 MIN_TURN_SECONDS = 120       # a continued turn shorter than this means the agent declined to go on
 MAX_CONTINUES = 20
@@ -522,11 +535,34 @@ def watch(agent, model, timeout, *, stop_on_limit=True):
 
 
 def until_usage_resets(run, model, *, deployed, prompt, budget, interactive, on_wait=None, sleep=time.sleep,
-                       keep_going=True, min_turn_seconds=MIN_TURN_SECONDS, on_continue=None):
+                       keep_going=True, min_turn_seconds=MIN_TURN_SECONDS, on_continue=None, review_seconds=0,
+                       on_review=None):
     """Run the agent for the session's time. If the subscription usage window ran out during a run, wait for the
     reset (off the session clock; the robot service and relay stay up), then continue the agent's own conversation.
     If a non-interactive agent ends its turn with session time left (keep_going), continue its conversation with
-    CONTINUE_PROMPT: one turn is not the session."""
+    CONTINUE_PROMPT: one turn is not the session. With review_seconds, the work ends that long before the budget
+    (a run still going then is stopped: `run` raises subprocess.TimeoutExpired) and the conversation continues once
+    with REVIEW_PROMPT for the hand-over."""
+    review = 0 if interactive or review_seconds <= 0 or budget < 3 * review_seconds else review_seconds
+    try:
+        returncode = _work(run, model, deployed=deployed, prompt=prompt, budget=budget - review,
+                           interactive=interactive, on_wait=on_wait, sleep=sleep, keep_going=keep_going,
+                           min_turn_seconds=min_turn_seconds, on_continue=on_continue)
+        began_review = time.monotonic()
+    except subprocess.TimeoutExpired:
+        if not review:
+            raise
+        began_review = time.monotonic()
+    if not review:
+        return returncode
+    deployed['resume_session'] = latest_claude_session(deployed['claude_home'])
+    if on_review:
+        on_review(review)
+    return run(REVIEW_PROMPT.format(minutes=int(review // 60)), review - (time.monotonic() - began_review))
+
+
+def _work(run, model, *, deployed, prompt, budget, interactive, on_wait, sleep, keep_going, min_turn_seconds,
+          on_continue):
     began, waited, waits, continues = time.monotonic(), 0.0, 0, 0
     while True:
         run_started, turn_started = time.time(), time.monotonic()
@@ -558,7 +594,7 @@ def until_usage_resets(run, model, *, deployed, prompt, budget, interactive, on_
 
 
 def launch(config, deployed, *, prompt, interactive=True, seconds=None, max_model_calls=None, on_wait=None,
-           keep_going=True, on_continue=None):
+           keep_going=True, on_continue=None, review_seconds=0, on_review=None):
     """Start the relay and robot service, run Claude Code in the workspace, clean up."""
     relay_credential(deployed)  # Fail before starting anything.
     started_at = time.time()
@@ -574,11 +610,15 @@ def launch(config, deployed, *, prompt, interactive=True, seconds=None, max_mode
                 nonlocal agent
                 command = [str(deployed['claude']), *claude_arguments(deployed, prompt=prompt, interactive=interactive)]
                 agent = subprocess.Popen(command, cwd=deployed['workspace'], env=environment)
-                watch(agent, model, remaining, stop_on_limit=not interactive)
+                try:
+                    watch(agent, model, max(1.0, remaining), stop_on_limit=not interactive)
+                except subprocess.TimeoutExpired:
+                    stop(agent, grace=30)
+                    raise
                 return agent.returncode
             return until_usage_resets(run, model, deployed=deployed, prompt=prompt, budget=budget,
                                       interactive=interactive, on_wait=on_wait, keep_going=keep_going,
-                                      on_continue=on_continue)
+                                      on_continue=on_continue, review_seconds=review_seconds, on_review=on_review)
         finally:
             stop(agent)
             stop(server, grace=30)
@@ -621,6 +661,8 @@ def main():
     parser.add_argument('--exec-prompt', help='Run non-interactively with this prompt')
     parser.add_argument('--non-interactive', action='store_true', help='Run START_PROMPT.md without a terminal UI')
     parser.add_argument('--resume', action='store_true', help="Continue a stopped session's own conversation")
+    parser.add_argument('--no-review', action='store_true',
+                        help='Use the whole session for robot work (default: the last REVIEW_SECONDS are the hand-over)')
     parser.add_argument('--single-turn', action='store_true',
                         help='End the session when the agent ends its first turn (default: continue it while time is left)')
     args = parser.parse_args()
@@ -677,8 +719,14 @@ def main():
                 lifecycle.update(status='running', continued_turns=count)
                 print(f'agent ended a turn with {int(remaining // 60)} min left: continuing its conversation (turn {count + 1})',
                       file=sys.stderr, flush=True)
+            def reviewing(seconds):
+                lifecycle.update(status='running', phase='hand-over')
+                write_private_json(record, lifecycle)
+                print(f'robot work is over: {int(seconds // 60)} min of hand-over', file=sys.stderr, flush=True)
             returncode = launch(config, deployed, prompt=prompt, interactive=interactive, seconds=seconds,
-                                on_wait=usage_wait, keep_going=not args.single_turn, on_continue=continued)
+                                on_wait=usage_wait, keep_going=not args.single_turn, on_continue=continued,
+                                review_seconds=0 if args.no_review or args.single_turn else REVIEW_SECONDS,
+                                on_review=reviewing)
             lifecycle.update(status='exited', returncode=returncode)
             raise SystemExit(returncode)
         except KeyboardInterrupt:
