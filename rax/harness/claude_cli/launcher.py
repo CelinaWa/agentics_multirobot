@@ -95,9 +95,11 @@ USAGE_PROMPT = ("The model usage limit paused this session until it reset. Call 
 # A non-interactive agent that ends its turn ends its process. With session time left that is not the end of the
 # session: the launcher continues the same conversation with this prompt, until the time is nearly used up or the
 # agent ends a continued turn at once (it has nothing left that it can do).
-CONTINUE_PROMPT = ("You ended your turn, but the session is not over: about {minutes} minutes of robot time are left "
-                   "(`status` gives robot_minutes_left), and the robot service is still running. Do not write a final "
-                   "report: the harness asks for it at the hand-over, after robot time ends. Call status and observe: the scene and the arming may have "
+CONTINUE_PROMPT = ("You ended your turn, but the session is not over: about {minutes} minutes of robot time are left: "
+                   "robot work goes on until {until}, and the hand-over comes after that, on its own time (do not "
+                   "subtract it). `status` gives robot_minutes_left. Do not write a final report or note that robot "
+                   "work has ended: the harness asks for the report at the hand-over; if your notes say robot work "
+                   "ended, correct them. Call status and observe: the scene and the arming may have "
                    "changed while you wrote. If TASK.md's success condition is met and you have verified it, or if "
                    "going on would put a real robot at risk, say so in one line and end (in a simulation a fall costs a "
                    "restart, not a robot: it is not a reason to end; check from the timeline that your own motions, not "
@@ -591,7 +593,8 @@ def _work(run, model, *, deployed, prompt, budget, interactive, on_wait, sleep, 
                 and remaining > MIN_CONTINUE_SECONDS and turn >= min_turn_seconds):
             continues += 1
             deployed['resume_session'] = latest_claude_session(deployed['claude_home'])
-            prompt = CONTINUE_PROMPT.format(minutes=int(remaining // 60))
+            prompt = CONTINUE_PROMPT.format(minutes=int(remaining // 60),
+                                            until=time.strftime('%H:%M', time.localtime(time.time() + remaining)))
             if on_continue:
                 on_continue(continues, remaining)
             continue

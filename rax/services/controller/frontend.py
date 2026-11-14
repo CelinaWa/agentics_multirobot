@@ -90,7 +90,8 @@ def robot_clock(root, now=None):
         return {}
     now = time.time() if now is None else now
     return {'robot_minutes_left': round(max(0.0, ends - now) / 60, 1),
-            'robot_work_ends_at': time.strftime('%H:%M', time.localtime(ends))}
+            'robot_work_ends_at': time.strftime('%H:%M', time.localtime(ends)),
+            'hand_over': 'after robot_work_ends_at, on its own time: do not subtract it from the robot time'}
 
 
 class Frontend:

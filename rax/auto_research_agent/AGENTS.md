@@ -35,9 +35,11 @@ inventing your own ([continual-learning](.agents/skills/continual-learning/SKILL
 If `memory/CURRENT.md`, `handoff/README.md` or `memory/history/` exists at the start, earlier
 sessions on this task (possibly in simulation, or in a differently laid-out scene) left them for
 you. `memory/CURRENT.md` is the curated state of knowledge: read it first; read the longer notes
-(`handoff/README.md`, `memory/TIPS.md`, `memory/archive/`) only for the parts you need. Before the
-first motion, have a fresh subagent write `memory/STRATEGY.md` from the whole history and the funnel
-(`python -m api.attempts`), and decide the session's plan from it
+(`handoff/README.md`, `memory/TIPS.md`, `memory/archive/`) only for the parts you need. At the
+start, have a fresh subagent write `memory/STRATEGY.md` from the whole history and the funnel
+(`python -m api.attempts`), in the background, and decide the session's plan from it when it arrives; while it
+works, use the robots for what every plan starts with (bring-up checks, the first stages all strategies share), not
+waiting idle
 ([strategy-review](.agents/skills/strategy-review/SKILL.md)): the last session's "next step" is one
 option, not the plan. Treat `memory/history/*/PROGRESS.md` as that session's story, not your state. Its scene, its robot's calibration and its numbers
 can differ from yours: verify every inherited position and parameter with your own observation

@@ -62,3 +62,30 @@ def test_write_review(tmp_path):
     text = Path(path).read_text()
     assert text.startswith('# Attempt 3') and '## Operator actions' in text and 'g1 stack stopped' in text
     assert '(no tool log)' in text and 'runtime/stream/replay/x.png' in text
+
+
+def test_the_summary_gives_the_in_air_maximum_not_the_end_position():
+    samples = [sample(100, (-0.15, -0.35, 0.45)), sample(101, (-0.35, -0.35, 0.50)), sample(102, (-0.55, -0.35, 0.49)),
+               sample(103, (-0.50, -0.35, 0.33), tilt=46)]
+    s = attempt_review.attempt_summary(samples, LAYOUT)
+    assert s['in_air_max_from_start_m'] == 0.4 and s['in_air_s'] == 1.0 and s['end_from_start_m'] == 0.35
+    assert s['end'].startswith('leaning or tipped') and s['disturbed_after_set_down'] is None
+    assert 'furthest 0.40 m from its start while in the air' in attempt_review.summary_words(s)
+
+
+def test_a_box_knocked_after_it_was_set_down_names_the_call_before(tmp_path):
+    log = tmp_path / 'mcp.jsonl'
+    log.write_text('\n'.join(json.dumps(e) for e in [
+        {'time': 101.5, 'event': 'mcp_request', 'call_id': 'a', 'tool': 'r1_status'},
+        {'time': 102.5, 'event': 'mcp_request', 'call_id': 'b', 'tool': 'r1_move_hand', 'arguments': {}}]))
+    samples = [sample(100, (-0.15, -0.35, 0.45)), sample(101, (-0.30, -0.35, 0.50)), sample(102, (-0.30, -0.35, 0.45)),
+               sample(103, (-0.30, -0.35, 0.45)), sample(104, (-0.30, -0.35, 0.40), tilt=47)]
+    s = attempt_review.attempt_summary(samples, LAYOUT, log)
+    d = s['disturbed_after_set_down']
+    assert d['tilt_deg'] == 47 and d['after_call'].startswith('r1_move_hand')
+    assert 'AFTER it was set down level' in attempt_review.summary_words(s)
+
+
+def test_a_box_on_the_table_untouched():
+    s = attempt_review.attempt_summary([sample(100, (-0.15, -0.35, 0.45))] * 3, LAYOUT)
+    assert s['end'] == 'on the table, level' and s['in_air_s'] == 0

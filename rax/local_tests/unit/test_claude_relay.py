@@ -433,7 +433,7 @@ def test_an_agent_that_ends_its_turn_early_is_continued_while_time_is_left(tmp_p
                                      min_turn_seconds=0, on_continue=lambda count, remaining: notes.append(count),
                                      sleep=lambda s: pytest.fail('waited'))
     assert code == 0 and len(runs) == claude.MAX_CONTINUES + 1 and runs[0] == 'go'
-    assert runs[1].startswith('You ended your turn, but the session is not over: about 89 minutes')
+    assert runs[1].startswith('You ended your turn, but the session is not over: about 89 minutes of robot time are left: robot work goes on until')
     assert deployed['resume_session'] == 'conv' and notes[:2] == [1, 2]
 
 

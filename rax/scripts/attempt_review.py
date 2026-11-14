@@ -142,12 +142,79 @@ def truth_events(samples, layout):
     return lines
 
 
+def last_motion_call(mcp_path, before, since=0.0):
+    """(clock, tool) of the last motion or team call that started in [since, before), or None."""
+    try:
+        events = [json.loads(line) for line in Path(mcp_path).read_text().splitlines() if line.strip()]
+    except (OSError, ValueError):
+        return None
+    calls = [e for e in events if e.get('event') == 'mcp_request' and e.get('tool') not in QUIET
+             and since <= e.get('time', 0) < before]
+    return (_clock(calls[-1]['time']), calls[-1].get('tool')) if calls else None
+
+
+def attempt_summary(samples, layout, mcp_path=None):
+    """The attempt in numbers, from the ground truth sampled during it [sim-only]: seconds the box was in the air,
+    the furthest it travelled from its start while in the air, where it ended (on the table, leaning on its edge,
+    on the floor, tipped, still held), and whether it was disturbed after being set down level, with the call that
+    began just before. S30 labelled its runs from the end position alone and missed boxes knocked over after the
+    put-down; the funnel and the reset reply carry this so labels can be checked against it."""
+    if not samples:
+        return None
+    table = layout['box_start'].get('z', 0.0)
+    sx, sy = layout['box_start']['pos'][:2]
+    travel = lambda s: math.hypot(s['box'][0] - sx, s['box'][1] - sy)
+    lifted = lambda s: s['box'][2] > table + 0.015 and s['box_tilt_deg'] < 20
+    air, air_max, settled, disturbed, previous = 0.0, 0.0, None, None, None
+    for s in samples:
+        if lifted(s):
+            air_max = max(air_max, travel(s))
+            if previous is not None and lifted(previous):
+                air += s['t'] - previous['t']
+            settled = None
+        elif previous is not None and lifted(previous) and s['box_tilt_deg'] < 10:
+            settled = s                       # set down level
+        elif settled is not None and disturbed is None and (
+                abs(travel(s) - travel(settled)) > 0.03 or s['box_tilt_deg'] > settled['box_tilt_deg'] + 15):
+            call = last_motion_call(mcp_path, s['t'], settled['t'] - 5) if mcp_path else None
+            disturbed = {'at': _clock(s['t']), 'tilt_deg': round(s['box_tilt_deg']), 'moved_m': round(abs(travel(s) - travel(settled)), 2),
+                         'after_call': f'{call[1]} at {call[0]}' if call else None}
+        previous = s
+    last = samples[-1]
+    z, tilt = last['box'][2], last['box_tilt_deg']
+    if lifted(last):
+        end = 'in the air (held)'
+    elif z < 0.05:
+        end = 'on the floor, upright' if tilt < 10 else f'on the floor, tipped {tilt:.0f} deg'
+    elif abs(z - table) < 0.02 and tilt < 10:
+        end = 'on the table, level'
+    else:
+        end = f'leaning or tipped (base z {z:.2f}, tilt {tilt:.0f} deg), not level on the table or the floor'
+    return {'in_air_s': round(air, 1), 'in_air_max_from_start_m': round(air_max, 2),
+            'end_from_start_m': round(travel(last), 2), 'end': end, 'end_tilt_deg': round(tilt),
+            'disturbed_after_set_down': disturbed}
+
+
+def summary_words(summary):
+    """One sentence of attempt_summary for the reset reply."""
+    if not summary:
+        return ''
+    text = (f"in the air {summary['in_air_s']:g} s, furthest {summary['in_air_max_from_start_m']:.2f} m from its start "
+            f"while in the air; it ended {summary['end']}, {summary['end_from_start_m']:.2f} m from its start")
+    d = summary.get('disturbed_after_set_down')
+    if d:
+        text += (f"; AFTER it was set down level it moved {d['moved_m']:.2f} m / tilted to {d['tilt_deg']} deg at {d['at']}"
+                 + (f", after your {d['after_call']}" if d.get('after_call') else ''))
+    return text
+
+
 def write_review(path, number, since, until, samples, layout, mcp_path, operator_lines=(), frame=None):
     """Write the review of the attempt between two resets (or the session start) to `path`."""
     text = [f'# Attempt {number}: {_clock(since)} to {_clock(until)} [sim-only]', '',
             'Written by the simulation operator from its ground truth (sampled about once a second) and your tool',
             'log. Use it to label the attempt and to check your causes: a fault or a drop belongs to whatever',
             'happened just before it on this clock, which is not always your last command.', '',
+            f'**In numbers:** {summary_words(attempt_summary(samples, layout, mcp_path)) or "no samples"}.', '',
             '## Ground truth', ''] + [f'- {line}' for line in truth_events(samples, layout)]
     if operator_lines:
         text += ['', '## Operator actions', ''] + [f'- {line}' for line in operator_lines]

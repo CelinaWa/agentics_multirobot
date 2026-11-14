@@ -354,7 +354,13 @@ def main():
                 log('before the reset: ' + end_state(ctx, layout))
                 reset_started, before = time.time(), truth_words(ctx, layout)
                 resets += 1
-                row = record(a.session, ctx, layout, 'before_reset', reset=resets, request=request['message'][:600])
+                summary = None
+                try:
+                    summary = attempt_review.attempt_summary(samples, layout, a.session / 'mcp.jsonl')
+                except Exception as error:
+                    log(f'attempt summary failed: {error}')
+                row = record(a.session, ctx, layout, 'before_reset', reset=resets, request=request['message'][:600],
+                             attempt=summary)
                 review = write_attempt_review(a.session, resets, attempt_since, reset_started, samples, layout,
                                               row.get('third_person'))
                 moved = ''
@@ -401,6 +407,9 @@ def main():
                         arming.write(a.session, True, minutes=max(1.0, (deadline - time.time()) / 60), by='sim operator')
                         caused += ' Both robots stand; I armed the session again.'
                     log('a guard tripped during the reset: ' + tripped[:160])
+                if summary:   # S30 read 6 of 37 reviews and labelled runs from the end position alone
+                    before += (' The attempt in numbers (label it with these): '
+                               + attempt_review.summary_words(summary) + '.')
                 text = (f'Reset {resets}/{a.max_resets}:' + before + ' Now the box is back at its starting place, upright.'
                         + (moved or ' The robots were not moved (ask for the robots too if you want them put back).')
                         + refused + (misplaced or '') + caused + ' Observe before acting.')
@@ -437,7 +446,8 @@ def main():
             text, notice = text + notice, ''
             clock = robot_clock(a.session)
             if clock:   # S29 misjudged the time left four times and stopped early
-                text += f" Robot time left: {clock['robot_minutes_left']:g} min (until {clock['robot_work_ends_at']})."
+                text += (f" Robot time left: {clock['robot_minutes_left']:g} min: robot work goes on until "
+                         f"{clock['robot_work_ends_at']}; the hand-over comes after that, on its own time.")
             operator.reply(a.session, request['id'], text, done=True, by='sim operator')
             log('replied:', text[:120])
         try:
