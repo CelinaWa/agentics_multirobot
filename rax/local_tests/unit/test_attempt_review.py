@@ -70,7 +70,15 @@ def test_the_summary_gives_the_in_air_maximum_not_the_end_position():
     s = attempt_review.attempt_summary(samples, LAYOUT)
     assert s['in_air_max_from_start_m'] == 0.4 and s['in_air_s'] == 1.0 and s['end_from_start_m'] == 0.35
     assert s['end'].startswith('leaning or tipped') and s['disturbed_after_set_down'] is None
+    assert s['left_the_air']['from_start_m'] == 0.4 and s['left_the_air']['fell_m'] == 0.16
     assert 'furthest 0.40 m from its start while in the air' in attempt_review.summary_words(s)
+    assert 'left the air (released or dropped)' in attempt_review.summary_words(s)
+
+
+def test_a_held_box_dipping_to_the_table_is_not_a_set_down():
+    held = [sample(100 + i, (-0.15 - 0.03 * i, -0.35, 0.46 if i % 2 else 0.48)) for i in range(8)]
+    s = attempt_review.attempt_summary(held + [sample(108, (-0.5, -0.35, 0.3), tilt=60)], LAYOUT)
+    assert s['disturbed_after_set_down'] is None and s['left_the_air'] is not None
 
 
 def test_a_box_knocked_after_it_was_set_down_names_the_call_before(tmp_path):
@@ -79,11 +87,12 @@ def test_a_box_knocked_after_it_was_set_down_names_the_call_before(tmp_path):
         {'time': 101.5, 'event': 'mcp_request', 'call_id': 'a', 'tool': 'r1_status'},
         {'time': 102.5, 'event': 'mcp_request', 'call_id': 'b', 'tool': 'r1_move_hand', 'arguments': {}}]))
     samples = [sample(100, (-0.15, -0.35, 0.45)), sample(101, (-0.30, -0.35, 0.50)), sample(102, (-0.30, -0.35, 0.45)),
-               sample(103, (-0.30, -0.35, 0.45)), sample(104, (-0.30, -0.35, 0.40), tilt=47)]
+               sample(103, (-0.30, -0.35, 0.45)), sample(104, (-0.30, -0.35, 0.45)),
+               sample(105, (-0.30, -0.35, 0.40), tilt=47)]
     s = attempt_review.attempt_summary(samples, LAYOUT, log)
     d = s['disturbed_after_set_down']
     assert d['tilt_deg'] == 47 and d['after_call'].startswith('r1_move_hand')
-    assert 'AFTER it was set down level' in attempt_review.summary_words(s)
+    assert 'AFTER it rested level' in attempt_review.summary_words(s)
 
 
 def test_a_box_on_the_table_untouched():

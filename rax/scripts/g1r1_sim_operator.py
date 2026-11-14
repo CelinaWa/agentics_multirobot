@@ -313,6 +313,7 @@ def main():
     state = ctx.socket(zmq.SUB); state.connect(f'tcp://127.0.0.1:{STATE}'); state.setsockopt(zmq.SUBSCRIBE, b'g1_debug')
     released, control_at, resets, done = False, None, 0, set()
     attempt_since, samples = time.time(), []    # the ground truth of the attempt under way, for its review
+    reset_times = []                            # when each reset was asked for: how long an attempt takes lately
     deadline = time.time() + a.minutes * 60
     restarts, next_check, notice = 0, time.time() + 30, ''
     while time.time() < deadline:
@@ -353,6 +354,7 @@ def main():
             if request['kind'] == 'reset' and resets < a.max_resets:
                 log('before the reset: ' + end_state(ctx, layout))
                 reset_started, before = time.time(), truth_words(ctx, layout)
+                reset_times.append(reset_started)
                 resets += 1
                 summary = None
                 try:
@@ -448,6 +450,13 @@ def main():
             if clock:   # S29 misjudged the time left four times and stopped early
                 text += (f" Robot time left: {clock['robot_minutes_left']:g} min: robot work goes on until "
                          f"{clock['robot_work_ends_at']}; the hand-over comes after that, on its own time.")
+                recent = [b - a for a, b in zip(reset_times[-6:], reset_times[-5:])]
+                if len(recent) >= 2 and clock['robot_minutes_left'] > 0:
+                    # S31 gave its loops deadlines 10-12 min early and stopped with 13 min left
+                    typical = sorted(recent)[len(recent) // 2]
+                    last_start = time.time() + clock['robot_minutes_left'] * 60 - typical
+                    text += (f" Your attempts lately take about {typical / 60:.1f} min from reset to reset: one started "
+                             f"before {time.strftime('%H:%M', time.localtime(last_start))} still fits.")
             operator.reply(a.session, request['id'], text, done=True, by='sim operator')
             log('replied:', text[:120])
         try:

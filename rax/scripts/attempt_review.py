@@ -155,32 +155,46 @@ def last_motion_call(mcp_path, before, since=0.0):
 
 def attempt_summary(samples, layout, mcp_path=None):
     """The attempt in numbers, from the ground truth sampled during it [sim-only]: seconds the box was in the air,
-    the furthest it travelled from its start while in the air, where it ended (on the table, leaning on its edge,
-    on the floor, tipped, still held), and whether it was disturbed after being set down level, with the call that
-    began just before. S30 labelled its runs from the end position alone and missed boxes knocked over after the
-    put-down; the funnel and the reset reply carry this so labels can be checked against it."""
+    the furthest it travelled from its start while in the air, where it left the air (the release, or a drop) and
+    how far it fell, where it ended (on the table, leaning on its edge, on the floor, tipped, still held), how much
+    closer to the goal, and whether it was disturbed after resting level, with the call that began just before.
+    S30 labelled its runs from the end position alone; S31 released at a fixed travel estimate without the travel
+    at which a release cleared the table; both are answered here."""
     if not samples:
         return None
     table = layout['box_start'].get('z', 0.0)
     sx, sy = layout['box_start']['pos'][:2]
     travel = lambda s: math.hypot(s['box'][0] - sx, s['box'][1] - sy)
     lifted = lambda s: s['box'][2] > table + 0.015 and s['box_tilt_deg'] < 20
-    air, air_max, settled, disturbed, previous = 0.0, 0.0, None, None, None
-    for s in samples:
+    resting = lambda a, b: (b['t'] - a['t'] >= 1.5 and a['box_tilt_deg'] < 10 and b['box_tilt_deg'] < 10
+                            and abs(a['box'][2] - b['box'][2]) < 0.005 and travel_gap(a, b) < 0.01
+                            and (abs(b['box'][2] - table) < 0.006 or b['box'][2] < 0.02))
+    travel_gap = lambda a, b: math.hypot(a['box'][0] - b['box'][0], a['box'][1] - b['box'][1])
+    air, air_max, left_air, rest, disturbed, previous = 0.0, 0.0, None, None, None, None
+    for i, s in enumerate(samples):
         if lifted(s):
             air_max = max(air_max, travel(s))
             if previous is not None and lifted(previous):
                 air += s['t'] - previous['t']
-            settled = None
-        elif previous is not None and lifted(previous) and s['box_tilt_deg'] < 10:
-            settled = s                       # set down level
-        elif settled is not None and disturbed is None and (
-                abs(travel(s) - travel(settled)) > 0.03 or s['box_tilt_deg'] > settled['box_tilt_deg'] + 15):
-            call = last_motion_call(mcp_path, s['t'], settled['t'] - 5) if mcp_path else None
-            disturbed = {'at': _clock(s['t']), 'tilt_deg': round(s['box_tilt_deg']), 'moved_m': round(abs(travel(s) - travel(settled)), 2),
+            rest = None
+        elif previous is not None and lifted(previous):
+            later = [x for x in samples[i:] if x['t'] <= s['t'] + 2.5]
+            low = min(later, key=lambda x: x['box'][2])
+            left_air = {'at': _clock(previous['t']), 'from_start_m': round(travel(previous), 2),
+                        'fell_m': round(max(0.0, previous['box'][2] - low['box'][2]), 2),
+                        'tilt_after_deg': round(max(x['box_tilt_deg'] for x in later))}
+            rest = None
+        if rest is None and not lifted(s) and previous is not None and not lifted(previous):
+            back = [x for x in samples[:i] if s['t'] - x['t'] >= 1.5 and not lifted(x)]
+            if back and resting(back[-1], s):
+                rest = s
+        elif rest is not None and disturbed is None and (
+                travel_gap(s, rest) > 0.03 or s['box_tilt_deg'] > rest['box_tilt_deg'] + 15):
+            call = last_motion_call(mcp_path, s['t'], rest['t'] - 5) if mcp_path else None
+            disturbed = {'at': _clock(s['t']), 'tilt_deg': round(s['box_tilt_deg']), 'moved_m': round(travel_gap(s, rest), 2),
                          'after_call': f'{call[1]} at {call[0]}' if call else None}
         previous = s
-    last = samples[-1]
+    first, last = samples[0], samples[-1]
     z, tilt = last['box'][2], last['box_tilt_deg']
     if lifted(last):
         end = 'in the air (held)'
@@ -190,8 +204,11 @@ def attempt_summary(samples, layout, mcp_path=None):
         end = 'on the table, level'
     else:
         end = f'leaning or tipped (base z {z:.2f}, tilt {tilt:.0f} deg), not level on the table or the floor'
-    return {'in_air_s': round(air, 1), 'in_air_max_from_start_m': round(air_max, 2),
+    closer = (first.get('box_to_goal_m') - last.get('box_to_goal_m')
+              if isinstance(first.get('box_to_goal_m'), (int, float)) and isinstance(last.get('box_to_goal_m'), (int, float)) else None)
+    return {'in_air_s': round(air, 1), 'in_air_max_from_start_m': round(air_max, 2), 'left_the_air': left_air,
             'end_from_start_m': round(travel(last), 2), 'end': end, 'end_tilt_deg': round(tilt),
+            'closer_to_goal_m': None if closer is None else round(closer, 2),
             'disturbed_after_set_down': disturbed}
 
 
@@ -200,10 +217,18 @@ def summary_words(summary):
     if not summary:
         return ''
     text = (f"in the air {summary['in_air_s']:g} s, furthest {summary['in_air_max_from_start_m']:.2f} m from its start "
-            f"while in the air; it ended {summary['end']}, {summary['end_from_start_m']:.2f} m from its start")
+            f"while in the air")
+    left = summary.get('left_the_air')
+    if left:
+        text += (f"; it left the air (released or dropped) at {left['at']}, {left['from_start_m']:.2f} m from its start, "
+                 f"fell {left['fell_m']:.2f} m, tilt up to {left['tilt_after_deg']} deg within 2.5 s")
+    text += f"; it ended {summary['end']}, {summary['end_from_start_m']:.2f} m from its start"
+    if summary.get('closer_to_goal_m') is not None:
+        c = summary['closer_to_goal_m']
+        text += f" ({abs(c):.2f} m {'closer to' if c >= 0 else 'further from'} the goal than at the start)"
     d = summary.get('disturbed_after_set_down')
     if d:
-        text += (f"; AFTER it was set down level it moved {d['moved_m']:.2f} m / tilted to {d['tilt_deg']} deg at {d['at']}"
+        text += (f"; AFTER it rested level it moved {d['moved_m']:.2f} m / tilted to {d['tilt_deg']} deg at {d['at']}"
                  + (f", after your {d['after_call']}" if d.get('after_call') else ''))
     return text
 

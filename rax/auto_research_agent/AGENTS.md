@@ -58,7 +58,11 @@ side by side: your last calls (with their times), the operator's actions (`runti
 restarts, band releases) and the fault's time. A fault inside an operator action is the operator's; a cause seen once
 or twice is a hypothesis, not a rule: write it with its count, and test it before it constrains later sessions.
 After each reset, read the operator's review of the attempt before the next one (the reset reply names it, under
-`runtime/stream/reviews/`): what the box and the robots really did, on one clock with your calls.
+`runtime/stream/reviews/`): what the box and the robots really did, on one clock with your calls. Label each
+attempt from the reply's numbers; when ground truth contradicts a row you recorded, relabel it with
+`api.attempts.correct(t, ok, why)` (the funnel then counts the correction). `memory/OPERATOR_NOTES.md` holds the
+operator's corrections from earlier sessions: apply them the same way, and keep the file (do not fold it into
+CURRENT.md or delete it).
 {% endif %}
 This session runs on **{{ environment }}**{% if simulated %} (a simulation of the robot){% endif %}. Simulation and real
 sessions share one memory format so experience moves between them: tag every tip `[strategy]`,

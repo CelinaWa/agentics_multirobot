@@ -56,3 +56,16 @@ def test_a_stage_outside_the_graph_is_refused_and_a_row_carries_its_check(tmp_pa
     assert attempts.record('grip', True)['check'] == 'pinch 20-45 mm'
     table = {e['stage']: e for e in attempts.funnel()}
     assert table['grip']['checked'] and not table['walk_hold']['checked']
+
+
+def test_a_correction_relabels_a_row_in_the_funnel(tmp_path):
+    root = tmp_path/'20261114T000000Z_task_abc'
+    attempts = load(root/'agent-workspace')
+    memory = root/'agent-workspace'/'memory'
+    memory.mkdir()
+    (memory/'STAGES.json').write_text(json.dumps({'stages': [{'id': 'putdown', 'check': 'level'}]}))
+    row = attempts.record('putdown', True)
+    attempts.record('putdown', True)
+    attempts.correct(row['t'], False, 'ground truth: on its side, tilt 61')
+    table = {e['stage']: e for e in attempts.funnel()}
+    assert table['putdown']['session']['chain'] == [1, 2]

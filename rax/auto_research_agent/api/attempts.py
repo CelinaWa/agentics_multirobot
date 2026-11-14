@@ -16,6 +16,9 @@ state (`practice`), or as a one-robot stand-in for a joint stage (`proxy`):
     record('r1_grip', ok=False, mode='practice', cause='finger landed on the wall, box pushed 2 cm',
            params={'approach': [0.15, 0, -1], 'y': 0.12}, controller='code/s28/grip.py')
 
+When ground truth contradicts a row, relabel it with `correct(t, ok, why)` (t: the row's 't'); the funnel counts
+the correction, and the original row stays in the log.
+
 `python -m api.attempts` prints the funnel: tries and successes per stage, this session and all sessions, by mode,
 with the most common causes of failure, and the operator's ground truth per session (resets, how far the box
 really got, robot restarts) where the simulation provides it ([sim-only]: runtime/stream/ground_truth.jsonl for
@@ -43,7 +46,7 @@ def record(stage, ok, *, mode='chain', cause=None, params=None, controller=None,
     if mode not in MODES:
         raise ValueError(f'mode must be one of {MODES}, not {mode!r}')
     stages = _stages()
-    row = {'t': round(time.time(), 1), 'session': session_id(), 'stage': str(stage), 'ok': bool(ok), 'mode': mode}
+    row = {'t': round(time.time(), 6), 'session': session_id(), 'stage': str(stage), 'ok': bool(ok), 'mode': mode}
     if stages.get(str(stage)):
         row['check'] = stages[str(stage)]
     elif stages:
@@ -60,6 +63,32 @@ def record(stage, ok, *, mode='chain', cause=None, params=None, controller=None,
     with LOG.open('a') as out:
         out.write(json.dumps(row, default=str) + '\n')
     return row
+
+
+def correct(t, ok, why, *, stage=None):
+    """Relabel an earlier row (its 't', as the funnel's --json or the log shows it) without rewriting history: a
+    correction row whose `ok` the funnel uses instead of the original's. Use it when ground truth (the operator's
+    numbers, a review, OPERATOR_NOTES.md) contradicts a row."""
+    match = [r for r in rows() if r.get('t') == t and 'correction_of' not in r and (stage is None or r['stage'] == stage)]
+    if len(match) != 1:
+        raise ValueError(f'{len(match)} rows have t={t}' + (f' and stage {stage!r}' if stage else '') + ': give one row')
+    row = {'t': round(time.time(), 1), 'session': session_id(), 'stage': match[0]['stage'], 'ok': bool(ok),
+           'mode': match[0].get('mode', 'chain'), 'correction_of': t, 'why': str(why)}
+    with LOG.open('a') as out:
+        out.write(json.dumps(row) + '\n')
+    return row
+
+
+def _corrected(log):
+    """The log with corrections applied: each corrected row takes its correction's ok; corrections drop out."""
+    fixes = {(r['correction_of'], r['stage']): r for r in log if 'correction_of' in r}
+    out = []
+    for r in log:
+        if 'correction_of' in r:
+            continue
+        fix = fixes.get((r.get('t'), r['stage']))
+        out.append({**r, 'ok': fix['ok'], 'corrected': fix.get('why', '')} if fix else r)
+    return out
 
 
 def _stages():
@@ -93,7 +122,7 @@ def stage_order():
 
 
 def funnel(log=None):
-    log = rows() if log is None else log
+    log = _corrected(rows() if log is None else log)
     me = session_id()
     order = stage_order()
     order += sorted({r['stage'] for r in log} - set(order))
