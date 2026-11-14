@@ -1124,6 +1124,8 @@ class G1SonicBackend:
                     new_base[key] = (np.asarray(value, dtype=float), state['base'][key][1])
             press = state['press'] if press_m is None else float(press_m)
             new = self._pressed(new_base, press)
+            if entering and left_hand is None and right_hand is None:
+                old = new      # entering on what the hands hold: the press goes on at once, not eased in from none
             shift = max(float(np.linalg.norm(new[k][0] - old[k][0])) for k in ('left', 'right'))
             blend_s = shift / o['hands_walk_blend_mps'] if shift > 1e-4 else 0.0
             distance, direction = math.hypot(forward_m, left_m), math.atan2(left_m, forward_m)
@@ -1149,8 +1151,13 @@ class G1SonicBackend:
                 # the deploy turns its teleop encoder on only when hand points first appear in planner messages:
                 # plain ones first clear a flag left on by an earlier hold (sim: without them the second hold of a
                 # run tracked the planner's swinging arms instead, 0.5 m off the targets)
-                for _ in range(10):
-                    self.streamer.planner(IDLE, [0.0, 0.0, 0.0], [1.0, 0.0, 0.0], -1.0, **fingers)
+                # run. Meanwhile the arms hold their last COMMANDED joints (a squeeze made with g1_step keeps its press:
+                # S35 lost a lifted box at this switch 3 times in 3 when the arms were left to the planner)
+                upper = {}
+                if held is not None:
+                    upper = {'upper_body': np.asarray(held.joint_pos, dtype=float)[list(UPPER_BODY_INDICES)].copy()}
+                for _ in range(4):
+                    self.streamer.planner(IDLE, [0.0, 0.0, 0.0], [1.0, 0.0, 0.0], -1.0, **upper, **fingers)
                     time.sleep(0.05)
             else:
                 self._planner_keepalive = None

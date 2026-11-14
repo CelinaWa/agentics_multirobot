@@ -49,9 +49,8 @@ try:
         end = base * (1 - a1) + goal * a1
         g1.call('g1_step', {'actions': [(base * (1 - a) + goal * a).tolist() for a in np.linspace(a0, a1, 80)] + [end.tolist()] * 8})
     time.sleep(1.0)
-    f = fb(g1.call('g1_hands_walk', {}))                       # enter the hold at the measured hand points
-    left, right = f['hand_points_pelvis']['left'], f['hand_points_pelvis']['right']
-    log('entered the hold; hand points', left, right, 'separation', f['hand_separation_m'])
+    hp = g1.hand_points(g1.state.latest().q)
+    left, right = hp['left'][0].tolist(), hp['right'][0].tolist()
     mid = (np.asarray(left) + np.asarray(right)) / 2
     op.terminate(); time.sleep(1.5)                            # the band is released; this check places the box now
     keys = ctx.socket(zmq.PUB); keys.bind('tcp://127.0.0.1:5790'); time.sleep(1.0)
@@ -63,11 +62,21 @@ try:
             keys.send_string(f'place=box,{bx},{by},{q[2] + mid[2] - 0.13},{math.cos(yw / 2)},0,0,{math.sin(yw / 2)}')
             time.sleep(0.1)
     th = threading.Thread(target=place_loop, daemon=True); th.start(); time.sleep(0.5)
-    # targets at the box's side walls (0.31 m wide: hand points about 0.41 m apart there), then the press
-    contact = 0.205
-    f = fb(g1.call('g1_hands_walk', {'left_hand': [left[0], contact, left[2]], 'right_hand': [right[0], -contact, right[2]],
-                                     'press_m': 0.12}))
-    placing = False; th.join()
+    if os.environ.get('SWITCH') == '1':
+        # as the agent does: squeeze with g1_step (shoulder rolls inward past contact), box free, THEN enter the hold
+        sq = goal.copy()
+        for side, sign in (('left', 1), ('right', -1)):
+            sq[9 + R.JOINT_NAMES.index(f'{side}_shoulder_roll_joint')] = sign * float(os.environ.get('ROLL_SQ', '-0.10'))
+        g1.call('g1_step', {'actions': [(goal * (1 - a) + sq * a).tolist() for a in np.linspace(0, 1, 90)] + [sq.tolist()] * 8})
+        placing = False; th.join(); time.sleep(3)
+        q = qpos(); log('g1_step squeeze, box free 3 s: box z minus pelvis', round(float(q[52] - q[2]), 3))
+        f = fb(g1.call('g1_hands_walk', {'press_m': float(os.environ.get('PRESS', '0.12'))}))
+    else:
+        f = fb(g1.call('g1_hands_walk', {}))                   # enter the hold at the measured hand points
+        contact = 0.205
+        f = fb(g1.call('g1_hands_walk', {'left_hand': [left[0], contact, left[2]], 'right_hand': [right[0], -contact, right[2]],
+                                         'press_m': 0.12}))
+        placing = False; th.join()
     log('squeezed:', {k: f[k] for k in ('hand_target_error_m', 'hand_separation_m')})
     time.sleep(4)
     def box():

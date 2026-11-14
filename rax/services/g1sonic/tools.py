@@ -135,6 +135,8 @@ def tool_definitions(geometry=True):
             "left, z up, metres; a hand point is 0.18 m along the wrist link's x axis from the wrist; status and "
             "every reply give the measured ones as hand_points_pelvis). left_hand / right_hand set new targets ([x, y, "
             "z]; omitted: unchanged, and on the first call the measured points); the hands move there at about 8 cm/s "
+            "(entering while already holding something: give press_m in that first call and no hand targets; the "
+            "arms keep their last commanded joints through the switch and the press is on from the first moment) "
             "before any walking, keeping the wrist orientation they had when this hold began. press_m moves both "
             "targets that far toward each other past where you set them: against an object between the palms the "
             "hands cannot follow, and the difference is the squeeze that holds it (reply: hand_target_error_m). With "
