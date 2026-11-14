@@ -446,7 +446,7 @@ def test_no_continuation_without_reason(tmp_path, monkeypatch, case):
         runs.append(prompt)
         return 1 if case == 'agent failed' else 0
     claude.until_usage_resets(run, FakeRelay(), deployed={'claude_home': tmp_path}, prompt='go', interactive=False,
-                              budget=300 if case == 'little time left' else 5400,
+                              budget=120 if case == 'little time left' else 5400,
                               min_turn_seconds=60 if case == 'turn ended at once' else 0,
                               keep_going=case != 'single turn')
     assert runs == ['go']
@@ -482,3 +482,14 @@ def test_no_hand_over_without_one(tmp_path, monkeypatch, case):
                                   interactive=case == 'interactive', budget=1200 if case == 'short session' else 5400,
                                   review_seconds=0 if case == 'no review' else 720)
     assert runs == ['go']
+
+
+def test_the_robot_clock_reaches_status(tmp_path):
+    import time
+    from harness.claude_cli import launcher as claude
+    from services.controller.frontend import robot_clock
+    now = time.time()
+    claude.write_clock(tmp_path, now, 5400, 720)
+    clock = robot_clock(tmp_path, now=now + 600)
+    assert clock['robot_minutes_left'] == pytest.approx((5400 - 720 - 600) / 60, abs=0.05)
+    assert robot_clock(tmp_path, now=now + 9999)['robot_minutes_left'] == 0

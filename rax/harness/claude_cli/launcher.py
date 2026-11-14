@@ -51,7 +51,8 @@ SUBAGENT_TOOLS = ('Agent', 'Task')  # 'Task' is the tool's former name.
 RELAY_TOKEN = 'host-relay'  # Placeholder the relay replaces; not a credential.
 # Session files only the launcher and the robot service read.
 PRIVATE_FILES = ('configuration.json', 'model-relay.json', 'state.json', 'mcp.jsonl', 'frontend.log',
-                 'model-usage.jsonl', 'model-calls.json', 'agent-lifecycle.json', 'workspace-manifest.json')
+                 'model-usage.jsonl', 'model-calls.json', 'agent-lifecycle.json', 'workspace-manifest.json',
+                 'robot-clock.json')
 # Credentials and the harness itself: the agent's tools never read them.
 HOME = Path.home()
 PROTECTED_PATHS = (PROJECT, HOME/'.config/rax', HOME/'.claude', HOME/'.claude.json', HOME/'.codex', HOME/'.ssh',
@@ -94,8 +95,9 @@ USAGE_PROMPT = ("The model usage limit paused this session until it reset. Call 
 # A non-interactive agent that ends its turn ends its process. With session time left that is not the end of the
 # session: the launcher continues the same conversation with this prompt, until the time is nearly used up or the
 # agent ends a continued turn at once (it has nothing left that it can do).
-CONTINUE_PROMPT = ("You ended your turn, but the session is not over: about {minutes} minutes of its time are left, and "
-                   "the robot service is still running. Call status and observe: the scene and the arming may have "
+CONTINUE_PROMPT = ("You ended your turn, but the session is not over: about {minutes} minutes of robot time are left "
+                   "(`status` gives robot_minutes_left), and the robot service is still running. Do not write a final "
+                   "report: the harness asks for it at the hand-over, after robot time ends. Call status and observe: the scene and the arming may have "
                    "changed while you wrote. If TASK.md's success condition is met and you have verified it, or if "
                    "going on would put a real robot at risk, say so in one line and end (in a simulation a fall costs a "
                    "restart, not a robot: it is not a reason to end; check from the timeline that your own motions, not "
@@ -115,7 +117,8 @@ REVIEW_PROMPT = ("Robot work for this session is over: about {minutes} minutes a
                  "memory/archive/ with a pointer; update memory/TOOL_REQUESTS.md; put measured success rates into the "
                  "skill-library skills you used and merge. End with a short report.")
 REVIEW_SECONDS = 720         # the hand-over at the end of a non-interactive session
-MIN_CONTINUE_SECONDS = 600   # less session time than this left: do not start another turn
+MIN_CONTINUE_SECONDS = 150   # less robot time than this left: do not start another turn (S29: at 600 the agent's
+                             # fourth early end gave ~9.5 min of robot time away to an early hand-over)
 MIN_TURN_SECONDS = 120       # a continued turn shorter than this means the agent declined to go on
 MAX_CONTINUES = 20
 
@@ -595,6 +598,13 @@ def _work(run, model, *, deployed, prompt, budget, interactive, on_wait, sleep, 
         return returncode
 
 
+def write_clock(root, started_at, budget, review):
+    """robot-clock.json: when robot work and the session end (epoch seconds), for the robot service's status and the
+    simulation operator's replies (S29: the agent misjudged the time left four times and stopped early)."""
+    write_private_json(Path(root)/'robot-clock.json', {'robot_work_ends_at': started_at + budget - review,
+                                                       'session_ends_at': started_at + budget})
+
+
 def launch(config, deployed, *, prompt, interactive=True, seconds=None, max_model_calls=None, on_wait=None,
            keep_going=True, on_continue=None, review_seconds=0, on_review=None):
     """Start the relay and robot service, run Claude Code in the workspace, clean up."""
@@ -618,8 +628,16 @@ def launch(config, deployed, *, prompt, interactive=True, seconds=None, max_mode
                     stop(agent, grace=30)
                     raise
                 return agent.returncode
+            review = 0 if interactive or review_seconds <= 0 or budget < 3 * review_seconds else review_seconds
+            write_clock(config.root, started_at, budget, review)
+
+            def waited(until, total):
+                if until is None:  # a usage wait ended: the work ends that much later
+                    write_clock(config.root, started_at + total, budget, review)
+                if on_wait:
+                    on_wait(until, total)
             return until_usage_resets(run, model, deployed=deployed, prompt=prompt, budget=budget,
-                                      interactive=interactive, on_wait=on_wait, keep_going=keep_going,
+                                      interactive=interactive, on_wait=waited, keep_going=keep_going,
                                       on_continue=on_continue, review_seconds=review_seconds, on_review=on_review)
         finally:
             stop(agent)

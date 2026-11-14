@@ -43,3 +43,15 @@ def test_ground_truth_is_summarised_per_session(tmp_path):
     (summary,) = attempts.truth_summary()
     assert summary == {'session': 'older', 'resets': 1, 'g1_restarts': 1, 'box_left_start_m_max': 0.5,
                        'box_to_goal_m_min': 2.9, 'successes': 0}
+
+
+def test_a_stage_outside_the_graph_is_refused_and_a_row_carries_its_check(tmp_path):
+    import pytest
+    root = tmp_path/'20261114T000000Z_task_abc'
+    attempts = load(root/'agent-workspace')
+    memory = root/'agent-workspace'/'memory'
+    memory.mkdir()
+    (memory/'STAGES.json').write_text(json.dumps({'stages': [{'id': 'grip', 'check': 'pinch 20-45 mm'}]}))
+    with pytest.raises(ValueError, match='not in memory/STAGES.json'):
+        attempts.record('walk_hold', True)
+    assert attempts.record('grip', True)['check'] == 'pinch 20-45 mm'

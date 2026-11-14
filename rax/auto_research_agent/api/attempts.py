@@ -42,7 +42,14 @@ def record(stage, ok, *, mode='chain', cause=None, params=None, controller=None,
     """Append one try of `stage` (ok: did its check pass) to memory/attempts.jsonl and return the row."""
     if mode not in MODES:
         raise ValueError(f'mode must be one of {MODES}, not {mode!r}')
+    stages = _stages()
+    if stages and str(stage) not in stages:
+        # S29: a stage recorded outside the graph had no check, and 'ok' became whatever the moment suggested
+        raise ValueError(f'stage {stage!r} is not in memory/STAGES.json: add it there first, with its start state and the '
+                         'check that says it succeeded, then record against that check')
     row = {'t': round(time.time(), 1), 'session': session_id(), 'stage': str(stage), 'ok': bool(ok), 'mode': mode}
+    if stages.get(str(stage)):
+        row['check'] = stages[str(stage)]
     for key, value in (('cause', cause), ('params', params), ('controller', controller), ('reset', reset),
                        ('note', note)):
         if value is not None:
@@ -51,6 +58,14 @@ def record(stage, ok, *, mode='chain', cause=None, params=None, controller=None,
     with LOG.open('a') as out:
         out.write(json.dumps(row, default=str) + '\n')
     return row
+
+
+def _stages():
+    """{stage id: its check} from memory/STAGES.json ({} when there is none yet)."""
+    try:
+        return {st['id']: st.get('check', '') for st in json.loads(STAGES.read_text()).get('stages', [])}
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        return {}
 
 
 def rows(path=LOG):

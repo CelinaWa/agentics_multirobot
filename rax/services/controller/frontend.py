@@ -81,6 +81,18 @@ GEMINI = {
 }
 
 
+def robot_clock(root, now=None):
+    """Robot time left from the launcher's robot-clock.json: {'robot_minutes_left', 'robot_work_ends_at' (local
+    HH:MM)}, or {} without one (an interactive session)."""
+    try:
+        ends = float(json.loads((Path(root)/'robot-clock.json').read_text())['robot_work_ends_at'])
+    except (OSError, ValueError, KeyError, TypeError):
+        return {}
+    now = time.time() if now is None else now
+    return {'robot_minutes_left': round(max(0.0, ends - now) / 60, 1),
+            'robot_work_ends_at': time.strftime('%H:%M', time.localtime(ends))}
+
+
 class Frontend:
     def __init__(self, session, backend, gemini=None, *, started_at=None):
         self.s, self.backend, self.gemini = session, backend, gemini
@@ -108,6 +120,9 @@ class Frontend:
         if self.started_at is not None:
             value['session_seconds'] = config.session_seconds
             value['seconds_since_launch'] = round(time.time() - self.started_at, 1)
+        clock = robot_clock(config.root)
+        if clock:
+            value.update(clock)
         try:
             value['robot_status'] = self.backend.status()
         except Exception as exc:

@@ -176,8 +176,10 @@ a motion still running is stopped where it is) and asks you to
 hand over: rewrite `memory/CURRENT.md` (at most 30 KB: the state of knowledge a next session
 can work from alone), move superseded long notes under `memory/archive/`, update
 `memory/TOOL_REQUESTS.md` and the skill library's success rates
-([strategy-review](.agents/skills/strategy-review/SKILL.md)). In
-your final report, give the controller path and run command, what it covers, the test
+([strategy-review](.agents/skills/strategy-review/SKILL.md)). Until then, use the robot time: `status` gives
+`robot_minutes_left` and `robot_work_ends_at`; check them instead of estimating, and do not wrap up or write a final
+report before the harness asks for the hand-over (ending a turn earlier is not the end of the session). In
+that final report, give the controller path and run command, what it covers, the test
 runs and their outcomes, the skill-library skills you added or changed and their merge
 result, unresolved issues and artifact pointers. Merge the skill library before you
 write it.

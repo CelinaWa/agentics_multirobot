@@ -10,6 +10,7 @@ from pathlib import Path
 import zmq
 from services import arming
 from services.controller import operator
+from services.controller.frontend import robot_clock
 import attempt_review    # (this script's own folder is on the path)
 
 SIM = Path(__file__).resolve().parents[2] / 'sim_team'      # the office simulation (sim_team/team_sim.sh)
@@ -434,6 +435,9 @@ def main():
                         '(request kind reset). Nobody can move a robot, hold the box, or move the furniture: getting round it is part of the task. Continue with '
                         'what the robots can do, and write down what they cannot.')
             text, notice = text + notice, ''
+            clock = robot_clock(a.session)
+            if clock:   # S29 misjudged the time left four times and stopped early
+                text += f" Robot time left: {clock['robot_minutes_left']:g} min (until {clock['robot_work_ends_at']})."
             operator.reply(a.session, request['id'], text, done=True, by='sim operator')
             log('replied:', text[:120])
         try:
