@@ -22,11 +22,14 @@ class Kind:
 def _g1_motion(tool, arguments):
     if tool == 'g1_walk':
         return float(arguments.get('forward_m', 0.0)), 0.0, float(arguments.get('turn_deg', 0.0))
+    if tool == 'g1_hands_walk':   # walking with the hands held: any direction
+        return (float(arguments.get('forward_m', 0.0)), float(arguments.get('left_m', 0.0)),
+                float(arguments.get('turn_deg', 0.0)))
     return None
 
 
 def _g1_result(tool, arguments, value):
-    if tool != 'g1_walk':
+    if tool not in ('g1_walk', 'g1_hands_walk'):
         return None
     feedback = (value.get('transition') or {}).get('feedback') or {} if isinstance(value, dict) else {}
     odometry = feedback.get('odometry_m')
