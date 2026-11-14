@@ -446,17 +446,22 @@ def main():
                         '(request kind reset). Nobody can move a robot, hold the box, or move the furniture: getting round it is part of the task. Continue with '
                         'what the robots can do, and write down what they cannot.')
             text, notice = text + notice, ''
+            recent = [b - c for c, b in zip(reset_times[-6:], reset_times[-5:])]
+            if len(recent) >= 2:
+                try:
+                    (a.session / 'operator' / 'pace.json').write_text(
+                        json.dumps({'attempt_seconds': sorted(recent)[len(recent) // 2]}))
+                except OSError:
+                    pass
             clock = robot_clock(a.session)
-            if clock:   # S29 misjudged the time left four times and stopped early
-                text += (f" Robot time left: {clock['robot_minutes_left']:g} min: robot work goes on until "
-                         f"{clock['robot_work_ends_at']}; the hand-over comes after that, on its own time.")
-                recent = [b - a for a, b in zip(reset_times[-6:], reset_times[-5:])]
-                if len(recent) >= 2 and clock['robot_minutes_left'] > 0:
-                    # S31 gave its loops deadlines 10-12 min early and stopped with 13 min left
-                    typical = sorted(recent)[len(recent) // 2]
-                    last_start = time.time() + clock['robot_minutes_left'] * 60 - typical
-                    text += (f" Your attempts lately take about {typical / 60:.1f} min from reset to reset: one started "
-                             f"before {time.strftime('%H:%M', time.localtime(last_start))} still fits.")
+            if clock:   # first, where a loop that logs only the head of a reply still shows it (S29-S32)
+                head = (f"Robot time left: {clock['robot_minutes_left']:g} min: robot work goes on until "
+                        f"{clock['robot_work_ends_at']}; the hand-over comes after that, on its own time.")
+                if clock.get('last_attempt_start_that_fits') and clock['robot_minutes_left'] > 0:
+                    head += (f" Your attempts lately take about {clock['attempt_minutes_lately']:g} min from reset to "
+                             f"reset: one started before {clock['last_attempt_start_that_fits']} still fits (status gives "
+                             "last_attempt_start_that_fits).")
+                text = head + ' ' + text
             operator.reply(a.session, request['id'], text, done=True, by='sim operator')
             log('replied:', text[:120])
         try:

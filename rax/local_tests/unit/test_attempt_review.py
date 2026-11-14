@@ -72,7 +72,7 @@ def test_the_summary_gives_the_in_air_maximum_not_the_end_position():
     assert s['end'].startswith('leaning or tipped') and s['disturbed_after_set_down'] is None
     assert s['left_the_air']['from_start_m'] == 0.4 and s['left_the_air']['fell_m'] == 0.16
     assert 'furthest 0.40 m from its start while in the air' in attempt_review.summary_words(s)
-    assert 'left the air (set down, released or dropped)' in attempt_review.summary_words(s)
+    assert 'released or dropped from base z 0.49' in attempt_review.summary_words(s)
 
 
 def test_a_held_box_dipping_to_the_table_is_not_a_set_down():
@@ -106,3 +106,11 @@ def test_a_box_lowered_past_the_table_edge_stays_in_the_air_until_the_floor():
     s = attempt_review.attempt_summary(samples, LAYOUT)
     assert s['in_air_max_from_start_m'] == 0.48 and s['left_the_air']['fell_m'] == 0.1
     assert s['end'] == 'on the floor, upright'
+
+
+def test_a_nudge_before_any_lift_is_not_a_disturbance_and_a_skim_counts_its_touchdowns():
+    nudged = [sample(100, (-0.15, -0.35, 0.45)), sample(102, (-0.15, -0.35, 0.45)), sample(103, (-0.15, -0.31, 0.45))]
+    assert attempt_review.attempt_summary(nudged, LAYOUT)['disturbed_after_set_down'] is None
+    skim = [sample(100 + i, (-0.15 - 0.05 * i, -0.35, 0.48 if i % 2 else 0.45)) for i in range(1, 8)]
+    s = attempt_review.attempt_summary(skim, LAYOUT)
+    assert s['came_down'] == 3 and 'came down 3 times' in attempt_review.summary_words(s)

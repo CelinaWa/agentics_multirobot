@@ -89,9 +89,16 @@ def robot_clock(root, now=None):
     except (OSError, ValueError, KeyError, TypeError):
         return {}
     now = time.time() if now is None else now
-    return {'robot_minutes_left': round(max(0.0, ends - now) / 60, 1),
-            'robot_work_ends_at': time.strftime('%H:%M', time.localtime(ends)),
-            'hand_over': 'after robot_work_ends_at, on its own time: do not subtract it from the robot time'}
+    clock = {'robot_minutes_left': round(max(0.0, ends - now) / 60, 1),
+             'robot_work_ends_at': time.strftime('%H:%M', time.localtime(ends)),
+             'hand_over': 'after robot_work_ends_at, on its own time: do not subtract it from the robot time'}
+    try:   # [sim-only] the operator's measure of an attempt, reset to reset
+        typical = float(json.loads((Path(root)/'operator'/'pace.json').read_text())['attempt_seconds'])
+        clock['attempt_minutes_lately'] = round(typical / 60, 1)
+        clock['last_attempt_start_that_fits'] = time.strftime('%H:%M', time.localtime(ends - typical))
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+    return clock
 
 
 class Frontend:

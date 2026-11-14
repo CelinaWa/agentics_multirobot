@@ -172,7 +172,7 @@ def attempt_summary(samples, layout, mcp_path=None):
                             and abs(a['box'][2] - b['box'][2]) < 0.005 and travel_gap(a, b) < 0.01
                             and (abs(b['box'][2] - table) < 0.006 or b['box'][2] < 0.02))
     travel_gap = lambda a, b: math.hypot(a['box'][0] - b['box'][0], a['box'][1] - b['box'][1])
-    air, air_max, left_air, rest, disturbed, previous = 0.0, 0.0, None, None, None, None
+    air, air_max, left_air, rest, disturbed, previous, downs = 0.0, 0.0, None, None, None, None, 0
     for i, s in enumerate(samples):
         if lifted(s):
             air_max = max(air_max, travel(s))
@@ -183,10 +183,14 @@ def attempt_summary(samples, layout, mcp_path=None):
             later = [x for x in samples[i:] if x['t'] <= s['t'] + 2.5]
             low = min(later, key=lambda x: x['box'][2])
             left_air = {'at': _clock(previous['t']), 'from_start_m': round(travel(previous), 2),
+                        'from_z': round(previous['box'][2], 2),
                         'fell_m': round(max(0.0, previous['box'][2] - low['box'][2]), 2),
                         'tilt_after_deg': round(max(x['box_tilt_deg'] for x in later))}
+            downs += 1
             rest = None
-        if rest is None and not lifted(s) and previous is not None and not lifted(previous):
+        # a set-down follows a lift: before any lift, the box sits where it was put (S32: 22 of 26 flags were the
+        # R1's place nudging a box that had never been lifted)
+        if left_air and rest is None and not lifted(s) and previous is not None and not lifted(previous):
             back = [x for x in samples[:i] if s['t'] - x['t'] >= 1.5 and not lifted(x)]
             if back and resting(back[-1], s):
                 rest = s
@@ -210,7 +214,7 @@ def attempt_summary(samples, layout, mcp_path=None):
               if isinstance(first.get('box_to_goal_m'), (int, float)) and isinstance(last.get('box_to_goal_m'), (int, float)) else None)
     return {'in_air_s': round(air, 1), 'in_air_max_from_start_m': round(air_max, 2), 'left_the_air': left_air,
             'end_from_start_m': round(travel(last), 2), 'end': end, 'end_tilt_deg': round(tilt),
-            'closer_to_goal_m': None if closer is None else round(closer, 2),
+            'closer_to_goal_m': None if closer is None else round(closer, 2), 'came_down': downs,
             'disturbed_after_set_down': disturbed}
 
 
@@ -222,8 +226,13 @@ def summary_words(summary):
             f"while in the air")
     left = summary.get('left_the_air')
     if left:
-        text += (f"; it left the air (set down, released or dropped) at {left['at']}, {left['from_start_m']:.2f} m from its start, "
-                 f"fell {left['fell_m']:.2f} m, tilt up to {left['tilt_after_deg']} deg within 2.5 s")
+        how = ('set down (fell under 0.10 m)' if left['fell_m'] < 0.10 else
+                f"released or dropped from base z {left.get('from_z', 0):.2f}")
+        text += (f"; it last left the air at {left['at']}, {left['from_start_m']:.2f} m from its start: {how}, fell "
+                 f"{left['fell_m']:.2f} m, tilt up to {left['tilt_after_deg']} deg within 2.5 s")
+        if summary.get('came_down', 0) > 1:
+            text += (f"; it came down {summary['came_down']} times in the attempt (between carry steps it rested on "
+                     "something, e.g. the table)")
     text += f"; it ended {summary['end']}, {summary['end_from_start_m']:.2f} m from its start"
     if summary.get('closer_to_goal_m') is not None:
         c = summary['closer_to_goal_m']

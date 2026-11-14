@@ -40,6 +40,11 @@ leave the robots idle; S30 waited 8 of its first 14 minutes): read `TASK.md`, `m
 7. **How to practise the bottleneck.** For the bottleneck stage: its start state, the cheapest way to reach it
    (operator placement, a one-robot stand-in, a proxy object), and how many repetitions fit in the session. Whole
    attempts from a reset that reach the bottleneck once each are not practice of it.
+8. **The stages never tried.** Once ground truth shows a stage succeeding at least twice, the stages after it get
+   tries this session - a fixed share of the robot time (a third is a good start), even while the earlier stage is
+   still unreliable: a stage never tried is the largest unknown on the route, and polishing the stage before it
+   only pays if the later ones work. Say how to start them (from a successful earlier stage, or a start state the
+   operator can set up).
 
 Then decide yourself, write your decision and why under the page, and plan the session's time by it. Disagreeing
 with the page is fine; ignoring it is not. When you change the plan mid-session (more steps than the plan allowed, a
