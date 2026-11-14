@@ -72,7 +72,7 @@ def test_the_summary_gives_the_in_air_maximum_not_the_end_position():
     assert s['end'].startswith('leaning or tipped') and s['disturbed_after_set_down'] is None
     assert s['left_the_air']['from_start_m'] == 0.4 and s['left_the_air']['fell_m'] == 0.16
     assert 'furthest 0.40 m from its start while in the air' in attempt_review.summary_words(s)
-    assert 'left the air (released or dropped)' in attempt_review.summary_words(s)
+    assert 'left the air (set down, released or dropped)' in attempt_review.summary_words(s)
 
 
 def test_a_held_box_dipping_to_the_table_is_not_a_set_down():
@@ -98,3 +98,11 @@ def test_a_box_knocked_after_it_was_set_down_names_the_call_before(tmp_path):
 def test_a_box_on_the_table_untouched():
     s = attempt_review.attempt_summary([sample(100, (-0.15, -0.35, 0.45))] * 3, LAYOUT)
     assert s['end'] == 'on the table, level' and s['in_air_s'] == 0
+
+
+def test_a_box_lowered_past_the_table_edge_stays_in_the_air_until_the_floor():
+    samples = [sample(100, (-0.15, -0.35, 0.45)), sample(101, (-0.40, -0.35, 0.48)), sample(102, (-0.62, -0.35, 0.30)),
+               sample(103, (-0.63, -0.35, 0.10)), sample(104, (-0.63, -0.35, 0.0)), sample(105, (-0.63, -0.35, 0.0))]
+    s = attempt_review.attempt_summary(samples, LAYOUT)
+    assert s['in_air_max_from_start_m'] == 0.48 and s['left_the_air']['fell_m'] == 0.1
+    assert s['end'] == 'on the floor, upright'

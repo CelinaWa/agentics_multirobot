@@ -104,7 +104,7 @@ def truth_events(samples, layout):
     for s in samples:
         z, tilt = s['box'][2], s['box_tilt_deg']
         travel = math.hypot(s['box'][0] - sx, s['box'][1] - sy)
-        lifted = z > table + 0.015 and tilt < 20
+        lifted = tilt < 20 and (z > table + 0.015 or 0.02 < z < table - 0.01)   # past the edge, lowered: still held
         if lifted and not state.get('lifted'):
             note(s['t'], f'box lifted off its support (base z {z:.2f}, tilt {tilt:.0f})')
         if not lifted and state.get('lifted'):
@@ -165,7 +165,9 @@ def attempt_summary(samples, layout, mcp_path=None):
     table = layout['box_start'].get('z', 0.0)
     sx, sy = layout['box_start']['pos'][:2]
     travel = lambda s: math.hypot(s['box'][0] - sx, s['box'][1] - sy)
-    lifted = lambda s: s['box'][2] > table + 0.015 and s['box_tilt_deg'] < 20
+    # in the air: above the table top, or (past the table) between the floor and the table height, level enough not
+    # to be leaning on an edge - S32's boxes lowered past the edge were counted as "left the air" at table height
+    lifted = lambda s: s['box_tilt_deg'] < 20 and (s['box'][2] > table + 0.015 or 0.02 < s['box'][2] < table - 0.01)
     resting = lambda a, b: (b['t'] - a['t'] >= 1.5 and a['box_tilt_deg'] < 10 and b['box_tilt_deg'] < 10
                             and abs(a['box'][2] - b['box'][2]) < 0.005 and travel_gap(a, b) < 0.01
                             and (abs(b['box'][2] - table) < 0.006 or b['box'][2] < 0.02))
@@ -220,7 +222,7 @@ def summary_words(summary):
             f"while in the air")
     left = summary.get('left_the_air')
     if left:
-        text += (f"; it left the air (released or dropped) at {left['at']}, {left['from_start_m']:.2f} m from its start, "
+        text += (f"; it left the air (set down, released or dropped) at {left['at']}, {left['from_start_m']:.2f} m from its start, "
                  f"fell {left['fell_m']:.2f} m, tilt up to {left['tilt_after_deg']} deg within 2.5 s")
     text += f"; it ended {summary['end']}, {summary['end_from_start_m']:.2f} m from its start"
     if summary.get('closer_to_goal_m') is not None:
