@@ -222,6 +222,25 @@ def place_box(ctx, keys, layout, attempts=2):
 R1_AT = re.compile(r'r1_at\s*=\s*\(?\s*(-?\d*\.?\d+)\s*,\s*(-?\d*\.?\d+)\s*,\s*(-?\d*\.?\d+)')
 
 
+G1_AT = re.compile(r'g1_at\s*=\s*\(?\s*(-?\d*\.?\d+)\s*,\s*(-?\d*\.?\d+)\s*,\s*(-?\d*\.?\d+)')
+
+
+def g1_pose_asked(message, layout):
+    """`g1_at=x,y,yaw_deg` in a reset request: a person sets the G1 there. Refused (None, reason) unless within
+    0.2 m and 20 deg of the G1's start and at least 0.33 m from the box centre."""
+    import math
+    m = G1_AT.search(message)
+    if not m:
+        return None, ''
+    x, y, yaw = (float(v) for v in m.groups())
+    (bx, by), (sx, sy) = layout['box_start']['pos'][:2], layout['robots']['g1']['pos'][:2]
+    if (math.hypot(x - bx, y - by) < 0.33 or math.hypot(x - sx, y - sy) > 0.2
+            or abs(yaw - layout['robots']['g1'].get('yaw_deg', 0.0)) > 20):
+        return None, (f' I did not set the G1 at g1_at={x:g},{y:g},{yaw:g}: it must be within 0.2 m and 20 deg of its '
+                      'start and at least 0.33 m from the box centre.')
+    return (x, y, yaw), ''
+
+
 def r1_pose_asked(message, layout):
     """`r1_at=x,y,yaw_deg` in a reset request (the team frame, which is the room's here): a person carries the R1 to that
     stance for practice. Refused (None, reason) unless it is clear of the box and the low table and near the start."""
@@ -248,17 +267,22 @@ def tripped_since(session, since):
     return None
 
 
-def replace_robots(ctx, keys, layout, r1_pose=None):
-    """Carry both standing robots back to where they started (a person would walk them there): the G1 keeps its
-    heading, the R1 is turned to face the box again and its controller's reference frame restarts from there. With
-    r1_pose (x, y, yaw_deg) the R1 goes there instead (practice from a chosen stance)."""
+def replace_robots(ctx, keys, layout, r1_pose=None, g1_pose=None):
+    """Carry both standing robots back to where they started (a person would walk them there), each turned to its
+    start heading (S29: the G1 kept its heading, which drifted ~2-3 deg over attempts, so it saw the box 2.5 cm off its
+    axis and its prep refused); the R1's controller's reference frame restarts from there. With r1_pose / g1_pose
+    (x, y, yaw_deg) a robot goes there instead (practice from a chosen stance)."""
     import math
     import numpy as np
     sub = ctx.socket(zmq.SUB); sub.setsockopt(zmq.SUBSCRIBE, b''); sub.setsockopt(zmq.RCVTIMEO, 3000); sub.connect('tcp://127.0.0.1:5792')
     qpos = np.frombuffer(sub.recv(), dtype=np.float64); sub.close()
-    g1 = layout['robots']['g1']
+    g1 = layout['robots']['g1'] if g1_pose is None else {'pos': g1_pose[:2], 'yaw_deg': g1_pose[2]}
     r1 = layout['robots']['r1'] if r1_pose is None else {'pos': r1_pose[:2], 'yaw_deg': r1_pose[2]}
-    keys.send_string(f"place=pelvis,{g1['pos'][0]},{g1['pos'][1]},{qpos[2]}"); time.sleep(0.3)
+    w, x, y, z = qpos[3:7]                               # keep the G1's roll and pitch, set its yaw
+    turn = math.radians(g1.get('yaw_deg', 0.0)) - math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))
+    c, s = math.cos(turn / 2), math.sin(turn / 2)       # q_new = q_turn(z) * q
+    q = (c * w - s * z, c * x - s * y, c * y + s * x, c * z + s * w)
+    keys.send_string(f"place=pelvis,{g1['pos'][0]},{g1['pos'][1]},{qpos[2]},{q[0]},{q[1]},{q[2]},{q[3]}"); time.sleep(0.3)
     h = math.radians(r1['yaw_deg']) / 2
     r1z = qpos[57 + 2]                                      # the R1's root follows the G1 (50) and the box (7) in qpos
     keys.send_string(f"place=r1_pelvis,{r1['pos'][0]},{r1['pos'][1]},{r1z},{math.cos(h)},0,0,{math.sin(h)}"); time.sleep(0.1)
@@ -334,17 +358,19 @@ def main():
                                               row.get('third_person'))
                 moved = ''
                 r1_pose, refused = r1_pose_asked(request['message'], layout)
-                if ('robot' in request['message'].lower() or r1_pose) and standing(ctx):
+                g1_pose, g1_refused = g1_pose_asked(request['message'], layout)
+                refused += g1_refused
+                if ('robot' in request['message'].lower() or r1_pose or g1_pose) and standing(ctx):
                     # as a person would: pick the box up and set it aside, carry the robots, then put the box back.
                     # Robots carried while the box stays put land in it (S28: the G1 set down on the box at its feet,
                     # or with its arms out around it, stepped 0.43 m away, disarmed and fell); a box put back before
                     # the robots is knocked by their arms as they arrive
                     keys.send_string('place=box,-1.6,-3.2,0.15,1,0,0,0'); time.sleep(0.5)
-                    replace_robots(ctx, keys, layout, r1_pose)
-                    moved = ((' Both robots are back at their starting places, facing the box,' if r1_pose is None else
-                              f' The G1 is back at its starting place and the R1 stands at ({r1_pose[0]:g}, {r1_pose[1]:g}), '
-                              f'heading {r1_pose[2]:g} deg, as you asked,')
-                             + ' standing as they stood (arms and legs as you left them). Their poses in the team frame '
+                    replace_robots(ctx, keys, layout, r1_pose, g1_pose)
+                    where = lambda name, pose: (f'the {name} stands at ({pose[0]:g}, {pose[1]:g}), heading {pose[2]:g} deg, '
+                                                'as you asked' if pose else f'the {name} is back at its start, at its start heading')
+                    moved = (' T' + where('G1', g1_pose)[1:] + '; ' + where('R1', r1_pose) + ';'
+                             + ' both standing as they stood (arms and legs as you left them). Their poses in the team frame '
                                'are stale: set them again.')
                 misplaced = place_box(ctx, keys, layout)
                 time.sleep(2.0)     # a guard tripped by the placement shows within a second or two
@@ -353,7 +379,7 @@ def main():
                     # while the G1, set down into the box, had been thrown 0.6-3 m away)
                     try:
                         t = truth(ctx, layout)
-                        aims = {'G1': (layout['robots']['g1']['pos'][:2], t['g1'], t['g1_tilt_deg']),
+                        aims = {'G1': ((g1_pose[:2] if g1_pose else layout['robots']['g1']['pos'][:2]), t['g1'], t['g1_tilt_deg']),
                                 'R1': ((r1_pose[:2] if r1_pose else layout['robots']['r1']['pos'][:2]), t['r1'], t['r1_tilt_deg'])}
                         off = [f"the {name} is NOT where I put it: it is at ({at[0]:.2f}, {at[1]:.2f}), "
                                f"{((at[0] - aim[0]) ** 2 + (at[1] - aim[1]) ** 2) ** 0.5:.2f} m away, tilt {tl:.0f} deg"

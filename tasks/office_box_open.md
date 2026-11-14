@@ -53,7 +53,8 @@ toward the spot.
 The operator can put the box back at its starting place on the low table (`request_operator` kind `reset`), and, when
 you ask for the robots too, carry both standing robots back to their starting places. For practice, a reset can put the
 R1 at a stance you name instead of its start: write `r1_at=x,y,yaw_deg` (team frame) in the reset message; the stance
-must be at least 0.33 m from the box centre and within 1 m of the R1's start. Resets are cheap here (up to 200 a
+must be at least 0.33 m from the box centre and within 1 m of the R1's start. Likewise `g1_at=x,y,yaw_deg` sets the
+G1 (within 0.2 m and 20 deg of its start). Robots put back go to their start headings. Resets are cheap here (up to 200 a
 session). Do not count on other help: nobody holds the box for you. If the G1 falls, the operator starts its stack
 again and hangs it on its gantry at its start (a minute or two; it says so in its next reply): protect the robots
 anyway, a fall in a real lab costs far more.
