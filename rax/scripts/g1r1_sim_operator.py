@@ -60,7 +60,9 @@ def truth(ctx, layout):
     distance, box_tilt = math.hypot(q[50] - gx, q[51] - gy), tilt(*q[53:57])
     up = q[2] > 0.5 and tilt(*q[3:7]) < 25 and q[59] > 0.45 and tilt(*q[60:64]) < 25
     on_start = layout['box_start'].get('z', 0.0)
+    w, x, y, z = q[53:57]
     return {'box': [round(float(v), 3) for v in q[50:53]], 'box_tilt_deg': round(box_tilt, 1),
+            'box_yaw_deg': round(math.degrees(math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))), 1),
             'box_from_start_m': round(math.hypot(q[50] - bx, q[51] - by), 3),
             'box_to_goal_m': round(distance, 3), 'box_lifted': bool(q[52] > on_start + 0.03),
             'g1': [round(float(v), 3) for v in q[0:3]], 'g1_tilt_deg': round(tilt(*q[3:7]), 1),
@@ -446,7 +448,7 @@ def main():
                         '(request kind reset). Nobody can move a robot, hold the box, or move the furniture: getting round it is part of the task. Continue with '
                         'what the robots can do, and write down what they cannot.')
             text, notice = text + notice, ''
-            recent = [b - c for c, b in zip(reset_times[-6:], reset_times[-5:])]
+            recent = [b - c for c, b in zip(reset_times[-6:], reset_times[-5:]) if b - c > 45]  # S33: 'about 0 min'
             if len(recent) >= 2:
                 try:
                     (a.session / 'operator' / 'pace.json').write_text(

@@ -101,11 +101,34 @@ def test_a_box_on_the_table_untouched():
 
 
 def test_a_box_lowered_past_the_table_edge_stays_in_the_air_until_the_floor():
-    samples = [sample(100, (-0.15, -0.35, 0.45)), sample(101, (-0.40, -0.35, 0.48)), sample(102, (-0.62, -0.35, 0.30)),
-               sample(103, (-0.63, -0.35, 0.10)), sample(104, (-0.63, -0.35, 0.0)), sample(105, (-0.63, -0.35, 0.0))]
+    zs = [0.48, 0.40, 0.30, 0.20, 0.10, 0.03, 0.0, 0.0]
+    samples = [sample(100, (-0.15, -0.35, 0.45))] + [sample(101 + i, (-0.40 - 0.03 * min(i, 3), -0.35, z)) for i, z in enumerate(zs)]
     s = attempt_review.attempt_summary(samples, LAYOUT)
-    assert s['in_air_max_from_start_m'] == 0.48 and s['left_the_air']['fell_m'] == 0.1
-    assert s['end'] == 'on the floor, upright'
+    assert s['in_air_max_from_start_m'] == 0.34 and s['left_the_air']['fell_m'] == 0.03
+    assert s['end'] == 'on the floor, upright' and s['fell_to_floor'] is None
+
+
+def test_a_collapse_is_a_fall_not_a_held_carry_and_an_edge_release_is_a_fall():
+    collapse = [sample(100, (-0.15, -0.35, 0.45)), sample(101, (-0.5, -0.35, 0.48)), sample(102, (-0.7, -0.35, 0.16), tilt=56),
+                sample(103, (-0.9, -0.35, 0.06), tilt=15), sample(104, (-0.9, -0.35, 0.06), tilt=15)]
+    s = attempt_review.attempt_summary(collapse, LAYOUT)
+    assert s['in_air_max_from_start_m'] == 0.35 and s['end'].startswith('leaning')
+    edge = [sample(100, (-0.15, -0.35, 0.45)), sample(101, (-0.5, -0.35, 0.48)), sample(102, (-0.6, -0.35, 0.46), tilt=22),
+            sample(105, (-0.6, -0.35, 0.46), tilt=22), sample(106, (-0.7, -0.35, 0.0))]
+    s = attempt_review.attempt_summary(edge, LAYOUT)
+    assert s['fell_to_floor']['from_z'] == 0.46 and 'FELL to the floor' in attempt_review.summary_words(s)
+
+
+def test_a_box_never_lifted_but_knocked_off_is_an_incident():
+    knocked = [sample(100, (-0.15, -0.35, 0.45)), sample(101, (-0.15, -0.35, 0.45)), sample(103, (0.3, -0.5, 0.64), tilt=86),
+               sample(105, (0.41, -0.55, 0.0))]
+    s = attempt_review.attempt_summary(knocked, LAYOUT)
+    assert s['moved_without_lift']['moved_m'] > 0.5 and 'NEVER LIFTED' in attempt_review.summary_words(s)
+
+
+def test_the_turn_in_the_air_is_measured_from_the_box_yaw():
+    turn = [dict(sample(100 + i, (-0.15, -0.35, 0.48)), box_yaw_deg=yaw) for i, yaw in enumerate([0, 5, 12, 179, -178])]
+    assert attempt_review.attempt_summary(turn, LAYOUT)['turned_in_air_deg'] == 179
 
 
 def test_a_nudge_before_any_lift_is_not_a_disturbance_and_a_skim_counts_its_touchdowns():
