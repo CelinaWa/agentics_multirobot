@@ -72,13 +72,16 @@ UPPER_BODY_INDICES = (2, 5, 8, 11, 12, 15, 16, 19, 20, 21, 22, 23, 24, 25, 26, 2
 
 
 def build_planner_message(mode, movement, facing, speed=-1.0, height=-1.0, upper_body=None, left_hand=None,
-                          right_hand=None):
+                          right_hand=None, vr_position=None, vr_orientation=None):
     """A planner command for the stack's locomotion planner (planner mode): locomotion `mode`, the movement
     and facing directions as 3-vectors in the planner's frame (x along the heading the robot had when the
     planner took over, y left), speed in m/s (-1: the mode's default) and height (-1: default).
     `upper_body` (17 joint positions in UPPER_BODY_INDICES order) replaces the planner's waist and arm motion,
     and `left_hand` / `right_hand` (7 Dex3 targets each) its hand targets: the robot walks with the arms and
-    hands where they are (carrying)."""
+    hands where they are (carrying). `vr_position` (9: left wrist, right wrist and head points, metres) and
+    `vr_orientation` (12: their wxyz quaternions), both in the planner's root (pelvis) frame, switch the policy to its
+    teleop encoder: the planner moves the legs and the policy brings the hands to those points (SONIC's VR 3-point
+    mode)."""
     fields = {"mode": np.array([int(mode)], dtype=np.int32),
               "movement": np.asarray(movement, dtype=np.float32).reshape(3),
               "facing": np.asarray(facing, dtype=np.float32).reshape(3),
@@ -91,6 +94,10 @@ def build_planner_message(mode, movement, facing, speed=-1.0, height=-1.0, upper
         fields["left_hand_joints"] = np.asarray(left_hand, dtype=np.float32).reshape(7)
     if right_hand is not None:
         fields["right_hand_joints"] = np.asarray(right_hand, dtype=np.float32).reshape(7)
+    if vr_position is not None:
+        fields["vr_position"] = np.asarray(vr_position, dtype=np.float32).reshape(9)
+        if vr_orientation is not None:
+            fields["vr_orientation"] = np.asarray(vr_orientation, dtype=np.float32).reshape(12)
     return pack_fields(fields, topic=PLANNER_TOPIC, version=1)
 
 

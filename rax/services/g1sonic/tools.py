@@ -16,16 +16,21 @@ STATUS, OBSERVE, STEP = "g1_status", "g1_observe", "g1_step"
 FREE_SPACE_MOVE, EXECUTE_PLAN = "g1_free_space_move", "g1_execute_motion_plan"
 PIXEL_TO_POSITION, HOLD = "g1_pixel_to_position", "g1_hold"
 WALK = "g1_walk"
+HANDS_WALK = "g1_hands_walk"
 HAND_SHAPE = "g1_hand_shape"
 CROUCH = "g1_crouch"
 
-ROBOT_TOOLS = (STATUS, OBSERVE, STEP, FREE_SPACE_MOVE, EXECUTE_PLAN, PIXEL_TO_POSITION, HOLD, WALK, HAND_SHAPE, CROUCH)
+ROBOT_TOOLS = (STATUS, OBSERVE, STEP, FREE_SPACE_MOVE, EXECUTE_PLAN, PIXEL_TO_POSITION, HOLD, WALK, HAND_SHAPE, CROUCH,
+               HANDS_WALK)
 GEOMETRY_TOOLS = frozenset({PIXEL_TO_POSITION})
-MUTATING = frozenset({STEP, FREE_SPACE_MOVE, EXECUTE_PLAN, WALK, CROUCH})
+MUTATING = frozenset({STEP, FREE_SPACE_MOVE, EXECUTE_PLAN, WALK, CROUCH, HANDS_WALK})
 # (backward and sideways only where the backend runs with walk_any_direction: the backend refuses them otherwise)
 WALK_LIMITS = {"forward_m": (-1.0, 3.0), "left_m": (-1.0, 1.0), "turn_deg": (-45.0, 45.0), "speed_mps": (0.1, 0.6),
                "carry_press_rad": (0.0, 0.4)}
 WALK_FLAGS = ("carry",)
+HANDS_WALK_LIMITS = {"forward_m": (-1.5, 3.0), "left_m": (-1.5, 1.5), "turn_deg": (-60.0, 60.0), "speed_mps": (0.1, 0.6),
+                     "press_m": (0.0, 0.25)}
+HAND_POINT_BOX = ((-0.1, 0.7), (-0.6, 0.6), (-0.5, 0.6))   # pelvis frame x, y, z a hand point target may lie in
 CARRY_OFFSET_JOINTS = frozenset(f"{side}_{name}_joint" for side in ("left", "right") for name in (
     "shoulder_pitch", "shoulder_roll", "shoulder_yaw", "elbow", "wrist_roll", "wrist_pitch", "wrist_yaw"))
 # g1_crouch: pelvis drop below the standing height -> knee flexion added to the default stance (rad), with the
@@ -123,6 +128,32 @@ def tool_definitions(geometry=True):
              "carry": {"type": "boolean", "default": False},
              "carry_press_rad": {"type": "number", "minimum": 0.0, "maximum": 0.4, "default": 0.0},
              "carry_offsets_rad": {"type": "object", "additionalProperties": {"type": "number", "minimum": -0.5, "maximum": 0.5}}}}},
+        {"name": HANDS_WALK, "description": (
+            "Walk, turn or stand with the two hands held where you put them: SONIC's own teleoperation mode, in which "
+            "its planner moves the legs (real stepping, any direction: forward_m, left_m, both signed; turn_deg, "
+            "positive = left) and its policy keeps each hand point at a target fixed in the pelvis frame (x forward, y "
+            "left, z up, metres; a hand point is 0.18 m along the wrist link's x axis from the wrist; status and "
+            "every reply give the measured ones as hand_points_pelvis). left_hand / right_hand set new targets ([x, y, "
+            "z]; omitted: unchanged, and on the first call the measured points); the hands move there at about 8 cm/s "
+            "before any walking, keeping the wrist orientation they had when this hold began. press_m moves both "
+            "targets that far toward each other past where you set them: against an object between the palms the "
+            "hands cannot follow, and the difference is the squeeze that holds it (reply: hand_target_error_m). With "
+            "no distance and no turn the call only moves the hands (squeeze, release, raise, lower). Measured in "
+            "simulation: a 1.2 kg box (0.31 m between the palms, targets 0.15 m inside its walls) stayed held over "
+            "0.8 m backward, 1.2 m left, 1.4 m right, 1.2 m forward and a 20 deg turn in one go, slipping 4 cm; "
+            "hands alone stay within 2-5 cm of their targets while walking; a walk covers its distance by leg "
+            "odometry (0.5 m asked: 0.45-0.54 m; 0.8 m forward: 0.71-0.81 m), a sideways walk also drifts up to 0.3 m "
+            "backward (re-localize), and a 40 deg turn reached 36-38 deg. After the call the robot stays in this hold (the planner balances "
+            "it and may shift its feet); the next g1_hands_walk continues from the same targets. g1_hold or any other "
+            "G1 motion tool hands back to the streamed hold of the measured pose: the press is gone then, so let go "
+            "of or set down what you hold first. Needs operator arming; a disarm, a stale link or a large tilt stops it."),
+         "inputSchema": {"type": "object", "additionalProperties": False, "properties": {
+             "forward_m": {"type": "number", "minimum": -1.5, "maximum": 3.0},
+             "left_m": {"type": "number", "minimum": -1.5, "maximum": 1.5},
+             "turn_deg": {"type": "number", "minimum": -60, "maximum": 60},
+             "speed_mps": {"type": "number", "minimum": 0.1, "maximum": 0.6, "default": 0.3},
+             "left_hand": _vector(3), "right_hand": _vector(3),
+             "press_m": {"type": "number", "minimum": 0.0, "maximum": 0.25}}}},
         {"name": HAND_SHAPE, "description": (
             "Set the Dex3 joint targets a hand's closing fraction ([38] left, [39] right in g1_step rows) "
             "interpolates between: `open` (fraction 0) and `closed` (fraction 1), 7 values each in hand_state "
@@ -250,6 +281,17 @@ def validate_request(name, arguments):
                 reject_unless(low <= float(arguments[key]) <= high, f"{key} must be in [{low:g}, {high:g}]")
         reject_unless(any(abs(float(arguments.get(k, 0.0))) > 1e-6 for k in ("forward_m", "left_m", "turn_deg")),
                       "g1_walk needs a nonzero forward_m, left_m or turn_deg")
+    elif name == HANDS_WALK:
+        _only(arguments, tuple(HANDS_WALK_LIMITS) + ("left_hand", "right_hand"))
+        for key, (low, high) in HANDS_WALK_LIMITS.items():
+            if key in arguments:
+                _finite(arguments[key], key)
+                reject_unless(low <= float(arguments[key]) <= high, f"{key} must be in [{low:g}, {high:g}]")
+        for key in ("left_hand", "right_hand"):
+            if key in arguments:
+                _finite_vector(arguments[key], 3, key)
+                for value, (low, high), axis in zip(arguments[key], HAND_POINT_BOX, "xyz"):
+                    reject_unless(low <= float(value) <= high, f"{key}: {axis} {float(value):.3f} is outside [{low:g}, {high:g}] (pelvis frame)")
     elif name == CROUCH:
         _only(arguments, tuple(CROUCH_LIMITS) + CROUCH_FLAGS)
         reject_unless(type(arguments.get("arms_home", True)) is bool, "arms_home must be a boolean")

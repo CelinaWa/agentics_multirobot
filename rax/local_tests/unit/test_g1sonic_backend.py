@@ -971,3 +971,23 @@ def test_a_robot_turned_by_someone_else_is_reanchored_at_once_when_enabled(sessi
         assert math.degrees(yaw_of(stack.base_quat)) > 7    # not turned back to 0
     finally:
         backend.close()
+
+
+def test_hands_walk_is_offered_only_when_enabled_and_its_arguments_are_checked():
+    from services.g1sonic import tools as T
+    from services.g1sonic.robot import RejectedBeforeAction
+    assert T.HANDS_WALK in {t['name'] for t in T.tool_definitions()} and T.HANDS_WALK in T.MUTATING
+    T.validate_request(T.HANDS_WALK, {'forward_m': -0.3, 'press_m': 0.1, 'left_hand': [0.4, 0.2, 0.0]})
+    T.validate_request(T.HANDS_WALK, {})
+    for bad in ({'left_hand': [2.0, 0, 0]}, {'press_m': 0.5}, {'carry': True}, {'turn_deg': 90}):
+        with pytest.raises((RejectedBeforeAction, ValueError)):
+            T.validate_request(T.HANDS_WALK, bad)
+
+
+def test_planner_messages_carry_hand_points():
+    import numpy as np
+    from services.g1sonic import zmq_protocol as Z
+    raw = Z.build_planner_message(Z.IDLE, [0, 0, 0], [1, 0, 0], vr_position=np.arange(9), vr_orientation=np.ones(12))
+    topic, header, fields = Z.parse_message(raw)
+    assert topic == Z.PLANNER_TOPIC and fields['vr_position'].shape == (9,) and fields['vr_orientation'].shape == (12,)
+    assert 'vr_position' not in Z.parse_message(Z.build_planner_message(Z.IDLE, [0, 0, 0], [1, 0, 0]))[2]

@@ -408,8 +408,10 @@ class Streamer:
     def command(self, *, start=False, stop=False, planner=False):
         self.send(build_command_message(start=start, stop=stop, planner=planner))
 
-    def planner(self, mode, movement, facing, speed=-1.0, height=-1.0, upper_body=None, left_hand=None, right_hand=None):
-        self.send(build_planner_message(mode, movement, facing, speed, height, upper_body, left_hand, right_hand))
+    def planner(self, mode, movement, facing, speed=-1.0, height=-1.0, upper_body=None, left_hand=None, right_hand=None,
+                vr_position=None, vr_orientation=None):
+        self.send(build_planner_message(mode, movement, facing, speed, height, upper_body, left_hand, right_hand,
+                                        vr_position, vr_orientation))
 
     def stop(self):
         self._running = False

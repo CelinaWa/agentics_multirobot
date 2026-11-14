@@ -9,6 +9,7 @@
     "camera_port": 7796,
     "runaway_m": 0.4,
     "walk_any_direction": true,
+    "hands_walk": true,
     "hidden_tools": [
       "g1_crouch"
     ],
