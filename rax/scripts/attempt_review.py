@@ -173,7 +173,9 @@ def attempt_summary(samples, layout, mcp_path=None):
     # leaning on a leg after a fall (S33: a collapse read as 'held' at 0.75 m)
     up = []
     for i, x in enumerate(samples):
-        z, level = x['box'][2], x['box_tilt_deg'] < 20
+        # ... and with both robots on their feet (S34 R16: a G1 runaway threw the box from .54 to .74 m while 'level')
+        z = x['box'][2]
+        level = x['box_tilt_deg'] < 20 and x.get('g1_tilt_deg', 0) < 20 and x.get('r1_tilt_deg', 0) < 20
         lowered = (i > 0 and up[i - 1] and 0.02 < z < table - 0.01 and -0.12 <= z - samples[i - 1]['box'][2] <= 0.03
                    and gap(x, samples[i - 1]) <= 0.15)
         up.append(bool(level and (z > table + 0.015 or lowered)))

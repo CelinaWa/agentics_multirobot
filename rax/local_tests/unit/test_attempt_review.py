@@ -137,3 +137,9 @@ def test_a_nudge_before_any_lift_is_not_a_disturbance_and_a_skim_counts_its_touc
     skim = [sample(100 + i, (-0.15 - 0.05 * i, -0.35, 0.48 if i % 2 else 0.45)) for i in range(1, 8)]
     s = attempt_review.attempt_summary(skim, LAYOUT)
     assert s['came_down'] == 3 and 'came down 3 times' in attempt_review.summary_words(s)
+
+
+def test_a_box_thrown_by_a_falling_robot_is_not_carried():
+    thrown = [sample(100, (-0.15, -0.35, 0.45)), sample(101, (-0.6, -0.35, 0.47)), sample(102, (-0.8, -0.35, 0.52), g1_tilt=27),
+              sample(103, (-1.2, -0.3, 0.13), tilt=38, g1_tilt=40)]
+    assert attempt_review.attempt_summary(thrown, LAYOUT)['in_air_max_from_start_m'] == 0.45
