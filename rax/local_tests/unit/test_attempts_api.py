@@ -64,8 +64,8 @@ def test_a_correction_relabels_a_row_in_the_funnel(tmp_path):
     memory = root/'agent-workspace'/'memory'
     memory.mkdir()
     (memory/'STAGES.json').write_text(json.dumps({'stages': [{'id': 'putdown', 'check': 'level'}]}))
-    row = attempts.record('putdown', True)
-    attempts.record('putdown', True)
-    attempts.correct(row['t'], False, 'ground truth: on its side, tilt 61')
+    row = attempts.record('putdown', True, note='A2')
+    attempts.record('putdown', True, note='A3')
+    attempts.correct(row['t'], False, 'ground truth: on its side, tilt 61', note='A2')
     table = {e['stage']: e for e in attempts.funnel()}
     assert table['putdown']['session']['chain'] == [1, 2]

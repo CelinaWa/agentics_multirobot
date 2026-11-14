@@ -65,15 +65,18 @@ def record(stage, ok, *, mode='chain', cause=None, params=None, controller=None,
     return row
 
 
-def correct(t, ok, why, *, stage=None):
+def correct(t, ok, why, *, stage=None, note=None):
     """Relabel an earlier row (its 't', as the funnel's --json or the log shows it) without rewriting history: a
     correction row whose `ok` the funnel uses instead of the original's. Use it when ground truth (the operator's
     numbers, a review, OPERATOR_NOTES.md) contradicts a row."""
-    match = [r for r in rows() if r.get('t') == t and 'correction_of' not in r and (stage is None or r['stage'] == stage)]
+    match = [r for r in rows() if r.get('t') == t and 'correction_of' not in r and (stage is None or r['stage'] == stage)
+             and (note is None or r.get('note') == note)]
     if len(match) != 1:
-        raise ValueError(f'{len(match)} rows have t={t}' + (f' and stage {stage!r}' if stage else '') + ': give one row')
+        raise ValueError(f'{len(match)} rows have t={t}' + (f' and stage {stage!r}' if stage else '')
+                         + (f' and note {note!r}' if note else '') + ': give one row (stage= and note= narrow it)')
     row = {'t': round(time.time(), 1), 'session': session_id(), 'stage': match[0]['stage'], 'ok': bool(ok),
-           'mode': match[0].get('mode', 'chain'), 'correction_of': t, 'why': str(why)}
+           'mode': match[0].get('mode', 'chain'), 'correction_of': t, 'correction_note': match[0].get('note'),
+           'why': str(why)}
     with LOG.open('a') as out:
         out.write(json.dumps(row) + '\n')
     return row
@@ -81,12 +84,12 @@ def correct(t, ok, why, *, stage=None):
 
 def _corrected(log):
     """The log with corrections applied: each corrected row takes its correction's ok; corrections drop out."""
-    fixes = {(r['correction_of'], r['stage']): r for r in log if 'correction_of' in r}
+    fixes = {(r['correction_of'], r['stage'], r.get('correction_note')): r for r in log if 'correction_of' in r}
     out = []
     for r in log:
         if 'correction_of' in r:
             continue
-        fix = fixes.get((r.get('t'), r['stage']))
+        fix = fixes.get((r.get('t'), r['stage'], r.get('note')))
         out.append({**r, 'ok': fix['ok'], 'corrected': fix.get('why', '')} if fix else r)
     return out
 
