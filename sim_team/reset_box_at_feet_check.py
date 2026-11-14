@@ -29,9 +29,9 @@ try:
     g1.call('g1_hold', {}); time.sleep(10)
     q = qpos(); log('G1 at (%.2f, %.2f) tilt %.1f' % (q[0], q[1], tilt(q)))
     # the G1 stepped back (as after a carry): carried 0.28 m back the way the operator carries it
-    keys.send_string('place=pelvis,-0.85,-0.35,%.4f' % q[2]); time.sleep(4); g1.call('g1_hold', {}); time.sleep(4)
+    keys.send_string('place=pelvis,%s,%.4f' % (os.environ.get('G1_AT', '-1.0,-0.25'), q[2])); time.sleep(4); g1.call('g1_hold', {}); time.sleep(4)
     q = qpos(); log('G1 stepped back to (%.2f, %.2f) tilt %.1f' % (q[0], q[1], tilt(q)))
-    keys.send_string('place=box,-0.45,-0.35,0.005,1,0,0,0'); time.sleep(3)
+    keys.send_string('place=box,%s,0.005,1,0,0,0' % os.environ.get('BOX_AT', '-0.505,-0.275')); time.sleep(3)
     q = qpos(); log('box on the floor at (%.2f, %.2f, %.2f); G1 tilt %.1f' % (q[50], q[51], q[52], tilt(q)))
     keys.close(linger=0); time.sleep(0.5)
     op = subprocess.Popen([sys.executable, script, '--session', str(root), '--minutes', '10', '--max-resets', '5'],

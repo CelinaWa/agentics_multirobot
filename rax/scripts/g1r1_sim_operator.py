@@ -326,6 +326,22 @@ def main():
                                'are stale: set them again.')
                 misplaced = place_box(ctx, keys, layout)
                 time.sleep(2.0)     # a guard tripped by the placement shows within a second or two
+                if moved:
+                    # say where the robots really ended up (S28: three replies said "back at their starting places"
+                    # while the G1, set down into the box, had been thrown 0.6-3 m away)
+                    try:
+                        t = truth(ctx, layout)
+                        aims = {'G1': (layout['robots']['g1']['pos'][:2], t['g1'], t['g1_tilt_deg']),
+                                'R1': ((r1_pose[:2] if r1_pose else layout['robots']['r1']['pos'][:2]), t['r1'], t['r1_tilt_deg'])}
+                        off = [f"the {name} is NOT where I put it: it is at ({at[0]:.2f}, {at[1]:.2f}), "
+                               f"{((at[0] - aim[0]) ** 2 + (at[1] - aim[1]) ** 2) ** 0.5:.2f} m away, tilt {tl:.0f} deg"
+                               for name, (aim, at, tl) in aims.items()
+                               if ((at[0] - aim[0]) ** 2 + (at[1] - aim[1]) ** 2) ** 0.5 > 0.05 or tl > 15]
+                        if off:
+                            moved += ' CHECK: ' + '; '.join(off) + ' (my placement went wrong; ask for another reset).'
+                            log('robot placement off: ' + '; '.join(off))
+                    except Exception:
+                        pass
                 tripped, caused = tripped_since(a.session, reset_started), ''
                 if tripped is not None:
                     # the agent must not take the operator's doing for a result of its own commands (S28: three G1
