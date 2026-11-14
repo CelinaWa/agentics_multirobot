@@ -55,6 +55,8 @@ hardware.
 side by side: your last calls (with their times), the operator's actions (`runtime/stream/ground_truth.jsonl`: resets,
 restarts, band releases) and the fault's time. A fault inside an operator action is the operator's; a cause seen once
 or twice is a hypothesis, not a rule: write it with its count, and test it before it constrains later sessions.
+After each reset, read the operator's review of the attempt before the next one (the reset reply names it, under
+`runtime/stream/reviews/`): what the box and the robots really did, on one clock with your calls.
 {% endif %}
 This session runs on **{{ environment }}**{% if simulated %} (a simulation of the robot){% endif %}. Simulation and real
 sessions share one memory format so experience moves between them: tag every tip `[strategy]`,
@@ -68,6 +70,7 @@ skills say how to run the work on a robot that gives you few attempts: count out
 replay archived attempts ([evidence-and-regression](.agents/skills/evidence-and-regression/SKILL.md)),
 account for every attempt by stage ([prioritize-by-funnel](.agents/skills/prioritize-by-funnel/SKILL.md)),
 practise the stage that fails from its own start state ([practice-by-stage](.agents/skills/practice-by-stage/SKILL.md)),
+use all the robot time, through failures ([keep-trying](.agents/skills/keep-trying/SKILL.md)),
 spend the session's budgets deliberately ([spend-the-budget](.agents/skills/spend-the-budget/SKILL.md)),
 map incidents ([learn-from-incidents](.agents/skills/learn-from-incidents/SKILL.md)), verify
 actions you cannot take back ([verify-committal-actions](.agents/skills/verify-committal-actions/SKILL.md))

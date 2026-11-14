@@ -10,6 +10,7 @@ from pathlib import Path
 import zmq
 from services import arming
 from services.controller import operator
+import attempt_review    # (this script's own folder is on the path)
 
 SIM = Path(__file__).resolve().parents[2] / 'sim_team'      # the office simulation (sim_team/team_sim.sh)
 KEYS, STATE = 5790, 5797
@@ -127,6 +128,24 @@ def record(session, ctx, layout, event, **fields):
             out.write(json.dumps(row) + '\n')
     except OSError as error:
         log(f'ground truth not written: {error}')
+    return row
+
+
+def write_attempt_review(session, number, since, until, samples, layout, frame):
+    """stream/reviews/attempt_<n>.md for the agent (runtime/stream/reviews/ in its workspace); its path, or None."""
+    try:
+        rows = [json.loads(line) for line in (session / 'stream' / 'ground_truth.jsonl').read_text().splitlines() if line]
+    except (OSError, ValueError):
+        rows = []
+    actions = [f"{r['time']} {r['event'].replace('_', ' ')}" + (f" ({r['restart']})" if r.get('restart') else '')
+               for r in rows if since <= r.get('t', 0) < until and r.get('event') not in ('before_reset', 'after_reset')]
+    try:
+        attempt_review.write_review(session / 'stream' / 'reviews' / f'attempt_{number}.md', number, since, until,
+                                    samples, layout, session / 'mcp.jsonl', actions, frame)
+        return f'runtime/stream/reviews/attempt_{number}.md'
+    except Exception as error:
+        log(f'attempt review not written: {error}')
+        return None
 
 
 def qpos_now(ctx):
@@ -268,6 +287,7 @@ def main():
         keys.send_string(key); time.sleep(1.0)
     state = ctx.socket(zmq.SUB); state.connect(f'tcp://127.0.0.1:{STATE}'); state.setsockopt(zmq.SUBSCRIBE, b'g1_debug')
     released, control_at, resets, done = False, None, 0, set()
+    attempt_since, samples = time.time(), []    # the ground truth of the attempt under way, for its review
     deadline = time.time() + a.minutes * 60
     restarts, next_check, notice = 0, time.time() + 30, ''
     while time.time() < deadline:
@@ -309,7 +329,9 @@ def main():
                 log('before the reset: ' + end_state(ctx, layout))
                 reset_started, before = time.time(), truth_words(ctx, layout)
                 resets += 1
-                record(a.session, ctx, layout, 'before_reset', reset=resets, request=request['message'][:600])
+                row = record(a.session, ctx, layout, 'before_reset', reset=resets, request=request['message'][:600])
+                review = write_attempt_review(a.session, resets, attempt_since, reset_started, samples, layout,
+                                              row.get('third_person'))
                 moved = ''
                 r1_pose, refused = r1_pose_asked(request['message'], layout)
                 if ('robot' in request['message'].lower() or r1_pose) and standing(ctx):
@@ -358,6 +380,9 @@ def main():
                 log('after the reset: ' + end_state(ctx, layout))
                 record(a.session, ctx, layout, 'after_reset', reset=resets, r1_at=list(r1_pose) if r1_pose else None,
                        guard_tripped_by_reset=tripped)
+                if review:
+                    text += f' The review of the attempt before this reset: `{review}`.'
+                attempt_since, samples = time.time(), []
             elif request['kind'] == 'reset':
                 text = 'No resets are left in this session.'
             elif (a.allow_table_removal and layout['box_start'].get('z', 0.0) > 0 and 'table' in request['message'].lower()
@@ -385,6 +410,10 @@ def main():
             text, notice = text + notice, ''
             operator.reply(a.session, request['id'], text, done=True, by='sim operator')
             log('replied:', text[:120])
+        try:
+            samples.append({'t': round(time.time(), 1), **truth(ctx, layout)})
+        except Exception:
+            pass
         time.sleep(1.0)
     log('session time is over')
     record(a.session, ctx, layout, 'operator_end', resets=resets, g1_restarts=restarts)
