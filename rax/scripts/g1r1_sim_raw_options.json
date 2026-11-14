@@ -1,0 +1,41 @@
+{
+  "g1": {
+    "zmq_host": "127.0.0.1",
+    "pose_port": 5796,
+    "state_host": "127.0.0.1",
+    "state_port": 5797,
+    "camera": "network",
+    "camera_host": "127.0.0.1",
+    "camera_port": 7796,
+    "runaway_m": 0.4,
+    "walk_any_direction": true,
+    "hands_walk": false,
+    "hidden_tools": [
+      "g1_crouch",
+      "g1_walk",
+      "g1_hands_walk",
+      "g1_free_space_move",
+      "g1_execute_motion_plan"
+    ],
+    "reanchor_jump_deg": 2.0,
+    "planner_stream": true
+  },
+  "r1": {
+    "stack_host": "127.0.0.1",
+    "stack_port": 5791
+  },
+  "team": {
+    "start_poses": {
+      "g1": [
+        -0.57,
+        -0.35,
+        0.0
+      ],
+      "r1": [
+        0.26,
+        -0.35,
+        180.0
+      ]
+    }
+  }
+}

@@ -102,6 +102,8 @@ DEFAULTS = {
                                       # builds its own leg motions from g1_step rows)
     'hands_walk': False,              # offer g1_hands_walk: SONIC's teleop encoder (planner legs + hand points held
                                       # in the pelvis frame). New: off unless a session's operator turns it on
+    'planner_stream': False,          # offer g1_planner: SONIC's planner messages as they are (mode, movement, facing,
+                                      # speed, height, hand points, upper body), with no walking logic on top
     'hands_walk_blend_mps': 0.08,     # g1_hands_walk: how fast the hand points move to new targets
     'walk_any_direction': False,      # g1_walk: allow backward (forward_m < 0) and sideways (left_m) movement while facing
                                       # ahead (SONIC's planner takes movement and facing directions separately)
@@ -222,7 +224,8 @@ class G1SonicBackend:
 
     # ----- tools ----------------------------------------------------------------------------
     def tools(self):
-        hidden = set(self.options['hidden_tools']) | (set() if self.options['hands_walk'] else {T.HANDS_WALK})
+        hidden = (set(self.options['hidden_tools']) | (set() if self.options['hands_walk'] else {T.HANDS_WALK})
+                  | (set() if self.options['planner_stream'] else {T.PLANNER}))
         return [t for t in T.tool_definitions(geometry=self.depth) if t['name'] not in hidden]
 
     def validate(self, name, arguments):
@@ -249,6 +252,10 @@ class G1SonicBackend:
             if not self.options['hands_walk']:
                 raise RejectedBeforeAction(f'{T.HANDS_WALK} is not offered in this session')
             self._require_armed(start=False)
+        elif name == T.PLANNER:
+            if not self.options['planner_stream']:
+                raise RejectedBeforeAction(f'{T.PLANNER} is not offered in this session')
+            self._require_armed(start=False)
         elif name == T.EXECUTE_PLAN:
             self._require_armed(start=False)
             plan = self.plans.get(arguments['motion_plan_id'])
@@ -273,8 +280,10 @@ class G1SonicBackend:
             return self._hold(bool(arguments.get('reanchor')))
         if name == T.PIXEL_TO_POSITION:
             return self._pixel_to_position(arguments), []
-        if name in (T.STEP, T.FREE_SPACE_MOVE, T.EXECUTE_PLAN, T.WALK, T.CROUCH, T.HANDS_WALK):
+        if name in (T.STEP, T.FREE_SPACE_MOVE, T.EXECUTE_PLAN, T.WALK, T.CROUCH, T.HANDS_WALK, T.PLANNER):
             try:
+                if name == T.PLANNER:
+                    return self._planner_stream(**arguments)
                 if name == T.HANDS_WALK:
                     return self._hands_walk(**arguments)
                 if name == T.STEP:
@@ -1282,6 +1291,121 @@ class G1SonicBackend:
             self.last_feedback = feedback
             return self._observation_packet(transition={'kind': 'hands_walk', 'feedback': feedback})
 
+    def _planner_stream(self, seconds, mode='idle', movement=(0.0, 0.0), facing_deg=0.0, speed_mps=-1.0, height_m=-1.0,
+                        hand_points=None, hand_points_end=None, hand_quats=None, upper_body=None):
+        """SONIC's planner messages as they are, at 20 Hz for `seconds`: no distance, odometry stop, ramp or blend is
+        added here. With hand_points_end the points move linearly from hand_points to it over the call. Afterwards
+        the last message is repeated with mode idle (the planner needs one within 1 s) until the next call."""
+        o = self.options
+        with self.lock:
+            under_planner = self.control_mode == 'planner'
+            snap = self._require_armed(start=not under_planner)
+            held = self.converter.last
+            fingers = getattr(self, '_stream_fingers', None) if under_planner else None
+            if fingers is None:
+                fingers = {} if held is None else {'left_hand': held.left_hand.copy(), 'right_hand': held.right_hand.copy()}
+            started, start_yaw = self.clock(), snap.yaw_rad()
+            if not under_planner:
+                self._planner_keepalive = None
+                self.streamer.keepalive = None
+                self.streamer.mirror_upper = False
+                self.streamer.hold()
+                self.streamer.command(start=True, planner=True)
+                self.control_mode = 'planner'
+                self._planner_frame_yaw, self._stepping_since = start_yaw, None
+            else:
+                self._planner_keepalive = None
+                self.streamer.keepalive = None
+            self._teleop = None
+            measured = self.hand_points(snap.q)
+            quats = {k: measured[k][1] for k in measured}
+            for key, value in (hand_quats or {}).items():
+                quats[key] = np.asarray(value, dtype=float)
+
+            def fields(a):
+                extra = dict(fingers)
+                if hand_points is not None:
+                    points = {}
+                    for key in ('left', 'right', 'head'):
+                        first = np.asarray(hand_points.get(key, measured[key][0]), dtype=float)
+                        last = np.asarray((hand_points_end or {}).get(key, first), dtype=float)
+                        points[key] = (first * (1 - a) + last * a, quats[key])
+                    extra.update(self._vr_fields(points))
+                if upper_body is not None:
+                    extra['upper_body'] = np.asarray(upper_body, dtype=float)
+                return extra
+
+            code = SLOW_WALK if mode == 'slow_walk' else IDLE
+            mx, my = float(movement[0]), float(movement[1])
+            norm = math.hypot(mx, my)
+            move = [mx / norm, my / norm, 0.0] if norm > 1e-6 else [0.0, 0.0, 0.0]
+            psi = math.radians(facing_deg)
+            facing = [math.cos(psi), math.sin(psi), 0.0]
+            self._event(f'planner stream: {mode} {seconds:g} s, movement {move[:2]}, facing {facing_deg:g} deg, speed {speed_mps:g}'
+                        + (', hand points' if hand_points is not None else '') + (', upper body' if upper_body is not None else ''))
+            odo = {'xy': np.zeros(2), 'feet': None, 'stance': None}
+            trace, stop_reason, scale = [], None, o['wall_time_scale']
+            begin = self.clock()
+            try:
+                while True:
+                    t = (self.clock() - begin) / scale
+                    if t >= seconds:
+                        break
+                    latest = self.state.latest()
+                    if latest is not None:
+                        self._odometry_update(odo, latest)
+                    self.streamer.planner(code, move, facing, speed_mps, height_m, **fields(min(1.0, t / seconds)))
+                    armed = arming.read(self.config.root)
+                    age = math.inf if latest is None else self.clock() - latest.received
+                    if not armed['armed']:
+                        stop_reason = f"the operator disarmed ({armed['reason']}); the robot stops and stands"
+                    elif age > o['state_max_age_s']:
+                        stop_reason = f'no fresh state from the deploy stack for {age:.2f} s; the robot stops and stands'
+                    elif latest.tilt_deg() > o['fall_tilt_deg']:
+                        self._fall(latest.tilt_deg())
+                        raise MotionStopped(f"tilt {latest.tilt_deg():.0f} deg is over {o['fall_tilt_deg']:g} under the planner: "
+                                            'the stack was told to stop and every joint is damped; the session is disarmed')
+                    if stop_reason:
+                        break
+                    trace.append(latest.tilt_deg())
+                    time.sleep(0.05)
+            finally:
+                if self.fault is None:
+                    self.last_row = None
+                    self.plans = {}
+                    self.step_id += 1
+                    keep = fields(1.0)
+                    self._planner_extra, self._stream_fingers = keep, fingers
+                    self._planner_keepalive = lambda: self.streamer.planner(IDLE, [0.0, 0.0, 0.0], facing, -1.0, height_m, **keep)
+                    self.streamer.keepalive = self._planner_keepalive
+                    self._carry_hands = (fingers.get('left_hand'), fingers.get('right_hand')) if fingers else None
+                    self.converter.clear()
+                    self._stepping_since = self.clock()
+            if stop_reason:
+                error = MotionStopped(stop_reason)
+                error.robot_state = self._state_report()
+                raise error
+            end = self.state.latest()
+            now = self.hand_points(end.q)
+            c, sn = math.cos(start_yaw), math.sin(start_yaw)
+            frame = self._planner_frame_yaw
+            feedback = {'sent': {'mode': mode, 'movement': move[:2], 'facing_deg': facing_deg, 'speed_mps': speed_mps,
+                                 'height_m': height_m, 'seconds': seconds},
+                        'odometry_m': {'forward': round(float(odo['xy'][0] * c + odo['xy'][1] * sn), 3),
+                                       'left': round(float(-odo['xy'][0] * sn + odo['xy'][1] * c), 3),
+                                       'note': 'leg odometry over this call, in the heading at its start'},
+                        'measured_turn_deg': round(math.degrees(math.atan2(math.sin(end.yaw_rad() - start_yaw),
+                                                                           math.cos(end.yaw_rad() - start_yaw))), 1),
+                        'heading_in_planner_frame_deg': None if frame is None else round(math.degrees(math.atan2(
+                            math.sin(end.yaw_rad() - frame), math.cos(end.yaw_rad() - frame))), 1),
+                        'tilt_deg': round(end.tilt_deg(), 2), 'max_tilt_deg': round(max(trace), 2) if trace else None,
+                        'hand_points_pelvis': {k: np.round(now[k][0], 3).tolist() for k in ('left', 'right', 'head')},
+                        'hand_quats_pelvis_wxyz': {k: np.round(now[k][1], 4).tolist() for k in ('left', 'right', 'head')},
+                        'fallen': False, 'wall_seconds': round(self.clock() - started, 2),
+                        'control': 'under the planner: the last message repeats with mode idle until the next call'}
+            self.last_feedback = feedback
+            return self._observation_packet(transition={'kind': 'planner_stream', 'feedback': feedback})
+
     def _account(self, rows, executed):
         """The rows that reached the wire move the step counter and become the held pose."""
         count = len(executed)
@@ -1541,7 +1665,7 @@ class G1SonicBackend:
                        'root_orientation_world_wxyz': np.round(snap.base_quat, 5).tolist(),
                        'joint_positions_rad': np.round(snap.q, 4).tolist(),
                        'pelvis_height_est_m': round(self.pelvis_height_estimate(snap.q, snap.base_quat), 3)})
-        if self.options['hands_walk']:
+        if self.options['hands_walk'] or self.options['planner_stream']:
             points = self.hand_points(snap.q)
             report['hand_points_pelvis'] = {k: np.round(points[k][0], 3).tolist() for k in ('left', 'right')}
             if self._teleop is not None:
@@ -1725,6 +1849,8 @@ class G1SonicBackend:
             'proprio': {
                 'root_orientation_world_wxyz': np.round(snap.base_quat, 6).tolist(),
                 'joint_names_canonical29': list(R.JOINT_NAMES),
+                **({'planner_upper_body_joint_names': [R.JOINT_NAMES[i] for i in UPPER_BODY_INDICES]}
+                   if self.options['planner_stream'] else {}),
                 'joint_positions_rad': np.round(snap.q, 5).tolist(),
                 'joint_velocities_rad_s': np.round(snap.dq, 4).tolist(),
                 'hand_state': {'joint_names': [*R.HAND_JOINT_NAMES['left'], *R.HAND_JOINT_NAMES['right']],

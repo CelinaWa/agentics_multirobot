@@ -25,11 +25,17 @@ def _g1_motion(tool, arguments):
     if tool == 'g1_hands_walk':   # walking with the hands held: any direction
         return (float(arguments.get('forward_m', 0.0)), float(arguments.get('left_m', 0.0)),
                 float(arguments.get('turn_deg', 0.0)))
+    if tool == 'g1_planner':      # raw planner messages: at most speed x seconds along the movement, in the planner frame
+        if arguments.get('mode', 'idle') != 'slow_walk':
+            return 0.0, 0.0, 45.0
+        speed = float(arguments.get('speed_mps', -1.0))
+        reach = (speed if speed > 0 else 0.4) * float(arguments.get('seconds', 0.0))
+        return reach, reach, 45.0
     return None
 
 
 def _g1_result(tool, arguments, value):
-    if tool not in ('g1_walk', 'g1_hands_walk'):
+    if tool not in ('g1_walk', 'g1_hands_walk', 'g1_planner'):
         return None
     feedback = (value.get('transition') or {}).get('feedback') or {} if isinstance(value, dict) else {}
     odometry = feedback.get('odometry_m')

@@ -991,3 +991,15 @@ def test_planner_messages_carry_hand_points():
     topic, header, fields = Z.parse_message(raw)
     assert topic == Z.PLANNER_TOPIC and fields['vr_position'].shape == (9,) and fields['vr_orientation'].shape == (12,)
     assert 'vr_position' not in Z.parse_message(Z.build_planner_message(Z.IDLE, [0, 0, 0], [1, 0, 0]))[2]
+
+
+def test_the_raw_planner_tool_checks_its_arguments():
+    from services.g1sonic import tools as T
+    from services.g1sonic.robot import RejectedBeforeAction
+    T.validate_request(T.PLANNER, {'seconds': 2, 'mode': 'slow_walk', 'movement': [1, 0], 'speed_mps': 0.3,
+                                   'hand_points': {'left': [0.4, 0.2, 0.0]}, 'hand_quats': {'left': [1, 0, 0, 0]}})
+    T.validate_request(T.PLANNER, {'seconds': 1, 'upper_body': [0.0] * 17})
+    for bad in ({'mode': 'idle'}, {'seconds': 20}, {'seconds': 1, 'hand_points': {}, 'upper_body': [0.0] * 17},
+                {'seconds': 1, 'hand_points_end': {'left': [0, 0, 0]}}, {'seconds': 1, 'hand_points': {'foot': [0, 0, 0]}}):
+        with pytest.raises((RejectedBeforeAction, ValueError)):
+            T.validate_request(T.PLANNER, bad)

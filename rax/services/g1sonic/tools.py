@@ -17,13 +17,14 @@ FREE_SPACE_MOVE, EXECUTE_PLAN = "g1_free_space_move", "g1_execute_motion_plan"
 PIXEL_TO_POSITION, HOLD = "g1_pixel_to_position", "g1_hold"
 WALK = "g1_walk"
 HANDS_WALK = "g1_hands_walk"
+PLANNER = "g1_planner"
 HAND_SHAPE = "g1_hand_shape"
 CROUCH = "g1_crouch"
 
 ROBOT_TOOLS = (STATUS, OBSERVE, STEP, FREE_SPACE_MOVE, EXECUTE_PLAN, PIXEL_TO_POSITION, HOLD, WALK, HAND_SHAPE, CROUCH,
-               HANDS_WALK)
+               HANDS_WALK, PLANNER)
 GEOMETRY_TOOLS = frozenset({PIXEL_TO_POSITION})
-MUTATING = frozenset({STEP, FREE_SPACE_MOVE, EXECUTE_PLAN, WALK, CROUCH, HANDS_WALK})
+MUTATING = frozenset({STEP, FREE_SPACE_MOVE, EXECUTE_PLAN, WALK, CROUCH, HANDS_WALK, PLANNER})
 # (backward and sideways only where the backend runs with walk_any_direction: the backend refuses them otherwise)
 WALK_LIMITS = {"forward_m": (-1.0, 3.0), "left_m": (-1.0, 1.0), "turn_deg": (-45.0, 45.0), "speed_mps": (0.1, 0.6),
                "carry_press_rad": (0.0, 0.4)}
@@ -156,6 +157,41 @@ def tool_definitions(geometry=True):
              "speed_mps": {"type": "number", "minimum": 0.1, "maximum": 0.6, "default": 0.3},
              "left_hand": _vector(3), "right_hand": _vector(3),
              "press_m": {"type": "number", "minimum": 0.0, "maximum": 0.25}}}},
+        {"name": PLANNER, "description": (
+            "SONIC's locomotion planner, raw: this message is sent to the deploy stack 20 times a second for `seconds` "
+            "(at most 10), with nothing added (no distance, no odometry stop, no ramp). Fields, as the stack defines "
+            "them: mode 'idle' (stand, turn in place toward facing) or 'slow_walk' (step along movement); movement "
+            "[x, y], a direction in the planner frame (x along the heading the robot had when the planner took over "
+            "from the streamed hold, y left; the reply gives heading_in_planner_frame_deg); facing_deg, the heading to "
+            "face in that frame; speed_mps (-1: the mode's default; slow walk 0.1-0.6); height_m (-1: default). "
+            "Optional upper-body control, one of two: (a) hand_points {left, right, head: [x, y, z]} in the pelvis "
+            "frame (x forward, y left, z up; a hand point is 0.18 m along the wrist link's x axis, the head point 0.35 m "
+            "above the torso link; omitted keys: the measured ones) with hand_quats {left, right, head: [w, x, y, z]} "
+            "(omitted: the measured ones): this is the policy's teleoperation encoder (VR 3-point), the planner moves "
+            "the legs and the policy brings the three points to those poses; hand_points_end moves them linearly "
+            "there over the call. (b) upper_body: 17 joint angles (waist yaw, roll, pitch, then shoulder pitch, "
+            "shoulder roll, shoulder yaw, elbow, wrist roll, wrist pitch, wrist yaw, each left then right; g1_observe "
+            "lists them as planner_upper_body_joint_names) held literally in the full-body encoder. With neither, the planner swings the "
+            "arms. Known facts about the stack: it enters the teleoperation encoder only when hand points FIRST appear "
+            "after messages without them (after an earlier use, send at least 0.2 s without hand_points first, or the "
+            "hands follow the planner's arms); without a message for 1 s it resets, so after the call the last "
+            "message repeats with mode idle until your next g1_planner call; short slow walks from standing may "
+            "step in place for a stride or two before advancing. g1_hold or g1_step hands back to the streamed hold "
+            "of the measured pose once the robot stands still. Needs operator arming; a disarm, a stale link or a "
+            "large tilt stops it."),
+         "inputSchema": {"type": "object", "required": ["seconds"], "additionalProperties": False, "properties": {
+             "seconds": {"type": "number", "minimum": 0.1, "maximum": 10.0},
+             "mode": {"type": "string", "enum": ["idle", "slow_walk"], "default": "idle"},
+             "movement": _vector(2), "facing_deg": {"type": "number", "minimum": -180, "maximum": 180},
+             "speed_mps": {"type": "number", "minimum": -1.0, "maximum": 0.6},
+             "height_m": {"type": "number", "minimum": -1.0, "maximum": 0.9},
+             "hand_points": {"type": "object", "additionalProperties": False,
+                             "properties": {k: _vector(3) for k in ("left", "right", "head")}},
+             "hand_points_end": {"type": "object", "additionalProperties": False,
+                                 "properties": {k: _vector(3) for k in ("left", "right", "head")}},
+             "hand_quats": {"type": "object", "additionalProperties": False,
+                            "properties": {k: _vector(4) for k in ("left", "right", "head")}},
+             "upper_body": _vector(17)}}},
         {"name": HAND_SHAPE, "description": (
             "Set the Dex3 joint targets a hand's closing fraction ([38] left, [39] right in g1_step rows) "
             "interpolates between: `open` (fraction 0) and `closed` (fraction 1), 7 values each in hand_state "
@@ -283,6 +319,32 @@ def validate_request(name, arguments):
                 reject_unless(low <= float(arguments[key]) <= high, f"{key} must be in [{low:g}, {high:g}]")
         reject_unless(any(abs(float(arguments.get(k, 0.0))) > 1e-6 for k in ("forward_m", "left_m", "turn_deg")),
                       "g1_walk needs a nonzero forward_m, left_m or turn_deg")
+    elif name == PLANNER:
+        _only(arguments, ("seconds", "mode", "movement", "facing_deg", "speed_mps", "height_m", "hand_points",
+                          "hand_points_end", "hand_quats", "upper_body"))
+        _finite(arguments.get("seconds"), "seconds")
+        reject_unless(0.1 <= float(arguments["seconds"]) <= 10.0, "seconds must be in [0.1, 10]")
+        reject_unless(arguments.get("mode", "idle") in ("idle", "slow_walk"), "mode must be 'idle' or 'slow_walk'")
+        if "movement" in arguments:
+            _finite_vector(arguments["movement"], 2, "movement")
+        for key, (low, high) in (("facing_deg", (-180.0, 180.0)), ("speed_mps", (-1.0, 0.6)), ("height_m", (-1.0, 0.9))):
+            if key in arguments:
+                _finite(arguments[key], key)
+                reject_unless(low <= float(arguments[key]) <= high, f"{key} must be in [{low:g}, {high:g}]")
+        reject_unless(not ("hand_points" in arguments and "upper_body" in arguments),
+                      "give hand_points or upper_body, not both")
+        reject_unless("hand_points" in arguments or not ("hand_points_end" in arguments or "hand_quats" in arguments),
+                      "hand_points_end and hand_quats need hand_points")
+        for group, size in (("hand_points", 3), ("hand_points_end", 3), ("hand_quats", 4)):
+            value = arguments.get(group, {})
+            reject_unless(isinstance(value, dict) and set(value) <= {"left", "right", "head"},
+                          f"{group} must be an object with keys among left, right, head")
+            for key, vector in value.items():
+                _finite_vector(vector, size, f"{group}.{key}")
+                if size == 3:
+                    reject_unless(all(abs(float(v)) <= 1.0 for v in vector), f"{group}.{key} must be within 1 m of the pelvis")
+        if "upper_body" in arguments:
+            _finite_vector(arguments["upper_body"], 17, "upper_body")
     elif name == HANDS_WALK:
         _only(arguments, tuple(HANDS_WALK_LIMITS) + ("left_hand", "right_hand"))
         for key, (low, high) in HANDS_WALK_LIMITS.items():
