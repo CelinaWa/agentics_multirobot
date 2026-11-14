@@ -29,7 +29,7 @@ MUTATING = frozenset({STEP, FREE_SPACE_MOVE, EXECUTE_PLAN, WALK, CROUCH, HANDS_W
 WALK_LIMITS = {"forward_m": (-1.0, 3.0), "left_m": (-1.0, 1.0), "turn_deg": (-45.0, 45.0), "speed_mps": (0.1, 0.6),
                "carry_press_rad": (0.0, 0.4)}
 WALK_FLAGS = ("carry",)
-HANDS_WALK_LIMITS = {"forward_m": (-1.5, 3.0), "left_m": (-1.5, 1.5), "turn_deg": (-60.0, 60.0), "speed_mps": (0.1, 0.6),
+HANDS_WALK_LIMITS = {"forward_m": (-1.5, 3.0), "left_m": (-1.5, 1.5), "turn_deg": (-60.0, 60.0), "speed_mps": (0.25, 0.6),
                      "press_m": (0.0, 0.25)}
 HAND_POINT_BOX = ((-0.1, 0.7), (-0.6, 0.6), (-0.5, 0.6))   # pelvis frame x, y, z a hand point target may lie in
 CARRY_OFFSET_JOINTS = frozenset(f"{side}_{name}_joint" for side in ("left", "right") for name in (
@@ -140,7 +140,12 @@ def tool_definitions(geometry=True):
             "arms keep their last commanded joints through the switch and the press is on from the first moment) "
             "before any walking, keeping the wrist orientation they had when this hold began. press_m moves both "
             "targets that far toward each other past where you set them: against an object between the palms the "
-            "hands cannot follow, and the difference is the squeeze that holds it (reply: hand_target_error_m). With "
+            "hands cannot follow, and the difference is the squeeze that holds it (reply: hand_target_error_m; press_m is "
+            "per hand, and is refused if the two targets would come within 0.10 m of each other). The planner does not "
+            "step below about 0.3 m/s (0.1-0.2 m/s: no movement in 6 calls of 6), so speed_mps starts at 0.25; a "
+            "walk that runs out of time before its leg odometry covers the distance says stalled: true. The "
+            "walk may be given in the entering call itself (press_m with forward_m / left_m / turn_deg): a hold left "
+            "standing sank and was lost within 8-43 s in S36, before any walk began. With "
             "no distance and no turn the call only moves the hands (squeeze, release, raise, lower). Measured in "
             "simulation: a 1.2 kg box (0.31 m between the palms, targets 0.15 m inside its walls) stayed held over "
             "0.8 m backward, 1.2 m left, 1.4 m right, 1.2 m forward and a 20 deg turn in one go, slipping 4 cm; "
@@ -154,7 +159,7 @@ def tool_definitions(geometry=True):
              "forward_m": {"type": "number", "minimum": -1.5, "maximum": 3.0},
              "left_m": {"type": "number", "minimum": -1.5, "maximum": 1.5},
              "turn_deg": {"type": "number", "minimum": -60, "maximum": 60},
-             "speed_mps": {"type": "number", "minimum": 0.1, "maximum": 0.6, "default": 0.3},
+             "speed_mps": {"type": "number", "minimum": 0.25, "maximum": 0.6, "default": 0.3},
              "left_hand": _vector(3), "right_hand": _vector(3),
              "press_m": {"type": "number", "minimum": 0.0, "maximum": 0.25}}}},
         {"name": PLANNER, "description": (

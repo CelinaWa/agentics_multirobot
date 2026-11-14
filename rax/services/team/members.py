@@ -23,8 +23,9 @@ def _g1_motion(tool, arguments):
     if tool == 'g1_walk':
         return float(arguments.get('forward_m', 0.0)), 0.0, float(arguments.get('turn_deg', 0.0))
     if tool == 'g1_hands_walk':   # walking with the hands held: any direction
-        return (float(arguments.get('forward_m', 0.0)), float(arguments.get('left_m', 0.0)),
-                float(arguments.get('turn_deg', 0.0)))
+        motion = (float(arguments.get('forward_m', 0.0)), float(arguments.get('left_m', 0.0)),
+                  float(arguments.get('turn_deg', 0.0)))
+        return motion if any(abs(v) > 1e-6 for v in motion) else None   # hands only: not a base motion
     if tool == 'g1_planner':      # raw planner messages: at most speed x seconds along the movement, in the planner frame
         if arguments.get('mode', 'idle') != 'slow_walk':
             return 0.0, 0.0, 45.0

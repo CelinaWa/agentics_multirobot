@@ -1132,6 +1132,11 @@ class G1SonicBackend:
                 if value is not None:
                     new_base[key] = (np.asarray(value, dtype=float), state['base'][key][1])
             press = state['press'] if press_m is None else float(press_m)
+            apart = float(np.linalg.norm(new_base['left'][0] - new_base['right'][0]))
+            if 2 * press > apart - 0.10:
+                # S36: press_m 0.25 on hands 0.48 m apart put the targets past each other and the hold collapsed
+                raise RejectedBeforeAction(f'press_m {press:g} m is per hand: the two targets, {apart:.2f} m apart, would come '
+                                           f'within 0.10 m of each other or cross; at most {max(0.0, (apart - 0.10) / 2):.2f} m here')
             new = self._pressed(new_base, press)
             if entering and left_hand is None and right_hand is None:
                 old = new      # entering on what the hands hold: the press goes on at once, not eased in from none
@@ -1149,6 +1154,7 @@ class G1SonicBackend:
                 fingers = {} if held is None else {'left_hand': held.left_hand.copy(), 'right_hand': held.right_hand.copy()}
             started, start_yaw = self.clock(), snap.yaw_rad()
             extend, covered_all, turned_now = max(o['walk_odometry_extend_s'], distance / speed_mps), False, 0.0
+            stalled, entry_sep = False, float(np.linalg.norm(measured['left'][0] - measured['right'][0]))
             if entering:
                 self._planner_keepalive = None
                 self.streamer.keepalive = None
@@ -1192,6 +1198,8 @@ class G1SonicBackend:
                         if phase == 'move':
                             # walk until the leg odometry has covered the distance (the planner needs a stride or two
                             # to start: a timed 0.5 m walk covered 0.14 m), turn until the measured heading is there
+                            if not covered_all and distance > 0 and t >= move_s + extend:
+                                stalled = True       # the time ran out before the leg odometry covered the distance
                             covered_all = covered_all or distance <= 0 or covered >= distance - o['walk_odometry_lead_m'] \
                                 or t >= move_s + extend
                             if latest is not None:
@@ -1218,8 +1226,6 @@ class G1SonicBackend:
                         if phase == 'move' and distance > 0 and not covered_all:
                             heading = psi + direction
                             v = speed_mps if ramp <= 0 else 0.1 + (speed_mps - 0.1) * min(1.0, t / ramp)
-                            if distance - covered < 0.10:
-                                v = min(v, 0.15)                             # slow into the stop
                             self.streamer.planner(SLOW_WALK, [math.cos(heading), math.sin(heading), 0.0], facing, v, **extra)
                         else:
                             self.streamer.planner(IDLE, [0.0, 0.0, 0.0], facing, -1.0, **extra)
@@ -1282,7 +1288,9 @@ class G1SonicBackend:
                         'hand_targets_pelvis': {k: np.round(new[k][0], 3).tolist() for k in ('left', 'right')},
                         'hand_target_error_m': {'left': round(float(tail[:, 0].mean()), 3), 'right': round(float(tail[:, 1].mean()), 3),
                                                 'note': 'measured minus target; against an object this is the press that holds it'},
-                        'hand_separation_m': {'now': round(float(np.linalg.norm(now['left'][0] - now['right'][0])), 3),
+                        'stalled': stalled,
+                        'hand_separation_m': {'at_call_start': round(entry_sep, 3),
+                                              'now': round(float(np.linalg.norm(now['left'][0] - now['right'][0])), 3),
                                               'min': round(min(seps), 3) if seps else None,
                                               'max': round(max(seps), 3) if seps else None},
                         'control': 'teleop hold under the planner: the hands stay at their targets; g1_hold or another '
