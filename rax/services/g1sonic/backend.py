@@ -72,6 +72,10 @@ DEFAULTS = {
     'runaway_m': 0.15,
     'runaway_window_s': 4.0,
     'runaway_min_steps': 2,
+    'reanchor_jump_deg': 0.0,         # [sim] a heading change this large between two state samples (~50 ms) is not the robot
+                                      # turning: someone carried it (the sim operator's reset); the held reference
+                                      # takes the new heading at once, or it would turn the robot back. 0: off
+                                      # (the default: a real robot is not carried, and a stumble can turn it fast)
     'fall_damp': True,
     'walk_turn_rate_deg_s': 30.0,     # g1_walk: how fast the commanded facing turns (a 170 deg turn at 45 deg/s
                                       # spun the waist at 7 rad/s and the robot fell)
@@ -258,7 +262,7 @@ class G1SonicBackend:
         if name == T.OBSERVE:
             return self._observation_packet()
         if name == T.HOLD:
-            return self._hold()
+            return self._hold(bool(arguments.get('reanchor')))
         if name == T.PIXEL_TO_POSITION:
             return self._pixel_to_position(arguments), []
         if name in (T.STEP, T.FREE_SPACE_MOVE, T.EXECUTE_PLAN, T.WALK, T.CROUCH):
@@ -1076,7 +1080,7 @@ class G1SonicBackend:
     def _watch_falls(self):
         """Between calls nothing else looks at the robot: a fall while it holds a frame damps and disarms too. During
         calls and between them, a robot stepping away by itself outside a walk disarms (_watch_runaway)."""
-        history = []
+        history, last_yaw = [], None
         while self._watching:
             time.sleep(0.05)
             snap = self.state.latest()
@@ -1086,8 +1090,18 @@ class G1SonicBackend:
             if self.clock() - snap.received > self.options['state_max_age_s']:
                 continue
             history = self._watch_runaway(history, snap) if self.fault is None else []
+            previous, last_yaw = last_yaw, (snap.received, snap.yaw_rad())
             if self.streamer.executing:
                 continue
+            jump = self.options['reanchor_jump_deg']
+            if (jump > 0 and previous is not None and snap.received - previous[0] < 0.15
+                    and self.control_mode == 'streamed' and self.streamer.primed and snap.tilt_deg() < 10
+                    and abs(math.degrees(math.atan2(math.sin(last_yaw[1] - previous[1]),
+                                                    math.cos(last_yaw[1] - previous[1])))) > jump):
+                try:
+                    self._reanchor('the robot was turned by someone else between two state samples')
+                except Exception as exc:
+                    self._event('re-anchoring failed', error=str(exc)[:200])
             tilt = snap.tilt_deg()
             if tilt > self.options['fall_tilt_deg']:
                 self.streamer.hold()
@@ -1250,10 +1264,13 @@ class G1SonicBackend:
             except OSError:
                 pass
 
-    def _hold(self):
+    def _hold(self, reanchor=False):
         dropped = self.streamer.hold()
         report = {'held': True, 'dropped_rows': dropped}
         self._check_stack()
+        if reanchor and self.control_mode == 'streamed':
+            self._require_armed(start=False)
+            report['reanchored_heading_deg'] = self._reanchor('asked for')
         if self.control_mode in ('idle', 'planner') and arming.read(self.config.root)['armed']:
             try:
                 # an armed hold starts the stack's control (the robot stands on its measured pose), or takes a robot
@@ -1262,6 +1279,21 @@ class G1SonicBackend:
             except PermissionError as exc:
                 report['start_error'] = str(exc)[:300]
         return {**report, **self._state_report()}, []
+
+    def _reanchor(self, why):
+        """The measured pose and heading become the held reference and the frames' heading anchor (S29: after an
+        operator reset turned the G1 to its start heading, the held reference still carried the old heading and
+        turned it back). Returns the new heading in degrees."""
+        snap = self.state.latest()
+        last = self.converter.last
+        hands = (last.left_hand, last.right_hand) if last is not None else (False, False)
+        with self.streamer._lock:
+            self.converter.clear()
+        self.streamer.prime(self._within_limits(snap.q), snap.base_quat, hands=hands)
+        self.last_row, self.plans = None, {}
+        heading = round(math.degrees(snap.yaw_rad()), 2)
+        self._event(f'heading re-anchored to the measured pose ({why}): {heading} deg')
+        return heading
 
     def _state_report(self):
         snap = self.state.latest()

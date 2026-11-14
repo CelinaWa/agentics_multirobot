@@ -159,8 +159,11 @@ def tool_definitions(geometry=True):
         {"name": HOLD, "description": (
             "Hold: drop any motion still streaming and keep the robot at its last reference. Always allowed, "
             "armed or not. It is not an emergency stop: the operator's stop (keyboard O or the gamepad's Select "
-            "at the robot) damps the joints and the robot sits down."),
-         "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False}},
+            "at the robot) damps the joints and the robot sits down. With reanchor (armed only): take the measured "
+            "pose and heading as the new reference and as the heading the frames' root rotation is relative to - "
+            "after someone moved or turned the robot (an operator reset), the old reference would turn it back."),
+         "inputSchema": {"type": "object", "properties": {"reanchor": {"type": "boolean", "default": False}},
+                         "additionalProperties": False}},
     ]
     if geometry:
         tools.append({"name": PIXEL_TO_POSITION, "description": (
@@ -196,8 +199,11 @@ def _only(arguments, allowed):
 def validate_request(name, arguments):
     """Complete schema/shape validation before dispatch; raises RejectedBeforeAction."""
     reject_unless(isinstance(arguments, dict), "arguments must be an object")
-    if name in (STATUS, OBSERVE, HOLD):
+    if name in (STATUS, OBSERVE):
         _only(arguments, ())
+    elif name == HOLD:
+        _only(arguments, ("reanchor",))
+        reject_unless(isinstance(arguments.get("reanchor", False), bool), "reanchor must be true or false")
     elif name == STEP:
         _only(arguments, ("actions",))
         R.validate_actions(arguments.get("actions"))

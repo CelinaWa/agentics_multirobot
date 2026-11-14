@@ -930,3 +930,44 @@ def test_the_planner_is_optional_and_a_missing_one_is_reported_not_crashed(backe
         assert 'plan' in value
     with pytest.raises(ValueError, match='plan again'):
         backend.validate(T.EXECUTE_PLAN, {'motion_plan_id': 'nope'})
+
+
+def test_a_reanchored_hold_keeps_a_heading_the_operator_set(session, stack):
+    # S29: the operator turned the G1 back to its start heading at a reset; the held reference still carried the old
+    # heading and turned it back (sim: 8 deg -> 4 deg). g1_hold(reanchor) takes the measured heading as the reference.
+    backend = make_backend(session, stack)
+    try:
+        start_control(backend, session)
+        time.sleep(0.3)
+        with stack._lock:
+            stack.base_quat = yaw_quat(math.radians(10))     # carried and turned by someone else
+        backend.call(T.HOLD, {})
+        assert wait_for(lambda: abs(math.degrees(yaw_of(stack.base_quat))) < 3)   # the old reference turns it back
+        with stack._lock:
+            stack.base_quat = yaw_quat(math.radians(10))
+        time.sleep(0.05)
+        value, _ = backend.call(T.HOLD, {'reanchor': True})
+        anchored = value['reanchored_heading_deg']   # (the fake turns fast: part of the way back already)
+        assert anchored > 3
+        time.sleep(0.5)
+        assert math.degrees(yaw_of(stack.base_quat)) == pytest.approx(anchored, abs=1.0)   # it stays there
+        held = backend.converter.relative_rot6d(stack.base_quat)
+        assert np.allclose(held, R.rot6d_from_yaw(0.0), atol=0.03)   # frames' identity rotation now means that heading
+        with pytest.raises(ValueError):
+            backend.validate(T.HOLD, {'reanchor': 'yes'})
+    finally:
+        backend.close()
+
+
+def test_a_robot_turned_by_someone_else_is_reanchored_at_once_when_enabled(session, stack):
+    backend = make_backend(session, stack, reanchor_jump_deg=2.0)
+    try:
+        start_control(backend, session)
+        time.sleep(0.3)
+        with stack._lock:
+            stack.base_quat = yaw_quat(math.radians(10))     # carried and turned (the sim operator's reset)
+        assert wait_for(lambda: any('re-anchored' in str(e) for e in backend.events), timeout=2.0)
+        time.sleep(0.5)
+        assert math.degrees(yaw_of(stack.base_quat)) > 7    # not turned back to 0
+    finally:
+        backend.close()
