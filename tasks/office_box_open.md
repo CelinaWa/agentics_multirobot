@@ -29,10 +29,11 @@ was knocked over. A green patch on the floor marks the spot.
 
 ## What is known, and what is not
 
-- Nobody has done this before. This session is the first exploration: finding out which parts are feasible is the
-  result, as much as doing the whole task.
+- Nobody has done this before. Earlier sessions on this task left their experience in `memory/` and the skill
+  library; finding out which parts are feasible and making them reliable is the result, as much as doing the whole
+  task.
 - On the low table the rim is within both robots' reach while they stand. The put-down is on the floor: to lower
-  the box that far both robots have to bend their legs while holding it (the G1 with `g1_crouch` or its own frames,
+  the box that far both robots have to bend their legs while holding it (the G1 with its own frames through `g1_step`,
   the R1 through the leg reference of `r1_step`).
 - The team tools start a group of calls together but do not keep the robots in step during a motion, and neither
   robot follows the force on the box. If both carry it, walking together is the least certain part.
@@ -40,12 +41,19 @@ was knocked over. A green patch on the floor marks the spot.
 - Neither robot places itself precisely by walking: short walks overshoot or do nothing, and turns travel.
 
 Use the session: when one way of doing a step fails, record what you measured and try another way; one failed
-attempt is a data point, not the end. Stop early only when going on would put a robot at risk.
+attempt is a data point, not the end. Spend the robot time where the task is lost: a stage that fails most of the
+time is worth practising on its own, from its own start state, before more whole attempts. Stop early only when going
+on would put a robot at risk.
 
-Report where it stops: which robot held the box how, how many times of how many, how far it got toward the spot.
+Report where it stands: the funnel by stage (tries and successes), which robot held the box how, how far it got
+toward the spot.
 
 ## The operator
 
 The operator can put the box back at its starting place on the low table (`request_operator` kind `reset`), and, when
-you ask for the robots too, carry both standing robots back to their starting places. Do not count on other help:
-nobody holds the box for you. A robot that falls ends the session: protect the robots before the task.
+you ask for the robots too, carry both standing robots back to their starting places. For practice, a reset can put the
+R1 at a stance you name instead of its start: write `r1_at=x,y,yaw_deg` (team frame) in the reset message; the stance
+must be at least 0.33 m from the box centre and within 1 m of the R1's start. Resets are cheap here (up to 200 a
+session). Do not count on other help: nobody holds the box for you. If the G1 falls, the operator starts its stack
+again and hangs it on its gantry at its start (a minute or two; it says so in its next reply): protect the robots
+anyway, a fall in a real lab costs far more.

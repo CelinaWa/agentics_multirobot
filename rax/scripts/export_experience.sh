@@ -22,6 +22,12 @@ shutil.copytree(sys.argv[1], sys.argv[2], symlinks=False,
                 ignore=shutil.ignore_patterns('__pycache__', '*.png', '*.jpg', '*.jpeg', '*.npy', '*.npz', '*.mp4', '*.pyc'))
 PY
 done
+# the operator's ground truth ([sim-only]: what really happened at each reset) goes with the memory, one file per
+# session, so later sessions can label every earlier attempt
+if [[ -s "$ROOT/stream/ground_truth.jsonl" ]]; then
+    mkdir -p "$DEST/workspace/memory/ground_truth"
+    cp "$ROOT/stream/ground_truth.jsonl" "$DEST/workspace/memory/ground_truth/$(basename "$ROOT").jsonl"
+fi
 ROBOT=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['robot'])" "$ROOT/configuration.json")
 # real or sim: a real session inheriting this sets [sim-only] rows aside and lists the numbers to measure again.
 # Sessions configured before the environment field: RAX_EXPORT_ENVIRONMENT=sim|real says where they ran.
