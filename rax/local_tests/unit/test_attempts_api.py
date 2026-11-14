@@ -52,6 +52,7 @@ def test_a_stage_outside_the_graph_is_refused_and_a_row_carries_its_check(tmp_pa
     memory = root/'agent-workspace'/'memory'
     memory.mkdir()
     (memory/'STAGES.json').write_text(json.dumps({'stages': [{'id': 'grip', 'check': 'pinch 20-45 mm'}]}))
-    with pytest.raises(ValueError, match='not in memory/STAGES.json'):
-        attempts.record('walk_hold', True)
+    assert attempts.record('walk_hold', True)['unchecked'] is True     # kept (a controller must not fail mid-motion)
     assert attempts.record('grip', True)['check'] == 'pinch 20-45 mm'
+    table = {e['stage']: e for e in attempts.funnel()}
+    assert table['grip']['checked'] and not table['walk_hold']['checked']

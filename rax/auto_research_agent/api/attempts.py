@@ -43,13 +43,15 @@ def record(stage, ok, *, mode='chain', cause=None, params=None, controller=None,
     if mode not in MODES:
         raise ValueError(f'mode must be one of {MODES}, not {mode!r}')
     stages = _stages()
-    if stages and str(stage) not in stages:
-        # S29: a stage recorded outside the graph had no check, and 'ok' became whatever the moment suggested
-        raise ValueError(f'stage {stage!r} is not in memory/STAGES.json: add it there first, with its start state and the '
-                         'check that says it succeeded, then record against that check')
     row = {'t': round(time.time(), 1), 'session': session_id(), 'stage': str(stage), 'ok': bool(ok), 'mode': mode}
     if stages.get(str(stage)):
         row['check'] = stages[str(stage)]
+    elif stages:
+        # S29: a stage recorded outside the graph had no check, and 'ok' became whatever the moment suggested. Kept
+        # (a controller must not fail mid-motion over its log) but marked, and the funnel flags it
+        row['unchecked'] = True
+        print(f'api.attempts: stage {stage!r} has no check in memory/STAGES.json: add it with its start state and the '
+              'check that says it succeeded; this row is marked unchecked', file=sys.stderr)
     for key, value in (('cause', cause), ('params', params), ('controller', controller), ('reset', reset),
                        ('note', note)):
         if value is not None:
@@ -105,6 +107,7 @@ def funnel(log=None):
         causes = Counter(r['cause'] for r in mine if not r['ok'] and r.get('cause'))
         entry['causes'] = causes.most_common(4)
         entry['sessions'] = len({r.get('session') for r in mine})
+        entry['checked'] = stage in stage_order()
         table.append(entry)
     return table
 
@@ -149,10 +152,13 @@ def main(argv):
     print(f'{"stage":24} {"chain":>9} {"practice":>9} {"proxy":>9} | {"all chain":>9} {"all prac":>9} {"all proxy":>9} sessions')
     for e in table:
         s, a = e['session'], e['all']
-        print(f'{e["stage"][:24]:24} {_cell(s["chain"]):>9} {_cell(s["practice"]):>9} {_cell(s["proxy"]):>9} | '
+        name = e['stage'][:23] + ('' if e.get('checked', True) else '*')
+        print(f'{name:24} {_cell(s["chain"]):>9} {_cell(s["practice"]):>9} {_cell(s["proxy"]):>9} | '
               f'{_cell(a["chain"]):>9} {_cell(a["practice"]):>9} {_cell(a["proxy"]):>9} {e["sessions"]:>8}')
         for cause, count in e['causes']:
             print(f'{"":26}{count} x {cause[:100]}')
+    if any(not e.get('checked', True) for e in table):
+        print('* not in memory/STAGES.json: no check defines its success; add the stage with its check')
     if truth:
         print('\nGround truth by session [sim-only]: resets, G1 restarts, furthest the box got from its start, '
               'closest to the goal, successes')
