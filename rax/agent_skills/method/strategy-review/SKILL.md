@@ -26,9 +26,24 @@ job: read `TASK.md`, `memory/CURRENT.md` (or, if it does not exist yet, `handoff
    [practice-by-stage](../practice-by-stage/SKILL.md)), change the method of a stage, change the split of work between
    the robots, or whole attempts when the stages are each reliable.
 4. What it would stop doing.
+5. **The exclusions, audited.** List every rule in the notes that rules a direction, a method or a split of work out
+   ("never", "only", "impossible", "does not work"), each with its evidence: how many tries, in which session, and
+   whether something else could explain them (a weak grip already, a reset or operator action at the same time, a
+   different tool version). A rule from one or two tries, or from confounded tries, is an open question, not a fact:
+   name the cheapest test that would settle it. Notes written by agents carry their mistakes forward; the rules that
+   shape every later session are the ones most worth re-checking.
+6. **Does the plan lead to the goal?** For each strategy, say how its success moves the task toward `TASK.md`'s
+   success condition. A stage practised to reliability in a direction or a way the route cannot use (carrying away
+   from the goal, a drop the task does not allow) is not progress; at least one strategy must move the task toward
+   the goal itself, even if it is less tried.
+7. **How to practise the bottleneck.** For the bottleneck stage: its start state, the cheapest way to reach it
+   (operator placement, a one-robot stand-in, a proxy object), and how many repetitions fit in the session. Whole
+   attempts from a reset that reach the bottleneck once each are not practice of it.
 
 Then decide yourself, write your decision and why under the page, and plan the session's time by it. Disagreeing
-with the page is fine; ignoring it is not.
+with the page is fine; ignoring it is not. When you change the plan mid-session (more steps than the plan allowed, a
+different method), write the change and its reason under the page before you run it, and check the funnel
+(`python -m api.attempts`) to choose the next practice, not only to report it.
 
 ## At the end: curate and hand over
 

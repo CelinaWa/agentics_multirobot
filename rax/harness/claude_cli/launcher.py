@@ -97,7 +97,9 @@ USAGE_PROMPT = ("The model usage limit paused this session until it reset. Call 
 CONTINUE_PROMPT = ("You ended your turn, but the session is not over: about {minutes} minutes of its time are left, and "
                    "the robot service is still running. Call status and observe: the scene and the arming may have "
                    "changed while you wrote. If TASK.md's success condition is met and you have verified it, or if "
-                   "going on would put a robot at risk, say so in one line and end. Otherwise take the next untried "
+                   "going on would put a real robot at risk, say so in one line and end (in a simulation a fall costs a "
+                   "restart, not a robot: it is not a reason to end; check from the timeline that your own motions, not "
+                   "the operator's, caused a fault before you avoid them). Otherwise take the next untried "
                    "item from your own notes (memory/PROGRESS.md, handoff/README.md) and keep working: a failed "
                    "attempt is a measurement, not the end of the session. Keep your notes current as you go.")
 # The last minutes of a non-interactive session are for the hand-over, not for the robot: robot work stops then (the

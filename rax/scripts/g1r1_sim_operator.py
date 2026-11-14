@@ -78,6 +78,30 @@ def end_state(ctx, layout):
             f"{'SUCCESS' if t['success'] else 'not a success'}")
 
 
+def truth_words(ctx, layout):
+    """Where the box was, in words for the agent's reply [sim-only]: S28 recorded two boxes leaning 30-46 deg across
+    the table edge as 'landed upright on the floor', judged from a robot camera."""
+    try:
+        t = truth(ctx, layout)
+    except Exception:
+        return ''
+    z, tilt, table = t['box'][2], t['box_tilt_deg'], layout['box_start'].get('z', 0.0)
+    if tilt >= 60:
+        where = f'on its side or upside down (tilt {tilt:.0f} deg)'
+    elif tilt >= 10:
+        where = f'tipped {tilt:.0f} deg, its base {z:.2f} m high (leaning on something)'
+    elif z < 0.03:
+        where = 'upright on the floor'
+    elif abs(z - table) < 0.03:
+        where = 'upright on the table top'
+    else:
+        where = f'upright, its base {z:.2f} m high (held?)'
+    return (f" [sim-only] Ground truth before this reset (label your attempt with it, not with what a camera "
+            f"suggested): the box was {where}, at ({t['box'][0]:.2f}, {t['box'][1]:.2f}), {t['box_from_start_m']:.2f} m "
+            f"from its start and {t['box_to_goal_m']:.2f} m from the goal spot; robots "
+            f"{'both standing' if t['robots_standing'] else 'NOT both standing'}.")
+
+
 def record(session, ctx, layout, event, **fields):
     """One ground-truth row in <session>/stream/ground_truth.jsonl: the agent reads it (it cannot write there) to label
     its attempts with what really happened, and the export carries it to later sessions. [sim-only]"""
@@ -194,6 +218,17 @@ def r1_pose_asked(message, layout):
     return (x, y, yaw), ''
 
 
+def tripped_since(session, since):
+    """The reason of a disarm by the robot service (a runaway or fall guard) written at or after `since`, else None."""
+    try:
+        value = json.loads(arming.arm_file(session).read_text())
+    except (OSError, ValueError):
+        return None
+    if value.get('armed') is not True and (value.get('since') or 0) >= since and value.get('by') != 'sim operator':
+        return value.get('reason') or 'disarmed by the robot service'
+    return None
+
+
 def replace_robots(ctx, keys, layout, r1_pose=None):
     """Carry both standing robots back to where they started (a person would walk them there): the G1 keeps its
     heading, the R1 is turned to face the box again and its controller's reference frame restarts from there. With
@@ -272,12 +307,17 @@ def main():
             log(f"request [{request['kind']}]: {request['message'][:300]}")
             if request['kind'] == 'reset' and resets < a.max_resets:
                 log('before the reset: ' + end_state(ctx, layout))
+                reset_started, before = time.time(), truth_words(ctx, layout)
                 resets += 1
                 record(a.session, ctx, layout, 'before_reset', reset=resets, request=request['message'][:600])
                 moved = ''
                 r1_pose, refused = r1_pose_asked(request['message'], layout)
                 if ('robot' in request['message'].lower() or r1_pose) and standing(ctx):
-                    # the robots first: placed after the box, an arm swinging in with them knocked it off its place
+                    # as a person would: pick the box up and set it aside, carry the robots, then put the box back.
+                    # Robots carried while the box stays put land in it (S28: the G1 set down on the box at its feet,
+                    # or with its arms out around it, stepped 0.43 m away, disarmed and fell); a box put back before
+                    # the robots is knocked by their arms as they arrive
+                    keys.send_string('place=box,-1.6,-3.2,0.15,1,0,0,0'); time.sleep(0.5)
                     replace_robots(ctx, keys, layout, r1_pose)
                     moved = ((' Both robots are back at their starting places, facing the box,' if r1_pose is None else
                               f' The G1 is back at its starting place and the R1 stands at ({r1_pose[0]:g}, {r1_pose[1]:g}), '
@@ -285,11 +325,23 @@ def main():
                              + ' standing as they stood (arms and legs as you left them). Their poses in the team frame '
                                'are stale: set them again.')
                 misplaced = place_box(ctx, keys, layout)
-                text = (f'Reset {resets}/{a.max_resets}: the box is back at its starting place, upright.'
+                time.sleep(2.0)     # a guard tripped by the placement shows within a second or two
+                tripped, caused = tripped_since(a.session, reset_started), ''
+                if tripped is not None:
+                    # the agent must not take the operator's doing for a result of its own commands (S28: three G1
+                    # runaways during resets were blamed on the agent's last motion and became rules in its notes)
+                    caused = (f' While I carried the robots, the G1\'s guard tripped ("{tripped[:160]}"): MY PLACEMENT '
+                              'caused that, not your commands; do not draw conclusions about your motions from it.')
+                    if standing(ctx) and deploy_alive():
+                        arming.write(a.session, True, minutes=max(1.0, (deadline - time.time()) / 60), by='sim operator')
+                        caused += ' Both robots stand; I armed the session again.'
+                    log('a guard tripped during the reset: ' + tripped[:160])
+                text = (f'Reset {resets}/{a.max_resets}:' + before + ' Now the box is back at its starting place, upright.'
                         + (moved or ' The robots were not moved (ask for the robots too if you want them put back).')
-                        + refused + (misplaced or '') + ' Observe before acting.')
+                        + refused + (misplaced or '') + caused + ' Observe before acting.')
                 log('after the reset: ' + end_state(ctx, layout))
-                record(a.session, ctx, layout, 'after_reset', reset=resets, r1_at=list(r1_pose) if r1_pose else None)
+                record(a.session, ctx, layout, 'after_reset', reset=resets, r1_at=list(r1_pose) if r1_pose else None,
+                       guard_tripped_by_reset=tripped)
             elif request['kind'] == 'reset':
                 text = 'No resets are left in this session.'
             elif (a.allow_table_removal and layout['box_start'].get('z', 0.0) > 0 and 'table' in request['message'].lower()

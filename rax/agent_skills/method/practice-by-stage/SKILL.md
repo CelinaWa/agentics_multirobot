@@ -28,7 +28,11 @@ Revise the graph when a stage turns out to hide two failure modes; split it.
 `record(stage, ok, mode=..., cause=..., params=...)` after every try of every stage, inside whole attempts too
 (`chain`), on its own (`practice`) or as a stand-in (`proxy`). `python -m api.attempts` is the funnel across all
 sessions, with the operator's ground truth per session where the simulation provides it. A stage's rate counts only
-tries that reached it; label failures by the first stage that failed.
+tries that reached it; label failures by the first stage that failed. `practice` means the try started from that
+stage's own start state; every stage inside a run from a reset is `chain`, even when the run was a practice run.
+Label the outcome with what really happened: where the simulation's operator reports ground truth (its reset reply,
+`runtime/stream/ground_truth.jsonl`) [sim-only], use it over your camera's impression, and note where they disagreed;
+that disagreement is a perception error the real robot will have too.
 
 ## 3. Choose what to practise
 
