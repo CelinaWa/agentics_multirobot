@@ -1116,10 +1116,8 @@ class G1SonicBackend:
     def _hands_walk(self, forward_m=0.0, left_m=0.0, turn_deg=0.0, speed_mps=0.3, left_hand=None, right_hand=None,
                     press_m=None, hands_stay=False):
         """Walk under SONIC's planner with its teleop encoder: the planner moves the legs and the policy keeps the two
-        hand points at their targets in the pelvis frame (sim: a 1.2 kg box squeezed between the palms stayed held
-        over 0.8 m back, 1.2 m left, 1.4 m right, 1.2 m forward and a 20 deg turn; under g1_walk(carry), which holds
-        joint angles, it dropped as each walk began). The robot stays in this hold afterwards; any other motion tool
-        or g1_hold hands back to the streamed hold of the measured pose, where the press is gone."""
+        hand points at their targets in the pelvis frame. The robot stays in this hold afterwards; any other motion
+        tool or g1_hold hands back to the streamed hold of the measured pose."""
         o = self.options
         with self.lock:
             # (in the teleop hold already: no start, which would hand the planner's robot back to the streamed hold)
@@ -1502,6 +1500,21 @@ class G1SonicBackend:
                     self._reanchor('the robot was turned by someone else between two state samples')
                 except Exception as exc:
                     self._event('re-anchoring failed', error=str(exc)[:200])
+            elif (jump > 0 and previous is not None and snap.received - previous[0] < 0.15
+                  and self.control_mode == 'planner' and getattr(self, '_planner_keepalive', None) is not None
+                  and getattr(self, '_planner_frame_yaw', None) is not None and snap.tilt_deg() < 10
+                  and abs(math.degrees(math.atan2(math.sin(last_yaw[1] - previous[1]),
+                                                  math.cos(last_yaw[1] - previous[1])))) > jump):
+                # the same under the planner's hold: its facing is a heading in the planner frame, and a robot turned
+                # by someone else walks back to it (S41: 11 of 52 lifts refused, the G1 10-28 deg off after resets)
+                d = snap.yaw_rad() - self._planner_frame_yaw
+                facing, extra = [math.cos(d), math.sin(d), 0.0], dict(getattr(self, '_planner_extra', None) or {})
+                self._planner_keepalive = lambda: self.streamer.planner(IDLE, [0.0, 0.0, 0.0], facing, -1.0, **extra)
+                self.streamer.keepalive = self._planner_keepalive
+                if self._teleop is not None:
+                    self._teleop['facing'] = d
+                self._event(f'planner facing realigned to the measured heading (the robot was turned by someone else): '
+                            f'{math.degrees(d):.1f} deg in the planner frame')
             tilt = snap.tilt_deg()
             if tilt > self.options['fall_tilt_deg']:
                 self.streamer.hold()

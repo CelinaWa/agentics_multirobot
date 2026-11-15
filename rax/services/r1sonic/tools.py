@@ -109,21 +109,16 @@ def tool_definitions(geometry=True):
         {"name": GAIT, "description": (
             "The walking gait, raw, by velocity: the same built-in gait as r1_walk, stepping forward or backward along "
             "your heading at about speed_mps and turning at turn_deg_s (left positive), for `seconds` (0.2-5), with "
-            "nothing added: no distance, no correction pass. The stride length sets the pace: measured in simulation, "
-            "arms free, 2 s calls with settle: speed_mps 0.24 walked 0.47-0.53 m, 0.30 walked 0.59-0.61 m, 0.42 walked "
-            "0.58-0.89 m (the first gait after standing long is the slow one); 0.24 / 0.40 / 0.24 for 1 s each "
-            "without stopping walked 1.03 m; backward at 0.30 turning 8 deg/s for 3 s walked 0.84 m and turned 14 "
-            "deg; below about 0.22 the gait steps without advancing, so speed_mps is 0.22-0.45; a run drifts "
-            "sideways up to a tenth of its length, more when turning. "
-            "The arms and grippers keep their last command. The call returns after `seconds` with samples taken about "
+            "nothing added: no distance, no correction pass. The stride length sets the pace; below about 0.22 m/s the "
+            "gait steps without advancing, so speed_mps is 0.22-0.45; how far it really goes at a speed is yours to "
+            "measure. The arms and grippers keep their last command. The call returns after `seconds` with samples taken about "
             "10 times a second during it: tilt, gripper widths, and for each hand the commanded and the measured hand "
             "point in your root frame and their difference (hand_error_m: what an object or another robot holding "
             "the same object does to your hand shows there). settle=true (default) then ends the gait, waits until "
             "you stand still and reports walked_m, lateral_m and turned_deg over the whole gait since it began; "
             "settle=false leaves the gait running 0.3 s past the call so the next r1_gait call can change "
             "speed or turn without a stop (the gait cycle goes on; if no call follows, it ramps out by itself: then "
-            "call r1_gait with seconds 0.2 and settle=true before measuring). Not "
-            "measured yet with something held. Needs operator arming; not available on the real robot yet."),
+            "call r1_gait with seconds 0.2 and settle=true before measuring). Needs operator arming; not available on the real robot yet."),
          "inputSchema": {"type": "object", "required": ["seconds"], "additionalProperties": False, "properties": {
              "seconds": {"type": "number", "minimum": 0.2, "maximum": 5.0},
              "speed_mps": {"type": "number", "minimum": 0.22, "maximum": 0.45, "default": 0.3},

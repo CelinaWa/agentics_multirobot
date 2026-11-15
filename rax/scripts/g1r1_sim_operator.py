@@ -323,10 +323,42 @@ def replace_robots(ctx, keys, layout, r1_pose=None, g1_pose=None):
     keys.send_string(f"place=pelvis,{g1['pos'][0]},{g1['pos'][1]},{qpos[2]},{q[0]},{q[1]},{q[2]},{q[3]}"); time.sleep(0.3)
     h = math.radians(r1['yaw_deg']) / 2
     r1z = qpos[57 + 2]                                      # the R1's root follows the G1 (50) and the box (7) in qpos
-    keys.send_string(f"place=r1_pelvis,{r1['pos'][0]},{r1['pos'][1]},{r1z},{math.cos(h)},0,0,{math.sin(h)}"); time.sleep(0.1)
+    keys.send_string(f"place=r1_pelvis,{r1['pos'][0]},{r1['pos'][1]},{r1z},{math.cos(h)},0,0,{math.sin(h)}")
+    time.sleep(0.5)     # the R1's controller mirrors the world once a tick: its frame restarts from the pose it has seen
     sock = ctx.socket(zmq.REQ); sock.setsockopt(zmq.LINGER, 0); sock.setsockopt(zmq.RCVTIMEO, 3000); sock.connect('tcp://127.0.0.1:5791')
     sock.send(json.dumps({'op': 'reset'}).encode()); sock.recv(); sock.close()
     time.sleep(3.0)
+
+
+def robot_poses(ctx):
+    """{'g1' / 'r1': {'x', 'y', 'yaw_deg', 'tilt_deg'}} from the simulation, or None."""
+    import math
+    import numpy as np
+    try:
+        sub = ctx.socket(zmq.SUB); sub.setsockopt(zmq.SUBSCRIBE, b''); sub.setsockopt(zmq.RCVTIMEO, 3000); sub.connect('tcp://127.0.0.1:5792')
+        q = np.frombuffer(sub.recv(), dtype=np.float64); sub.close()
+    except zmq.ZMQError:
+        return None
+    out = {}
+    for name, at in (('g1', 0), ('r1', 57)):
+        w, x, y, z = q[at + 3:at + 7]
+        out[name] = {'x': round(float(q[at]), 3), 'y': round(float(q[at + 1]), 3),
+                     'yaw_deg': round(math.degrees(math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))), 1),
+                     'tilt_deg': round(math.degrees(math.acos(max(-1.0, min(1.0, 1 - 2 * (x * x + y * y))))), 1)}
+    return out
+
+
+def placement_errors(poses, targets, pos_tol=0.05, yaw_tol=4.0):
+    """What is off after a reset: [(robot, metres off, degrees off)] beyond the tolerances; targets {robot: (x, y, yaw)}."""
+    import math
+    off = []
+    for name, (x, y, yaw) in targets.items():
+        p = poses[name]
+        d = math.hypot(p['x'] - x, p['y'] - y)
+        a = abs((p['yaw_deg'] - yaw + 180) % 360 - 180)
+        if d > pos_tol or a > yaw_tol or p['tilt_deg'] > 15:
+            off.append((name, round(d, 3), round(a, 1)))
+    return off
 
 
 def main():
@@ -387,6 +419,7 @@ def main():
             if request['id'] in done:
                 continue
             done.add(request['id'])
+            state_first = ''
             log(f"request [{request['kind']}]: {request['message'][:300]}")
             if request['kind'] == 'reset' and resets < a.max_resets:
                 log('before the reset: ' + end_state(ctx, layout))
@@ -403,7 +436,7 @@ def main():
                 review = write_attempt_review(a.session, resets, attempt_since, reset_started, samples, layout,
                                               row.get('third_person'))
                 moved = ''
-                r1_stood = ''
+                r1_stood, targets, placement = '', None, []
                 if r1_is_down(ctx):
                     keys.send_string('place=box,-1.6,-3.2,0.15,1,0,0,0'); time.sleep(0.5)     # out of the way first
                     if stand_r1_up(ctx, keys, layout):
@@ -424,6 +457,20 @@ def main():
                     # the robots is knocked by their arms as they arrive
                     keys.send_string('place=box,-1.6,-3.2,0.15,1,0,0,0'); time.sleep(0.5)
                     replace_robots(ctx, keys, layout, r1_pose, g1_pose)
+                    # a reset is done when the robots ARE where they were put, heading included: measure, and put them
+                    # there again if not (S41: all 49 replies said 'at its start heading' while the R1 was 6-27 deg and
+                    # the G1 10-28 deg off after turning runs; 20 of 52 lifts were refused for it)
+                    targets = {'g1': (*(g1_pose[:2] if g1_pose else layout['robots']['g1']['pos'][:2]),
+                                      g1_pose[2] if g1_pose else layout['robots']['g1'].get('yaw_deg', 0.0)),
+                               'r1': (*(r1_pose[:2] if r1_pose else layout['robots']['r1']['pos'][:2]),
+                                      r1_pose[2] if r1_pose else layout['robots']['r1'].get('yaw_deg', 0.0))}
+                    for again in range(3):
+                        poses = robot_poses(ctx)
+                        placement = placement_errors(poses, targets) if poses else []
+                        if not placement:
+                            break
+                        log(f'after placing the robots, off: {placement}; placing them again ({again + 1})')
+                        replace_robots(ctx, keys, layout, r1_pose, g1_pose)
                     where = lambda name, pose: (f'the {name} stands at ({pose[0]:g}, {pose[1]:g}), heading {pose[2]:g} deg, '
                                                 'as you asked' if pose else f'the {name} is back at its start, at its start heading')
                     moved = (' T' + where('G1', g1_pose)[1:] + '; ' + where('R1', r1_pose) + ';'
@@ -463,9 +510,33 @@ def main():
                 text = (f'Reset {resets}/{a.max_resets}:' + before + ' Now the box is back at its starting place, upright.'
                         + (moved or ' The robots were not moved (ask for the robots too if you want them put back).')
                         + refused + (misplaced or '') + caused + r1_stood + ' Observe before acting.')
+                # the state after the reset, measured, first in the reply and machine-readable (a wrapper that keeps only
+                # part of a reply still gets it; S41: 5 'not where I put it' warnings, 1 reached the agent)
+                poses = robot_poses(ctx)
+                state = {'reset': resets, 'state_ok': None, 'robots': poses, 'warnings': []}
+                try:
+                    t_now = truth(ctx, layout)
+                    state['box'] = {'x': t_now['box'][0], 'y': t_now['box'][1], 'base_z': t_now['box'][2], 'tilt_deg': t_now['box_tilt_deg'],
+                                    'yaw_deg': t_now.get('box_yaw_deg')}
+                    state['robots_standing'] = t_now['robots_standing']
+                except Exception:
+                    pass
+                if targets and poses:
+                    placement = placement_errors(poses, targets)
+                    state['robots_asked'] = {k: {'x': v[0], 'y': v[1], 'yaw_deg': v[2]} for k, v in targets.items()}
+                    for name, d, a in placement:
+                        state['warnings'].append(f'{name} is {d} m and {a} deg from where it was to be put, after 3 tries')
+                if misplaced:
+                    state['warnings'].append('the box did not come to rest at its start')
+                if tripped is not None:
+                    state['warnings'].append('a guard tripped during the reset (the operator caused it)')
+                if 'could not stand it up' in r1_stood:
+                    state['warnings'].append('the R1 is down')
+                state['state_ok'] = bool(not state['warnings'] and state.get('robots_standing', True))
+                state_first = 'STATE ' + json.dumps(state, separators=(',', ':')) + ' '
                 log('after the reset: ' + end_state(ctx, layout))
                 record(a.session, ctx, layout, 'after_reset', reset=resets, r1_at=list(r1_pose) if r1_pose else None,
-                       guard_tripped_by_reset=tripped)
+                       guard_tripped_by_reset=tripped, state=state)
                 if review:
                     text += f' The review of the attempt before this reset: `{review}`.'
                 attempt_since, samples = time.time(), []
@@ -520,6 +591,7 @@ def main():
                              f"reset: one started before {clock['last_attempt_start_that_fits']} still fits (status gives "
                              "last_attempt_start_that_fits).")
                 text = head + ' ' + text
+            text, state_first = state_first + text, ''
             operator.reply(a.session, request['id'], text, done=True, by='sim operator')
             log('replied:', text[:120])
         try:

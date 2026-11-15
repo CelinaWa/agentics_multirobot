@@ -68,7 +68,7 @@ def record(stage, ok, *, mode='chain', cause=None, params=None, controller=None,
 def correct(t, ok, why, *, stage=None, note=None):
     """Relabel an earlier row (its 't', as the funnel's --json or the log shows it) without rewriting history: a
     correction row whose `ok` the funnel uses instead of the original's. Use it when ground truth (the operator's
-    numbers, a review, OPERATOR_NOTES.md) contradicts a row."""
+    numbers, a review) contradicts a row."""
     match = [r for r in rows() if r.get('t') == t and 'correction_of' not in r and (stage is None or r['stage'] == stage)
              and (note is None or r.get('note') == note)]
     if len(match) != 1:
