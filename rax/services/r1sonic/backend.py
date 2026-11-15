@@ -445,8 +445,10 @@ class R1SonicBackend:
 
     # ----- motions --------------------------------------------------------------------------------------------------
     def _move_hand(self, arm, position, approach=None, fingers=None, use_waist=False, secs=2.0, gripper_width_m=None,
-                   servo=True, preview_only=False):
+                   servo=True, preview_only=False, tolerance_m=None, servo_s=None):
         o = self.options
+        tolerance = o['servo_tolerance_m'] if tolerance_m is None else float(tolerance_m)
+        iterations = o['servo_iterations'] if servo_s is None else max(1, int(round(float(servo_s) / 0.4)))
         s0 = self._state()
         goal = np.asarray(position, dtype=float)
         seed = {**s0['qd'], **self.cmd}
@@ -472,11 +474,11 @@ class R1SonicBackend:
         trace = self._execute(q, secs, s0, grip_to=grip, correction_to=zero)
         servo_log = []
         if servo and 'stopped' not in trace:
-            for _ in range(o['servo_iterations']):
+            for _ in range(iterations):
                 s = trace['state']
                 err = goal - np.asarray(self._grasp_points(s['qd'])[arm])
                 servo_log.append(round(float(np.linalg.norm(err)), 4))
-                if np.linalg.norm(err) < o['servo_tolerance_m']:
+                if np.linalg.norm(err) < tolerance:
                     break
                 corr = self.correction[arm] + o['servo_gain'] * err
                 norm = np.linalg.norm(corr)
@@ -489,7 +491,11 @@ class R1SonicBackend:
                          'steps': trace['steps'] + sub['steps']}
                 if 'stopped' in sub:
                     break
-        return self._report('move_hand', trace, plan=plan, goal=(arm, goal), servo_errors_m=servo_log)
+        fb = self._report('move_hand', trace, plan=plan, goal=(arm, goal), servo_errors_m=servo_log)
+        # the grasp point's measured distance from the goal against the tolerance asked: a reply 1.5 cm off read as done
+        fb['tolerance_m'] = tolerance
+        fb['reached'] = bool(fb.get('grasp_error_m') is not None and fb['grasp_error_m'] <= tolerance)
+        return fb
 
     # ----- measured chains (sim 2026-11-05: grasp along the leg, arc lift, short-step carry) ------------------------
     LIFT_PLAN = ((0.015, 0.04, 0.0), (0.035, 0.07, 0.2), (0.055, 0.10, 0.3), (0.07, 0.14, 0.4), (0.08, 0.18, 0.5),

@@ -68,7 +68,9 @@ def tool_definitions(geometry=True):
             "and not every orientation exists at every position. The backend solves the inverse kinematics (use_waist "
             "lets waist roll/yaw help), refuses a goal the arm cannot reach within max_ik_error_m (the reply says how "
             "far off the best solution is), moves the joints smoothly over `secs`, then corrects the remaining error "
-            "from the measured joints (servo); the reply reports the remaining error. Positions are in the pelvis "
+            "from the measured joints (servo) for up to `servo_s` seconds or until the grasp point is within `tolerance_m` "
+            "of the goal; the reply gives the remaining error (`grasp_error_m`) and `reached` (true when it is within the "
+            "tolerance). Positions are in the pelvis "
             "frame, which moves with the pelvis. `gripper_width_m` sets the opening during the move. preview_only=true solves and reports "
             "without moving. Needs operator arming."),
          "inputSchema": {"type": "object", "required": ["arm", "position"], "additionalProperties": False, "properties": {
@@ -78,6 +80,8 @@ def tool_definitions(geometry=True):
              "secs": {"type": "number", "minimum": SECS[0], "maximum": SECS[1], "default": 2.0},
              "gripper_width_m": {"type": "number", "minimum": 0.0, "maximum": GRIPPER_MAX_M},
              "servo": {"type": "boolean", "default": True},
+             "tolerance_m": {"type": "number", "minimum": 0.002, "maximum": 0.05},
+             "servo_s": {"type": "number", "minimum": 0.4, "maximum": 8.0},
              "preview_only": {"type": "boolean", "default": False}}}},
         {"name": MOVE_JOINTS, "description": (
             "Move arm and waist joints to absolute angles (rad) over `secs`: {joint name: angle} for any of "
@@ -271,7 +275,9 @@ def validate_request(name, arguments):
         _only(arguments, ())
     elif name == MOVE_HAND:
         _only(arguments, ("arm", "position", "approach", "fingers", "use_waist", "secs", "gripper_width_m", "servo",
-                          "preview_only"))
+                          "preview_only", "tolerance_m", "servo_s"))
+        _range(arguments, "tolerance_m", 0.002, 0.05)
+        _range(arguments, "servo_s", 0.4, 8.0)
         reject_unless(arguments.get("arm") in ARMS, "arm must be left or right")
         _vec(arguments.get("position"), 3, "position")
         for key in ("approach", "fingers"):
