@@ -58,6 +58,8 @@ DEFAULTS = {
     'max_arm_step_rad': 0.12, 'max_leg_step_rad': 0.05, 'max_first_step_rad': 0.25,
     'max_leg_offset_rad': None,       # operator's cap on how far r1_step may take a leg joint reference from the default
                                       # stance (None: the joint limits only). Start small on the real robot.
+    'gait_stream': False,             # offer r1_gait (the gait by velocity, non-blocking in the stack): needs a stack
+                                      # with the gait / gait_settle ops (the sim server has them)
     'no_walk': False,                 # the robot is placed at the table: r1_walk and r1_carry_release are refused
 }
 
@@ -112,12 +114,16 @@ class R1SonicBackend:
     # ----- tools ----------------------------------------------------------------------------------------------------
     def tools(self):
         tools = T.tool_definitions(geometry=self.depth)
+        if not self.options['gait_stream']:
+            tools = [t for t in tools if t['name'] != T.GAIT]
         return [t for t in tools if t['name'] not in T.WALKING_TOOLS] if self.options['no_walk'] else tools
 
     def validate(self, name, arguments):
         T.validate_request(name, arguments)
         if self.options['no_walk'] and name in T.WALKING_TOOLS:
             raise RejectedBeforeAction(f'{name} is off in this task: the robot does not walk (r1_carry_hand carries by moving the hand)')
+        if name == T.GAIT and not self.options['gait_stream']:
+            raise RejectedBeforeAction(f'{name} is not offered in this session')
         if name in T.MUTATING and not (name == T.MOVE_HAND and arguments.get('preview_only')):
             self._require_armed()
         if name == T.STEP:
@@ -153,6 +159,8 @@ class R1SonicBackend:
                     return self._head(arguments['pitch'], arguments.get('secs', 1.0)), []
                 if name == T.WALK:
                     return self._walk(arguments.get('forward_m', 0.0), arguments.get('turn_deg', 0.0), arguments.get('left_m', 0.0)), []
+                if name == T.GAIT:
+                    return self._gait(**arguments), []
                 if name == T.GRASP_PAW:
                     return self._grasp_paw(), []
                 if name == T.PLACE_IN_BOX:
@@ -179,6 +187,31 @@ class R1SonicBackend:
         reply = self.stack.walk(float(forward_m), float(turn_deg), float(left_m))
         out = {k: reply.get(k) for k in ('walked_m', 'turn_deg', 'turned_deg', 'lateral_m', 'pelvis', 'tilt_deg', 'fallen', 'note')
                if k in reply}   # turned_deg / lateral_m / note: the real bridge's measured turn, side drift, stride note
+        return out
+
+    def _gait(self, seconds, speed_mps=0.3, backward=False, turn_deg_s=0.0, settle=True):
+        """The stack's gait by velocity for `seconds`, sampling the state about 10 times a second meanwhile."""
+        started = self.stack.gait(forward=not backward, speed_mps=speed_mps, turn_deg_s=turn_deg_s,
+                                  seconds=float(seconds) + (1.0 if not settle else 0.3))
+        samples, t0 = [], time.monotonic()
+        while time.monotonic() - t0 < float(seconds):
+            s = self._state()
+            if not arming.read(self.config.root)['armed'] or s.get('fallen') or float(s.get('tilt_deg', 0.0)) > 30:
+                self.stack.gait_settle()
+                raise RuntimeError('the gait was stopped: ' + ('the robot is down' if s.get('fallen') else
+                                   f"tilt {s.get('tilt_deg')} deg" if float(s.get('tilt_deg', 0.0)) > 30 else 'the operator disarmed'))
+            command, measured = np.asarray(s['command_row'], dtype=float), np.asarray(s['measured_points_row'], dtype=float)
+            row = {'t': round(time.monotonic() - t0, 2), 'tilt_deg': s.get('tilt_deg'), 'gripper_width_m': s.get('gripper_width_m')}
+            for k, side in enumerate(('left', 'right')):
+                row[side] = {'commanded': np.round(command[7 * k:7 * k + 3], 3).tolist(),
+                             'measured': np.round(measured[7 * k:7 * k + 3], 3).tolist(),
+                             'hand_error_m': np.round(measured[7 * k:7 * k + 3] - command[7 * k:7 * k + 3], 3).tolist()}
+            samples.append(row)
+            time.sleep(0.1)
+        out = {'gait': started, 'samples': samples, 'still_walking': not settle}
+        if settle:
+            reply = self.stack.gait_settle()
+            out.update({k: reply.get(k) for k in ('walked_m', 'lateral_m', 'turned_deg', 'pelvis', 'tilt_deg', 'fallen') if k in reply})
         return out
 
     def _grasp_paw(self):

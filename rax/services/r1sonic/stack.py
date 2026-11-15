@@ -70,6 +70,15 @@ class StackClient:
             raise StackError(reply.get('error', 'the r1 stack refused the walk'))
         return reply
 
+    def gait(self, forward=True, speed_mps=0.45, turn_deg_s=0.0, seconds=1.0):
+        """Start or update the gait by velocity (returns at once; state() answers while it runs)."""
+        return self.request('gait', forward=bool(forward), speed_mps=float(speed_mps), turn_deg_s=float(turn_deg_s),
+                            seconds=float(seconds))[0]
+
+    def gait_settle(self):
+        """End the gait and wait until the robot stands still (blocks a few seconds)."""
+        return self._blocking('gait_settle')
+
     def _blocking(self, op, **fields):
         """A manipulation primitive that blocks for the motion plus a settle; use a long receive timeout."""
         with self.lock:

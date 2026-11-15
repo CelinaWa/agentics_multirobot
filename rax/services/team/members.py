@@ -51,6 +51,10 @@ def _r1_motion(tool, arguments):
     if tool == 'r1_walk':
         return (float(arguments.get('forward_m', 0.0)), float(arguments.get('left_m', 0.0)),
                 float(arguments.get('turn_deg', 0.0)))
+    if tool == 'r1_gait':            # the gait by velocity: at most speed x seconds along the heading, turning as asked
+        seconds = float(arguments.get('seconds', 0.0)) + 1.0
+        reach = float(arguments.get('speed_mps', 0.45)) * seconds * (-1.0 if arguments.get('backward') else 1.0)
+        return reach, 0.0, float(arguments.get('turn_deg_s', 0.0)) * seconds
     if tool == 'r1_carry_release':   # steps forward with the hand held, up to max_steps of step_m
         reach = max(float(arguments.get('target_forward_m', 0.0)),
                     float(arguments.get('step_m', 0.07)) * int(arguments.get('max_steps', 5)))
@@ -73,6 +77,11 @@ def _r1_result(tool, arguments, value):
         # the side drift's sign is the bridge's own: it widens the uncertainty instead of moving the entry
         return (float(walked if measured else forward), 0.0, float(turned if turned is not None else commanded_turn),
                 measured, abs(float(value.get('lateral_m') or 0.0)))
+    if tool == 'r1_gait':
+        if value.get('walked_m') is not None:      # settled: measured over the whole gait
+            return (float(value['walked_m']), 0.0, float(value.get('turned_deg') or 0.0), True,
+                    abs(float(value.get('lateral_m') or 0.0)))
+        return _r1_motion(tool, arguments) + (False, 0.1)
     if tool == 'r1_carry_release':
         walked = value.get('walked_total_m')
         if walked is not None:

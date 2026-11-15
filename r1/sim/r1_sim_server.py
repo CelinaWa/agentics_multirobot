@@ -305,6 +305,72 @@ class Sim:
         out.update({"walked_m": round(walked, 3), "lateral_m": round(lateral, 3), "turned_deg": round(turned, 1), "passes": i + 1})
         return out
 
+    # ----- the gait by velocity (non-blocking): the same gait and reference as walk(), advanced at a commanded speed
+    # for a commanded time instead of over a distance. A new call while it runs changes speed / turn and extends it
+    # without restarting the gait cycle, and state() answers meanwhile: for a caller that closes its own loop (e.g. on
+    # the hand-point error while holding something with another robot). The real-robot bridge streams the same gait
+    # (bridge_real.py), so the same op can be served there.
+    def gait(self, forward=True, speed_mps=0.45, turn_deg_s=0.0, seconds=1.0, hip=None):
+        with self.lock:
+            sgn = 1.0 if forward else -1.0
+            fresh = self.walking <= 0 or sgn != self.walk_sign or not getattr(self, 'gait_open', False)
+            if fresh:
+                head_yaw = Rotation.from_quat(np.asarray(self.root_quat)[[1, 2, 3, 0]]).as_euler("ZYX")[0]
+                self.walk_dir = np.array([np.cos(head_yaw), np.sin(head_yaw), 0.0]) * sgn
+                self.walk_sign = sgn
+                self.walk_fwd = self.walk_dir[:2].copy()
+                self.walk_lat = 0.0
+                self.g_phase = 0.0; self.g_ramp = 0.0; self.gait_i = 0
+                self.gait_start2d = self.d.qpos[:2].copy()
+                self.gait_start_yaw = Rotation.from_quat(np.asarray(self.d.qpos[3:7])[[1, 2, 3, 0]]).as_euler("ZYX")[0]
+            scale = float(np.clip(float(speed_mps) / (self.G_SPEED * HZ), 0.0, 1.5))
+            self.walk_advance = scale                                  # the reference advances at speed_mps
+            # the stride against the speed: R1SIM_GAIT_HIP = 'scale' (stride shrinks with the speed) or a fixed number
+            if hip is None:
+                # the stride sets the pace under the tracking policy, not the reference speed (measured, 2 s runs: stride
+                # scale 0.5 / 0.6 / 0.7 / 0.8 / 1.0 walked 0.24 / 0.29 / 0.33 / 0.37 / 0.42 m/s whatever the reference
+                # speed; at 0.44 it did not advance): speed = 0.06 + 0.36 x stride, from 0.22 m/s up
+                hip = float(np.clip((float(speed_mps) - 0.06) / 0.36, 0.45, 1.1))
+            self.g_hipscale = float(hip)
+            self.walk_turn = np.radians(float(turn_deg_s)) / HZ
+            self.walking = max(1, int(round(float(seconds) * HZ)))
+            self.gait_open = True
+            return {"started": bool(fresh), "ticks": int(self.walking), "reference_speed_mps": round(scale * self.G_SPEED * HZ, 3)}
+
+    def gait_settle(self):
+        """End a gait(): ramp it out, wait until the robot is still, snap the reference onto it (as walk() does)."""
+        with self.lock:
+            self.walking = min(self.walking, self.G_RAMP)
+        t0 = time.monotonic()
+        while self.walking > 0 and time.monotonic() - t0 < 5:
+            time.sleep(0.01)
+        with self.lock:
+            self.walking = 0; self.gait_open = False
+        t1 = time.monotonic(); still_since = None
+        while time.monotonic() - t1 < 5.0:
+            time.sleep(0.05)
+            with self.lock:
+                v = float(np.linalg.norm(self.d.qvel[0:2])); w = float(abs(self.d.qvel[5]))
+            if v < 0.02 and w < 0.05:
+                still_since = still_since or time.monotonic()
+                if time.monotonic() - still_since >= 0.5:
+                    break
+            else:
+                still_since = None
+        with self.lock:
+            start = getattr(self, 'gait_start2d', self.d.qpos[:2].copy())
+            yaw = Rotation.from_quat(np.asarray(self.d.qpos[3:7])[[1, 2, 3, 0]]).as_euler("ZYX")[0]
+            fwd = np.asarray(getattr(self, 'walk_fwd', [1.0, 0.0]), dtype=float) * self.walk_sign   # the robot's forward at the start
+            disp = float(np.dot(self.d.qpos[:2] - start, fwd))
+            lateral = float(np.dot(self.d.qpos[:2] - start, [-fwd[1], fwd[0]]))
+            turned = float(np.degrees((yaw - getattr(self, 'gait_start_yaw', yaw) + np.pi) % (2 * np.pi) - np.pi))
+            self.root_pos = self.d.qpos[:3].copy()
+            self.root_quat = wxyz(Rotation.from_euler("z", yaw))
+            self.queue = []
+            self.row = self.measured_row()
+            return {"walked_m": round(disp, 3), "lateral_m": round(lateral, 3), "turned_deg": round(turned, 1),
+                    "pelvis": self.d.qpos[:3].round(3).tolist(), "tilt_deg": round(self.tilt_deg(), 1), "fallen": bool(self.fallen)}
+
     def _walk_once(self, forward_m, turn_deg=0.0, direction=None, side_m=0.0):
         """One open-loop gait pass: advance the reference root at the gait speed along `direction` (default: the
         reference heading) while the leg gait steps and the arms hold their streamed targets; wait until still."""
@@ -662,6 +728,7 @@ class Sim:
                 "gripper_width_m": {s: round(self.gripper_width(s), 4) for s in ("left", "right")},
                 "command_row": np.round(self.row, 5).tolist(), "queued": len(self.queue),
                 "measured_points_row": np.round(self.measured_row()[:21], 5).tolist(),
+                "walking_ticks": int(self.walking),
                 "fallen": self.fallen, "tilt_deg": round(self.tilt_deg(), 2), "mode": "teleop", "resets": self.resets}
 
     def stream(self, rows):
@@ -799,6 +866,13 @@ def serve(sim, port, stop):
         try:
             if op == "walk":                       # handled outside the lock: it blocks while the tick thread (which holds the lock) steps
                 out = sim.walk(float(req.get("forward_m", 0.0)), float(req.get("turn_deg", 0.0)), float(req.get("left_m", 0.0)))
+                sock.send(json.dumps({"ok": True, **out}).encode()); continue
+            if op == "gait":                        # returns at once: the gait runs in the tick thread, state answers meanwhile
+                out = sim.gait(bool(req.get("forward", True)), float(req.get("speed_mps", 0.45)),
+                               float(req.get("turn_deg_s", 0.0)), float(req.get("seconds", 1.0)), req.get("hip"))
+                sock.send(json.dumps({"ok": True, **out}).encode()); continue
+            if op == "gait_settle":                 # blocks until still (outside the lock, like walk)
+                out = sim.gait_settle()
                 sock.send(json.dumps({"ok": True, **out}).encode()); continue
             if op == "grasp_paw":                  # blocking manipulation primitives (outside the lock, like walk)
                 out = sim.grasp_paw(float(req.get("cmdopen", 0.05)), float(req.get("wedge", 0.06)), float(req.get("liftz", 0.20)))

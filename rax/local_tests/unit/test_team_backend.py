@@ -331,7 +331,7 @@ def test_the_real_g1_and_r1_backends_run_as_a_team_and_stop_together(tmp_path):
     config = configuration(tmp_path, robot='g1r1', backend_options={
         'g1': {'zmq_host': '127.0.0.1', 'pose_port': 0, 'state_port': stack.state_port, 'camera': None,
                'state_max_age_s': 0.5, 'planner_settle_s': 0.0, 'stand_ramp_s': 0.0, 'walk_warmup': False, 'hands_walk': True, 'planner_stream': True},
-        'r1': {'stack_host': '127.0.0.1', 'stack_port': free, 'stack_timeout_s': 0.2},
+        'r1': {'stack_host': '127.0.0.1', 'stack_port': free, 'stack_timeout_s': 0.2, 'gait_stream': True},
         'team': {'start_poses': {'g1': [0, 0, 0], 'r1': [1.5, 0, 180]}}})
     (config.root/'agent-workspace').mkdir(parents=True)
     backend = G1R1Backend(config)
