@@ -105,6 +105,8 @@ def main():
     try:
         serve(args, model, data, sub, clients, lock, colour, depth, overview, writer, K)
     finally:
+        if getattr(serve, "room", None) is not None:
+            serve.room.release()
         if writer is not None:
             writer.release()  # writes the mp4's index; without it the file does not play
             print(f"[sim_camera] recording closed: {args.record}", flush=True)
@@ -153,6 +155,16 @@ def serve(args, model, data, sub, clients, lock, colour, depth, overview, writer
                 stamp_text = time.strftime("%H:%M:%S")
                 cv2.putText(third_person, stamp_text, (10, 470), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
                 writer.write(third_person)
+                # a second recording from the scene's fixed "room" camera, if it has one: the overview camera turns to
+                # keep the object in view, so robots walking with it look as if they stood still
+                if getattr(serve, "room", None) is None and mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_CAMERA, "room") >= 0:
+                    serve.room = cv2.VideoWriter(str(Path(args.record).with_name(Path(args.record).stem + "_room.mp4")),
+                                                 cv2.VideoWriter_fourcc(*"mp4v"), args.hz, (640, 480))
+                if getattr(serve, "room", None) is not None:
+                    overview.update_scene(data, camera="room")
+                    wide = np.ascontiguousarray(overview.render()[:, :, ::-1])
+                    cv2.putText(wide, stamp_text, (10, 470), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
+                    serve.room.write(wide)
             if args.snapshot_dir and third_person is not None and frames % max(1, int(2 * args.hz)) == 0:
                 cv2.imwrite(str(Path(args.snapshot_dir) / "head_cam.png"), np.ascontiguousarray(rgb[:, :, ::-1]))
                 cv2.imwrite(str(Path(args.snapshot_dir) / "overview.png"), third_person)

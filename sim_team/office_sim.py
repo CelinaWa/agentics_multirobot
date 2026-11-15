@@ -192,6 +192,45 @@ def main():
             time.sleep(0.02)
 
     threading.Thread(target=qpos, daemon=True).start()
+
+    # which hands touch the box, from the contacts the physics itself reports (for the operator's ground truth of "who
+    # is holding it"): JSON on qpos_port + 1, about 20 times a second
+    import json as _json
+    touch_pub = ctx.socket(zmq.PUB)
+    touch_pub.bind(f"tcp://127.0.0.1:{args.qpos_port + 1}")
+    HANDS = {'g1': {'left': ('left_wrist_yaw_link', 'left_hand_'), 'right': ('right_wrist_yaw_link', 'right_hand_')},
+             'r1': {'left': ('r1_left_gripper', 'r1_left_wrist_roll_link'), 'right': ('r1_right_gripper', 'r1_right_wrist_roll_link')}}
+
+    def touches():
+        model = env.mj_model
+        try:
+            box = model.body('box').id
+        except Exception:
+            return
+        owner = {}
+        for b in range(model.nbody):
+            name = model.body(b).name
+            for robot, sides in HANDS.items():
+                for side, prefixes in sides.items():
+                    if any(name.startswith(prefix) for prefix in prefixes):
+                        owner[b] = (robot, side)
+        while True:
+            out = {robot: {'left': False, 'right': False} for robot in HANDS}
+            try:
+                data = env.mj_data
+                for i in range(int(data.ncon)):
+                    c = data.contact[i]
+                    b1, b2 = int(model.geom_bodyid[c.geom1]), int(model.geom_bodyid[c.geom2])
+                    other = b2 if b1 == box else b1 if b2 == box else None
+                    if other in owner:
+                        robot, side = owner[other]
+                        out[robot][side] = True
+                touch_pub.send_string(_json.dumps({'t': time.time(), 'hands_on_box': out}))
+            except Exception:
+                pass
+            time.sleep(0.05)
+
+    threading.Thread(target=touches, daemon=True).start()
     print(f"[sim_headless] READY (keys on tcp://127.0.0.1:{args.key_port}, qpos on {args.qpos_port}, "
           f"scene {wbc['ROBOT_SCENE']}{', lockstep' if args.lockstep else ''})", flush=True)
     sys.stdout.flush()

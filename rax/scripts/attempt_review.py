@@ -184,7 +184,12 @@ def attempt_summary(samples, layout, mcp_path=None):
                             and (abs(b['box'][2] - table) < 0.006 or b['box'][2] < 0.02))
     air, air_max, left_air, rest, disturbed, downs, turned, yaw0 = 0.0, 0.0, None, None, None, 0, 0.0, None
     floor_fall = None
-    goal = [x['box_to_goal_m'] for x, held in zip(samples, up) if held and isinstance(x.get('box_to_goal_m'), (int, float))]
+    # who held it, where the simulation reports hand contacts: carried counts only with a hand of each robot on it
+    known = [x for x, held in zip(samples, up) if held and 'both_robots_on_box' in x]
+    both = [x for x in known if x['both_robots_on_box']]
+    step = (samples[-1]['t'] - samples[0]['t']) / max(1, len(samples) - 1)
+    goal = [x['box_to_goal_m'] for x, held in zip(samples, up) if held and x.get('both_robots_on_box', True)
+            and isinstance(x.get('box_to_goal_m'), (int, float))]
     for i, s in enumerate(samples):
         was = i > 0 and up[i - 1]
         if up[i]:
@@ -246,6 +251,8 @@ def attempt_summary(samples, layout, mcp_path=None):
             # the task's own measure while the object was carried (not thrown, not fallen): the harness's progress score
             'closest_to_goal_in_air_m': round(min(goal), 2) if goal else None,
             'start_to_goal_m': first.get('box_to_goal_m'),
+            'in_air_with_both_robots_s': round(len(both) * step, 1) if known else None,
+            'in_air_without_both_robots_s': round((len(known) - len(both)) * step, 1) if known else None,
             'disturbed_after_set_down': disturbed}
 
 
@@ -255,6 +262,9 @@ def summary_words(summary):
         return ''
     text = (f"in the air {summary['in_air_s']:g} s, furthest {summary['in_air_max_from_start_m']:.2f} m from its start "
             f"while in the air")
+    if summary.get('in_air_without_both_robots_s') is not None:
+        text += (f"; of its time in the air a hand of EACH robot was on it for {summary['in_air_with_both_robots_s']:g} s and "
+                 f"not for {summary['in_air_without_both_robots_s']:g} s")
     left = summary.get('left_the_air')
     if left:
         how = ('set down (fell under 0.10 m)' if left['fell_m'] < 0.10 else

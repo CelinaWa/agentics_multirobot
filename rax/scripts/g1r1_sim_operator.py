@@ -5,7 +5,7 @@ any other request gets a plain answer that no further help exists here. Run on t
 
   PYTHONPATH=rax $RAX_PYTHON rax/scripts/g1r1_sim_operator.py --session <session root> [--minutes 120]
 """
-import argparse, json, re, shutil, subprocess, time
+import argparse, json, os, re, shutil, subprocess, time
 from pathlib import Path
 import zmq
 from services import arming
@@ -45,6 +45,27 @@ def box_height(ctx):
         return -1.0
 
 
+_TOUCH = {}
+
+
+def hands_on_box(ctx):
+    """{'g1' / 'r1': {'left', 'right': bool}}: which hands touch the box, from the simulation's contacts; None without it."""
+    try:
+        if 'sock' not in _TOUCH:
+            sock = ctx.socket(zmq.SUB); sock.setsockopt(zmq.SUBSCRIBE, b''); sock.setsockopt(zmq.CONFLATE, 1)
+            sock.connect('tcp://127.0.0.1:5793'); _TOUCH['sock'] = sock
+            time.sleep(0.2)
+        message = json.loads(_TOUCH['sock'].recv_string(zmq.NOBLOCK))
+        _TOUCH['last'] = message
+    except zmq.Again:
+        message = _TOUCH.get('last')
+    except Exception:
+        return None
+    if not message or time.time() - message.get('t', 0) > 2.0:
+        return None
+    return message.get('hands_on_box')
+
+
 def truth(ctx, layout):
     """Where the box and the robots are in the simulation itself, against the task's success condition."""
     import math
@@ -61,7 +82,10 @@ def truth(ctx, layout):
     up = q[2] > 0.5 and tilt(*q[3:7]) < 25 and q[59] > 0.45 and tilt(*q[60:64]) < 25
     on_start = layout['box_start'].get('z', 0.0)
     w, x, y, z = q[53:57]
-    return {'box': [round(float(v), 3) for v in q[50:53]], 'box_tilt_deg': round(box_tilt, 1),
+    hands = hands_on_box(ctx)
+    return {**({'hands_on_box': hands, 'both_robots_on_box': bool(any(hands['g1'].values()) and any(hands['r1'].values()))}
+               if hands else {}),
+            'box': [round(float(v), 3) for v in q[50:53]], 'box_tilt_deg': round(box_tilt, 1),
             'box_yaw_deg': round(math.degrees(math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))), 1),
             'box_from_start_m': round(math.hypot(q[50] - bx, q[51] - by), 3),
             'box_to_goal_m': round(distance, 3), 'box_lifted': bool(q[52] > on_start + 0.03),
@@ -374,7 +398,7 @@ def main():
     ap.add_argument('--max-g1-restarts', type=int, default=6,
                     help='how often the operator starts the G1 stack again after it stopped (a fall)')
     a = ap.parse_args()
-    layout = json.loads((SIM / 'scene' / 'layout.json').read_text())
+    layout = json.loads((Path(os.environ.get('TEAM_SCENE_DIR') or SIM / 'scene') / 'layout.json').read_text())
     ctx = zmq.Context.instance()
     keys = ctx.socket(zmq.PUB); keys.bind(f'tcp://127.0.0.1:{KEYS}'); time.sleep(0.6)
     arming.write(a.session, True, minutes=a.minutes, by='sim operator')
@@ -436,8 +460,17 @@ def main():
                     summary = attempt_review.attempt_summary(samples, layout, a.session / 'mcp.jsonl')
                 except Exception as error:
                     log(f'attempt summary failed: {error}')
+                # the task's rule, where the simulation reports hand contacts: off its support, the box has a hand of each
+                # robot on it (2 s of slack for the sampling); an end state at the goal reached otherwise is not a success
+                carried_by_both = (summary is None or summary.get('in_air_without_both_robots_s') is None
+                                   or summary['in_air_without_both_robots_s'] <= 2.0)
                 row = record(a.session, ctx, layout, 'before_reset', reset=resets, request=request['message'][:600],
-                             attempt=summary)
+                             attempt=summary, carried_by_both=carried_by_both)
+                if row.get('success') and not carried_by_both:
+                    before += (' The box is at the goal, but it was in the air for '
+                               f"{summary['in_air_without_both_robots_s']:g} s without a hand of each robot on it: not a success.")
+                elif row.get('success'):
+                    before += ' SUCCESS: the box stands at the goal and was carried by both robots.'
                 review = write_attempt_review(a.session, resets, attempt_since, reset_started, samples, layout,
                                               row.get('third_person'))
                 moved = ''
