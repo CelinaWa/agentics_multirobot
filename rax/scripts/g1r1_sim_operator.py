@@ -359,6 +359,22 @@ def replace_robots(ctx, keys, layout, r1_pose=None, g1_pose=None):
     c, s = math.cos(turn / 2), math.sin(turn / 2)       # q_new = q_turn(z) * q
     q = (c * w - s * z, c * x - s * y, c * y + s * x, c * z + s * w)
     keys.send_string(f"place=pelvis,{g1['pos'][0]},{g1['pos'][1]},{qpos[2]},{q[0]},{q[1]},{q[2]},{q[3]}"); time.sleep(0.3)
+    # tell the G1's service that the robot was carried: it takes the pose it has now as its reference (under the planner's
+    # hold the robot otherwise walks back); the service removes the file when it has
+    session = getattr(replace_robots, 'session', None)
+    if session is not None:
+        flag = Path(session) / 'operator' / 'g1_moved'
+        try:
+            flag.write_text(str(time.time()))
+            for _ in range(80):
+                if not flag.exists():
+                    break
+                time.sleep(0.1)
+            else:
+                flag.unlink(missing_ok=True)
+        except OSError:
+            pass
+        keys.send_string(f"place=pelvis,{g1['pos'][0]},{g1['pos'][1]},{qpos[2]},{q[0]},{q[1]},{q[2]},{q[3]}"); time.sleep(0.3)
     h = math.radians(r1['yaw_deg']) / 2
     r1z = qpos[57 + 2]                                      # the R1's root follows the G1 (50) and the box (7) in qpos
     keys.send_string(f"place=r1_pelvis,{r1['pos'][0]},{r1['pos'][1]},{r1z},{math.cos(h)},0,0,{math.sin(h)}")
@@ -413,6 +429,7 @@ def main():
                     help='how often the operator starts the G1 stack again after it stopped (a fall)')
     a = ap.parse_args()
     layout = json.loads((Path(os.environ.get('TEAM_SCENE_DIR') or SIM / 'scene') / 'layout.json').read_text())
+    replace_robots.session = a.session
     ctx = zmq.Context.instance()
     keys = ctx.socket(zmq.PUB); keys.bind(f'tcp://127.0.0.1:{KEYS}'); time.sleep(0.6)
     arming.write(a.session, True, minutes=a.minutes, by='sim operator')

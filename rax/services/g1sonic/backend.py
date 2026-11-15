@@ -1482,6 +1482,7 @@ class G1SonicBackend:
         while self._watching:
             time.sleep(0.05)
             snap = self.state.latest()
+            self._operator_moved_robot(snap)
             if snap is None or not self.streamer.primed or (self.fault is not None and self.fault['kind'] == 'fall'):
                 history = []
                 continue
@@ -1519,6 +1520,40 @@ class G1SonicBackend:
             if tilt > self.options['fall_tilt_deg']:
                 self.streamer.hold()
                 self._fall(tilt)
+
+    def _operator_moved_robot(self, snap):
+        """The operator says it carried the robot somewhere (it writes <session>/operator/g1_moved): take the pose the
+        robot has now as the reference. Under the planner's hold the robot walks and turns back to where the planner
+        had it (S43: 21 of 33 resets left the G1 20-66 deg off after three placements each), so the hold is handed back
+        to the streamed hold of the measured pose; a streamed hold is re-anchored. The file is removed when done."""
+        flag = Path(self.config.root) / 'operator' / 'g1_moved'
+        if not flag.exists():
+            return
+        if snap is None or self.streamer.executing or not self.lock.acquire(timeout=0.1):
+            return                      # a call is running: after it
+        try:
+            if self.fault is None and snap.tilt_deg() < 20:
+                if self.control_mode == 'planner':
+                    frame = getattr(self, '_planner_frame_yaw', None)
+                    extra = dict(getattr(self, '_planner_extra', None) or {})
+                    if frame is not None:       # stand facing where it now faces while the hold takes over
+                        d = snap.yaw_rad() - frame
+                        facing = [math.cos(d), math.sin(d), 0.0]
+                        self._planner_keepalive = lambda: self.streamer.planner(IDLE, [0.0, 0.0, 0.0], facing, -1.0, **extra)
+                        self.streamer.keepalive = self._planner_keepalive
+                    quiet = self._wait_until_quiet(timeout=4.0, raise_on_timeout=False, strict=False)
+                    self._hand_over_to_hold(quiet or self.state.latest())
+                    self._event('the operator moved the robot: the planner hold was handed to the streamed hold of the measured pose')
+                elif self.control_mode == 'streamed' and self.streamer.primed:
+                    self._reanchor('the operator moved the robot')
+        except Exception as exc:
+            self._event('taking the new pose after the operator moved the robot failed', error=str(exc)[:200])
+        finally:
+            self.lock.release()
+            try:
+                flag.unlink()
+            except OSError:
+                pass
 
     def _watch_runaway(self, history, snap):
         """history: [(time, odometry xy, stance)] over the last runaway_window_s, outside walks; returns it updated."""
