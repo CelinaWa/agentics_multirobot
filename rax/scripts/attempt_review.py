@@ -184,6 +184,7 @@ def attempt_summary(samples, layout, mcp_path=None):
                             and (abs(b['box'][2] - table) < 0.006 or b['box'][2] < 0.02))
     air, air_max, left_air, rest, disturbed, downs, turned, yaw0 = 0.0, 0.0, None, None, None, 0, 0.0, None
     floor_fall = None
+    goal = [x['box_to_goal_m'] for x, held in zip(samples, up) if held and isinstance(x.get('box_to_goal_m'), (int, float))]
     for i, s in enumerate(samples):
         was = i > 0 and up[i - 1]
         if up[i]:
@@ -242,6 +243,9 @@ def attempt_summary(samples, layout, mcp_path=None):
             'turned_in_air_deg': round(turned, 1) if yaw0 is not None else None,
             'end_from_start_m': round(travel(last), 2), 'end': end, 'end_tilt_deg': round(tilt),
             'closer_to_goal_m': None if closer is None else round(closer, 2), 'came_down': downs,
+            # the task's own measure while the object was carried (not thrown, not fallen): the harness's progress score
+            'closest_to_goal_in_air_m': round(min(goal), 2) if goal else None,
+            'start_to_goal_m': first.get('box_to_goal_m'),
             'disturbed_after_set_down': disturbed}
 
 

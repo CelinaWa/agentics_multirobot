@@ -39,6 +39,10 @@ if [[ -d "$LIB/.git" ]] && git -C "$LIB" rev-parse --verify --quiet main >/dev/n
 else
     echo "no skill library at $LIB (nothing merged yet)"
 fi
+# keep what is inherited to what is in use: files the session neither opened nor ran go to cold/ (kept, listed there)
+if [[ -d "$ROOT/claude-home" && "${RAX_RETIRE_UNUSED:-1}" == 1 ]]; then
+    echo "usage-accounted inheritance: $(python3 "$SCRIPT_DIR/retire_unused.py" "$ROOT" "$DEST/workspace")"
+fi
 { echo "session: $(basename "$ROOT")"; echo "robot: $ROBOT"; echo "exported: $(date -u +%Y-%m-%dT%H:%M:%SZ)";
   echo "environment: $ENVIRONMENT"; echo "host: $(hostname)"; } > "$DEST/SOURCE.txt"
 # what the export carries, by kind tag (sim-to-real skill): untagged numbers are worth tagging before committing

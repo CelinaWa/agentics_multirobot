@@ -46,6 +46,10 @@ leave the robots idle; S30 waited 8 of its first 14 minutes): read `TASK.md`, `m
    only pays if the later ones work. Say how to start them (from a successful earlier stage, or a start state the
    operator can set up).
 
+The harness keeps the task's progress from ground truth (each reset reply's STATE: task_progress). When it says
+TASK PROGRESS STALLED, have the page written again by a fresh subagent that gets the ground truth and the funnel
+before any notes, and decide again.
+
 Then decide yourself, write your decision and why under the page, and plan the session's time by it. Disagreeing
 with the page is fine; ignoring it is not. When you change the plan mid-session (more steps than the plan allowed, a
 different method), write the change and its reason under the page before you run it, and check the funnel

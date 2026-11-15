@@ -369,6 +369,8 @@ def main():
     ap.add_argument('--allow-table-removal', action='store_true',
                     help='a person may take the low table away while the box is held clear of it (off by default: '
                          'getting round obstacles is the task)')
+    ap.add_argument('--stall-attempts', type=int, default=8,
+                    help='say so in the reset reply each time this many attempts in a row brought no task progress')
     ap.add_argument('--max-g1-restarts', type=int, default=6,
                     help='how often the operator starts the G1 stack again after it stopped (a fall)')
     a = ap.parse_args()
@@ -383,6 +385,9 @@ def main():
     released, control_at, resets, done = False, None, 0, set()
     attempt_since, samples = time.time(), []    # the ground truth of the attempt under way, for its review
     reset_times = []                            # when each reset was asked for: how long an attempt takes lately
+    # the task's progress, kept by the harness from ground truth: the closest the object came to the goal while carried
+    # (S41: 22 of 25 carries ended further from the goal and were recorded as 11/18 'ok' by the agent's own labels)
+    progress = {'best_m': None, 'best_attempt': None, 'attempts': 0, 'since_best': 0}
     deadline = time.time() + a.minutes * 60
     restarts, next_check, notice = 0, time.time() + 30, ''
     while time.time() < deadline:
@@ -504,6 +509,16 @@ def main():
                         arming.write(a.session, True, minutes=max(1.0, (deadline - time.time()) / 60), by='sim operator')
                         caused += ' Both robots stand; I armed the session again.'
                     log('a guard tripped during the reset: ' + tripped[:160])
+                if summary:
+                    progress['attempts'] += 1
+                    reached = summary.get('closest_to_goal_in_air_m')
+                    start_goal = summary.get('start_to_goal_m')
+                    if progress['best_m'] is None and isinstance(start_goal, (int, float)):
+                        progress['best_m'] = round(float(start_goal), 2)      # the start: no progress yet
+                    if reached is not None and progress['best_m'] is not None and reached < progress['best_m'] - 0.02:
+                        progress.update(best_m=reached, best_attempt=resets, since_best=0)
+                    else:
+                        progress['since_best'] += 1
                 if summary:   # S30 read 6 of 37 reviews and labelled runs from the end position alone
                     before += (' The attempt in numbers (label it with these): '
                                + attempt_review.summary_words(summary) + '.')
@@ -513,7 +528,10 @@ def main():
                 # the state after the reset, measured, first in the reply and machine-readable (a wrapper that keeps only
                 # part of a reply still gets it; S41: 5 'not where I put it' warnings, 1 reached the agent)
                 poses = robot_poses(ctx)
-                state = {'reset': resets, 'state_ok': None, 'robots': poses, 'warnings': []}
+                state = {'reset': resets, 'state_ok': None, 'robots': poses, 'warnings': [],
+                         'task_progress': {'closest_to_goal_while_carried_m': progress['best_m'], 'in_attempt': progress['best_attempt'],
+                                           'this_attempt_m': (summary or {}).get('closest_to_goal_in_air_m'),
+                                           'attempts_since_it_improved': progress['since_best'], 'attempts': progress['attempts']}}
                 try:
                     t_now = truth(ctx, layout)
                     state['box'] = {'x': t_now['box'][0], 'y': t_now['box'][1], 'base_z': t_now['box'][2], 'tilt_deg': t_now['box_tilt_deg'],
@@ -534,6 +552,12 @@ def main():
                     state['warnings'].append('the R1 is down')
                 state['state_ok'] = bool(not state['warnings'] and state.get('robots_standing', True))
                 state_first = 'STATE ' + json.dumps(state, separators=(',', ':')) + ' '
+                if progress['since_best'] and progress['since_best'] % a.stall_attempts == 0:
+                    # a stall is a fact the harness can see; what to do about it is the agent's (strategy-review skill)
+                    state_first += (f"TASK PROGRESS STALLED: {progress['since_best']} attempts in a row have not brought the task "
+                                    f"closer to its goal than the best so far ({progress['best_m']} m from it"
+                                    + (f", attempt {progress['best_attempt']}" if progress['best_attempt'] else ', the start') + '). '
+                                    'The strategy-review skill asks for a fresh review now, from the ground truth, before more of the same. ')
                 log('after the reset: ' + end_state(ctx, layout))
                 record(a.session, ctx, layout, 'after_reset', reset=resets, r1_at=list(r1_pose) if r1_pose else None,
                        guard_tripped_by_reset=tripped, state=state)

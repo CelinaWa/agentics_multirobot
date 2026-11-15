@@ -143,3 +143,12 @@ def test_a_box_thrown_by_a_falling_robot_is_not_carried():
     thrown = [sample(100, (-0.15, -0.35, 0.45)), sample(101, (-0.6, -0.35, 0.47)), sample(102, (-0.8, -0.35, 0.52), g1_tilt=27),
               sample(103, (-1.2, -0.3, 0.13), tilt=38, g1_tilt=40)]
     assert attempt_review.attempt_summary(thrown, LAYOUT)['in_air_max_from_start_m'] == 0.45
+
+
+def test_the_progress_score_is_the_goal_distance_while_carried_not_while_thrown():
+    def s(t, box, goal, tilt=0.0, g1_tilt=1.0):
+        return dict(sample(t, box, tilt=tilt, g1_tilt=g1_tilt), box_to_goal_m=goal)
+    samples = [s(100, (-0.15, -0.35, 0.45), 3.2), s(101, (0.0, -0.35, 0.48), 3.0), s(102, (0.2, -0.35, 0.48), 2.8),
+               s(103, (0.9, -0.35, 0.52), 2.1, g1_tilt=30), s(104, (1.0, -0.35, 0.0), 2.0, tilt=40)]
+    out = attempt_review.attempt_summary(samples, LAYOUT)
+    assert out['closest_to_goal_in_air_m'] == 2.8 and out['start_to_goal_m'] == 3.2

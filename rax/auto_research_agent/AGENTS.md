@@ -34,7 +34,8 @@ inventing your own ([continual-learning](.agents/skills/continual-learning/SKILL
 
 If `memory/CURRENT.md`, `handoff/README.md` or `memory/history/` exists at the start, earlier
 sessions on this task (possibly in simulation, or in a differently laid-out scene) left them for
-you. `memory/CURRENT.md` is the curated state of knowledge: read it first; read the longer notes
+you. `cold/` holds inherited files that the last session neither opened nor ran (the harness moves them there; `cold/INDEX.md`
+lists them; move back what you need). `memory/CURRENT.md` is the curated state of knowledge: read it first; read the longer notes
 (`handoff/README.md`, `memory/TIPS.md`, `memory/archive/`) only for the parts you need. At the
 start, have a fresh subagent write `memory/STRATEGY.md` from the whole history and the funnel
 (`python -m api.attempts`), in the background, and decide the session's plan from it when it arrives; while it

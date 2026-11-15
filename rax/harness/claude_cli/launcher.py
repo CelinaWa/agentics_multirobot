@@ -64,7 +64,7 @@ SITE_PROTECTED_ENVIRONMENT = 'RAX_PROTECTED_PATHS'
 # What an earlier session's workspace hands the next one (see experience_from in the configuration):
 # task memory, the handoff and the code are copied in place; its PROGRESS.md is history, kept apart
 # from this session's own progress so a fresh session never mistakes it for its current state.
-EXPERIENCE_DIRS = ('memory', 'handoff', 'code')
+EXPERIENCE_DIRS = ('memory', 'handoff', 'code', 'cold')   # cold: what earlier sessions neither opened nor ran (scripts/retire_unused.py)
 EXPERIENCE_HISTORY = ('PROGRESS.md',)
 # On Linux the Bash sandbox can only allow all Unix sockets or none (seccomp cannot filter
 # by path), and the agent's scripts need the robot service socket. These host sockets
