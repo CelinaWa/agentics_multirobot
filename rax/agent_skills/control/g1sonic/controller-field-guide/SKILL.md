@@ -26,24 +26,6 @@ See [locomotion](references/locomotion.md), [upper body](references/upper-body.m
   before treating a rise as contact.
 - **Tilt can rise rapidly.** Check both its magnitude and its trend; turns also produce tilt,
   so a fixed low threshold can interrupt normal movement.
-- **Fall risks** include a blocked foot while the body moves on, turning or lowering while
-  tilted, a split stance, alternating reversed turn steps, backward pelvis pitch at gait start,
-  and low obstacles.
-
-## Measured so far
-
-Numbers from the MuJoCo sim2sim loop (gear_sonic sim, the lab office scene, 2026-10-20), each a
-1.0 to 1.2 s ramp from standing followed by a hold. The real robot will differ: re-measure each
-before relying on it, and keep your own table in the skill library.
-
-| Motion (reference) | Measured | Note |
-| --- | --- | --- |
-| right shoulder pitch −0.8 rad | −0.70 to −0.75 rad reached | arms track to about 90 % |
-| waist yaw +0.4 rad | +0.17 to +0.21 rad | the waist tracks to about half; turn the heading instead |
-| heading +30° (rot6d ramp over 1.2 s) | +19° to +27°, by stepping | coarse and variable: measure the heading after every turn |
-| standing hold | `joint_tracking_rmse_rad` 0.13 to 0.25 | the controller's own PD target sits off the measured joints; this is the baseline, not contact |
-| standing hold | `reference_error_rmse_rad` 0.02 to 0.14 | your reference against the measured joints |
-| any of the above | tilt 1° to 4°, no fall | the drop from the stand took tilt to 7° once and recovered |
 
 ## Perception and timing
 

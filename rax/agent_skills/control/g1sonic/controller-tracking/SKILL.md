@@ -8,9 +8,7 @@ description: How the frozen SONIC controller tracks your semantic40 references o
 You send one reference frame per 50 Hz tick: root motion, root height, root orientation, the 29
 joint angles and two hand closing fractions ([robot-interface](../robot-interface/SKILL.md)). The
 frozen SONIC whole-body controller turns them into motor commands and follows them only
-approximately. Measured on an empty floor without contact, its joints stay within about 6 degrees
-of the references, while the root drifts from the commanded motion by tens of centimetres, up to
-about a metre over a walk. Contact, load and fast motion make both worse.
+approximately; every motion reply reports the measured tracking.
 
 See [controller-field-guide](../controller-field-guide/SKILL.md) for practical motion limits
 and checks to make before relying on a movement.

@@ -149,3 +149,19 @@ def test_single_robot_workspaces_have_no_team_folders(tmp_path):
     build(recipe_for(), Setup('g1sonic', 'tidy_table'), tmp_path/'ws')
     assert not (tmp_path/'ws/.agents/robots').exists()
     assert not (tmp_path/'ws/.agents/skills/multi-robot-task').exists()
+
+
+def test_skill_text_names_only_the_tools_the_session_offers(tmp_path):
+    from services.workspace.contract_files import offered_tools
+    options = json.loads((ROOT/'scripts/g1r1_sim_all_interfaces_options.json').read_text())
+    setup = Setup('g1r1', 'carry_box', environment='sim')
+    offered = offered_tools(setup, options)
+    assert 'g1_crouch' not in offered and 'r1_grasp_paw' not in offered and {'g1_walk', 'r1_walk', 'r1_gait'} <= set(offered)
+    build(recipe_for(), Setup('g1r1', 'carry_box', environment='sim', offered=offered), tmp_path/'hidden')
+    build(recipe_for(), setup, tmp_path/'all')
+    skill = '.agents/robots/g1/skills/robot-interface/SKILL.md'
+    assert 'g1_crouch' not in (tmp_path/'hidden'/skill).read_text() and 'g1_walk' in (tmp_path/'hidden'/skill).read_text()
+    assert 'g1_crouch' in (tmp_path/'all'/skill).read_text()
+    for path in (tmp_path/'hidden').rglob('*.md'):
+        if path.name not in ('MCP_SESSION.md',):
+            assert not re.search(r'r1_(grasp_paw|place_in_box|leg_lift|carry_release|carry_hand)', path.read_text()), path

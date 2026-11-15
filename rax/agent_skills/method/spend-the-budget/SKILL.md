@@ -17,7 +17,7 @@ takes over; nothing you have not written down survives.
 - **A budget plan** in `memory/PROGRESS.md` helps: what each next attempt is for and what it should
   measure, and which of them your code runs on its own while you watch. Revising it after each attempt
   keeps it useful; attempts without a stated purpose were usually wasted.
-- **Action length can follow risk:** long calls (up to 100 frames, 2 s) for open-space motion and
+- **Action length can follow risk:** long calls (up to the tool's row limit) for open-space motion and
   settled holds, short ones near contact, obstacles and people.
 - **A script for the fast loop** runs observe–decide–act in Python far more efficiently than deciding
   each step by hand. Thinking between steps and letting the script act within them works well.

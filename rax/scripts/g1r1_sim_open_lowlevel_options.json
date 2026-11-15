@@ -18,7 +18,14 @@
   "r1": {
     "stack_host": "127.0.0.1",
     "stack_port": 5791,
-    "gait_stream": true
+    "gait_stream": true,
+    "hidden_tools": [
+      "r1_grasp_paw",
+      "r1_place_in_box",
+      "r1_leg_lift",
+      "r1_carry_release",
+      "r1_carry_hand"
+    ]
   },
   "team": {
     "start_poses": {

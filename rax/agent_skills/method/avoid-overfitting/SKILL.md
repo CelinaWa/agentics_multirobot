@@ -17,8 +17,8 @@ the next, however well it worked before.
 - **Fallbacks that assume a scene.** "If the target is not found, walk at heading X", or "after
   step Y the target is straight ahead". When perception fails, a search
   ([object-localization](../object-localization/SKILL.md)) transfers; a remembered pose does not.
-- **Constants tuned on one attempt** and never checked across the range TASK.md allows (the object
-  anywhere on the table, the bin anywhere in its corner).
+- **Constants tuned on one attempt** and never checked across the range TASK.md allows (each object
+  anywhere in its allowed region).
 - **Replayed trajectories.** A recorded motion replayed as it is only fits the scene it was
   recorded in. As a primitive whose effect you measure and re-aim, it can transfer.
 - **Inherited assumptions.** Code or notes from earlier attempts carry assumptions about where

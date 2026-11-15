@@ -68,11 +68,11 @@ code. A step that ends at a checkpoint returns, next to `ok`, `measured` and `wh
 ```python
 "checkpoint": {
     "subagent": "haiku",                    # fast model for structured checks; sonnet / opus for diagnosis
-    "frames": ["runtime/frames/<id>/head_camera.jpg"],
-    "question": "Are both fingertips below the box's top edge, one at each end face?",
-    "answer": "yes | no, plus the pixel of each fingertip",
-    "pass_if": "yes for both fingertips",
-    "on_fail": "back off 3 cm outward, re-localize the end faces, retry once; then stop",
+    "frames": ["runtime/frames/<id>/<camera>.jpg"],
+    "question": "<what must be seen, as a yes/no question>",
+    "answer": "yes | no, plus the pixels that show it",
+    "pass_if": "yes",
+    "on_fail": "<recovery, retry once; then stop>",
 }
 ```
 
@@ -244,7 +244,7 @@ There is no formal evaluation: you judge the controller by running it end to end
 the real scene.
 
 1. Bring the robot to a neutral state ({{ robot.neutral }}), then call `request_operator` with kind `reset` and say what you need, e.g.
-   "please put the cubes back at new positions on the table". Wait for the answer.
+   "please put the objects back at new positions". Wait for the answer.
 2. Commit the controller version (`git` inside `code/<project>/`) and run it once,
    unattended: no direct robot calls while it runs. If it fails, read its report, log
    and frames, fix the code and go back to step 1; do not hand-finish a run and count

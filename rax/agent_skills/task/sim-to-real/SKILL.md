@@ -17,11 +17,11 @@ Every row you add to `memory/TIPS.md` and `handoff/README.md` starts with one ta
 
 | Tag | What it is | Example | On the other environment |
 |---|---|---|---|
-| `[strategy]` | what to do, in what order, and why it works; failure signatures | "grasp the head-side half; a pinch at the reach limit closes to a fist" | a rule until a measurement contradicts it |
-| `[param]` | a measured number the plan depends on; its value goes in PARAMS.json | "hands reach 0.26 m ahead of the pelvis at table height (`reach.forward_m`)" | a prior: measure again before relying on it |
-| `[sim-only]` | true only because of the simulation: its scripted operator, contact model, scene builder, resets | "the operator's reset puts the puppy back at its spawn" | removed from a real session's memory |
+| `[strategy]` | what to do, in what order, and why it works; failure signatures | "<which part to grasp, and the failure signature of the alternative>" | a rule until a measurement contradicts it |
+| `[param]` | a measured number the plan depends on; its value goes in PARAMS.json | "<quantity> is <value> <unit> (`<group>.<name>_<unit>`)" | a prior: measure again before relying on it |
+| `[sim-only]` | true only because of the simulation: its scripted operator, contact model, scene builder, resets | "the operator's reset puts the object back at its spawn" | removed from a real session's memory |
 
-A strategy row may cite numbers as evidence ("4 of 4 closed to a fist"); a number the controller
+A strategy row may cite numbers as evidence ("<k> of <n> <outcome>"); a number the controller
 uses is a `[param]` and has a PARAMS.json name. When unsure between `[strategy]` and `[sim-only]`, ask:
 would a person standing next to the real robot see the same thing? If it depends on how the simulator
 models friction, softness, stiffness or the operator, it is `[sim-only]` or at most a `[param]`.

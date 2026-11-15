@@ -34,8 +34,8 @@ skill never changes a limit, a safety rule or what a tool does.
    needs it. Prefer `verified` over `draft`; ignore `deprecated` except to learn why
    it was retired.
 3. Before running one, check its **Preconditions** against a fresh observation, and its
-   tested parameter ranges against your scene. A skill tested on 0.3 m boxes is not
-   evidence for a 0.6 m box.
+   tested parameter ranges against your scene. A skill tested on one object size is not
+   evidence for another.
 4. Run its code (below), read the returned `{ok, measured, why}`, and confirm the result
    with your own observation. A skill that fails here is information: record the run as a
    failure (section 4) and say what differed.
@@ -95,8 +95,8 @@ the robot is in a stable, describable state; do not split in the middle of a con
   tied to one scene: the object's pose and size, which arm or both, the target surface
   height, speeds and forces with their tested ranges;
 - the state it needs at the start (posture, grippers, what is held, what must be visible)
-  and the state it leaves at the end (for example "arms at `ready`, nothing held" or
-  "box held between both grippers at carry height, torso `ready`"): the end state of one
+  and the state it leaves at the end (for example "arms at the neutral pose, nothing held" or
+  "object held in both hands at carry height"): the end state of one
   primitive is the start state the next one checks;
 - its return value `{ok, measured, why}`, with what the next step needs in `measured`
   (the object pose it found, the grip force, the height reached);
@@ -177,11 +177,11 @@ never saw, so it must not be a blind script:
   ```python
   "checkpoint": {
       "subagent": "haiku",                    # fast model for structured checks; sonnet / opus for diagnosis
-      "frames": ["runtime/frames/<id>/head_camera.jpg"],
-      "question": "Are both fingertips below the box's top edge, one at each end face?",
-      "answer": "yes | no, plus the pixel of each fingertip",
-      "pass_if": "yes for both fingertips",
-      "on_fail": "back off 3 cm outward, re-localize the end faces, retry once; then stop",
+      "frames": ["runtime/frames/<id>/<camera>.jpg"],
+      "question": "<what must be seen, as a yes/no question>",
+      "answer": "yes | no, plus the pixels that show it",
+      "pass_if": "yes",
+      "on_fail": "<recovery, retry once; then stop>",
   }
   ```
 
@@ -251,7 +251,7 @@ force, joint state) and the final success check, with thresholds.
 ### Perception checkpoints
 | Step | Subagent model | Frames | Question | Expected answer | Pass if | On fail |
 |---|---|---|---|---|---|---|
-| grasp | haiku | head_camera after the squeeze | Is the box between both fingertips, below its top edge? | yes / no + fingertip pixels | yes | open, back off 3 cm, re-localize, retry once |
+| grasp | haiku | <camera> after closing | <what must be seen, as a question> | yes / no + pixels | yes | <recovery, then stop> |
 
 ## Failure modes
 Each failure seen: how it shows, how the code detects it, what it does (stop safely,
@@ -281,8 +281,8 @@ Each line of `evidence/runs.jsonl` (append; never rewrite others' lines):
 ```json
 {"session": "<session name>", "date": "<YYYY-MM-DD>", "commit": "<git commit of the code that ran>",
  "outcome": "success", "unattended": true,
- "conditions": "cardboard box 0.30 x 0.20 x 0.15 m on the floor 0.9 m ahead, robot at ready",
- "checks": {"box_lifted_m": 0.12, "opening_m": 0.21, "wrist_force_n": [12, 11]},
+ "conditions": "<object, its size and where it was, the robot's start pose>",
+ "checks": {"<measured quantity>_<unit>": "<value>"},
  "images": ["evidence/images/2026-10-08-start.jpg", "evidence/images/2026-10-08-end.jpg"],
  "notes": "optional"}
 ```

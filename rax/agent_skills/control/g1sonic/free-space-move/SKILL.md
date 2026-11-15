@@ -21,12 +21,6 @@ your first frame). The legs keep their references, so the robot does not step. `
 
 - Express it relative to something you measured: the current hand pose, or a point from
   [object-localization](../object-localization/SKILL.md).
-- Approach in two stages: a pre-contact pose 8 to 15 cm back along the approach direction with
-  the planner, then a short final approach with `g1_step` frames in small corrective
-  steps, settling before you judge where the hand ended.
-- Reach is comfortable about 0.35 to 0.45 m ahead of the pelvis; beyond it errors grow and
-  contact pushes the robot back ([controller-field-guide](../controller-field-guide/SKILL.md)).
-  Walk closer first rather than stretching.
 - The waist moves the torso, the other arm and the camera with it: re-observe after a waist
   plan.
 
@@ -36,11 +30,9 @@ your first frame). The legs keep their references, so the robot does not step. `
   `motion_plan_id` without moving; `g1_execute_motion_plan` runs it only if the robot has
   not moved since. A plan that fails executes nothing.
 - `status: start_state_in_self_collision` means the planner refused to start from the current pose:
-  `self_collision_pairs_at_start` names the touching links (typically a thumb against a hip when the
-  hands rest beside the body). Move those links a few centimetres apart with one `g1_step` and plan
+  `self_collision_pairs_at_start` names the touching links. Move those links apart with a `g1_step` and plan
   again. `planning_failed` with no pairs usually means the target is out of reach for that arm.
 - The reply carries the usual `transition.feedback` and executed frames. Check the measured
-  result, not just planning success: the controller follows arm references with a lag of a few
-  tenths of a second, and a hand that met something the planner cannot see stops short.
+  result, not just planning success.
 - A plan replaces your arm references only; walking, turning and closing a hand stay
   `g1_step` frames built from the last frame you sent.

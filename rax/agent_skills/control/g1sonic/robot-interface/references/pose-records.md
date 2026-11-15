@@ -31,13 +31,13 @@ reuse. These fields fill the robot-specific part of an example in
   "primitive": {
     "name": "<walk cycle, turn, reach>",
     "parameters": {"duration_s": 2.0},
-    "measured_effect": {"forward_m": [0.55, 0.65], "n": 6}
+    "measured_effect": {"forward_m": ["<min>", "<max>"], "n": "<count>"}
   },
   "pose_recipe": {
     "representation": "relative_pelvis",
     "anchor": "<visible feature or measured hand pose>",
     "frame": "pelvis",
-    "position_m": [0.35, -0.20, 0.10],
+    "position_m": ["<x>", "<y>", "<z>"],
     "quaternion_wxyz": [1.0, 0.0, 0.0, 0.0]
   },
   "point_reacquisition": {

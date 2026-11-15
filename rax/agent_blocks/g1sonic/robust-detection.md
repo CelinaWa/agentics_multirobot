@@ -4,7 +4,7 @@
   TASK.md help reject spurious small blobs.
 - **Your own body and what you hold.** Hands, arms, knees and a carried object appear in the image
   and look like scenery. Masking them by their predicted image region from forward kinematics on the
-  measured joints, before detecting supports, edges or landmarks, worked; a blanket near-range mask
+  measured joints, before detecting supports, edges or landmarks, is one way; a blanket near-range mask
   also hides the objects you touch.
 - **Gating.** A new detection that agrees with the tracked estimate and with physical priors (a
   change your own motion and the object's possible motion can explain, a size and height within
@@ -21,7 +21,7 @@
 
 - **Static structure as anchor:** walls, edges of fixed objects, lines on the floor. Fitted planes,
   lines and edges give your position relative to them; a wall gives both a distance and a relative
-  heading. Dead reckoning from commanded or even measured steps drifts by metres over a run.
+  heading. Dead reckoning from commanded or even measured steps drifts.
 - **Servoing on the target itself.** Near the target, control on its measured relative pose ("0.42 m
   ahead, 0.05 m left, 12 degrees off"), re-measured after each action, beats walking to a computed
   map coordinate.

@@ -10,20 +10,17 @@
   speed calls for a re-measurement.
 - **Closing the loop between actions.** Re-perceiving the target and re-planning from the measured
   state after each action works better than long open-loop sequences.
-- **Systematic offsets in a measured model.** If the hand consistently lands 3 cm short, aiming 3 cm
+- **Systematic offsets in a measured model.** If the hand consistently lands short by the same amount, aiming that much
   further and checking that this helped beats patching a threshold after each failure.
 - **Contact in small corrective steps,** with settling time before you judge where a hand or foot
   ended up.
 - **Turns and lateral motion checked against the scene** (an edge, a floor line, a fixed object),
   not against summed commands.
-- **Balance.** Large sudden command changes, stepping while the hands carry a load and leaning far
-  out can all cause a fall, and a fall damps the robot and disarms the session.
 - **Your body's signals.** The normal range of the tracking error in `transition.feedback` is worth
   measuring in your own runs. A sudden rise means contact, a blocked limb or a coming fall, and
   settling, backing off and re-perceiving is the usual answer. Read this feedback while moving;
   a rising tracking error can precede a fall.
 - **Feet and hands from the measured joints,** not from commanded positions, related to nearby
   objects.
-- **The fingers.** `proprio.hand_state` gives the measured finger angles, velocities and torques.
-  Fingers closing on nothing reach their closed targets quickly; fingers that stop early, with
-  torque, are touching something. The finger state before and after closing is contact evidence.
+- **The fingers.** `proprio.hand_state` gives the measured finger joints. The finger state before and
+  after closing is contact evidence.

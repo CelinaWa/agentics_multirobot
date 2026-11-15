@@ -68,9 +68,8 @@ def tool_definitions(geometry=True):
             "and not every orientation exists at every position. The backend solves the inverse kinematics (use_waist "
             "lets waist roll/yaw help), refuses a goal the arm cannot reach within max_ik_error_m (the reply says how "
             "far off the best solution is), moves the joints smoothly over `secs`, then corrects the remaining error "
-            "from the measured joints (servo). The whole-body controller tracks hand targets to a few cm and shifts the "
-            "pelvis while the arm is out: positions you measured before the move are off by that much afterwards; "
-            "re-observe. `gripper_width_m` sets the opening during the move. preview_only=true solves and reports "
+            "from the measured joints (servo); the reply reports the remaining error. Positions are in the pelvis "
+            "frame, which moves with the pelvis. `gripper_width_m` sets the opening during the move. preview_only=true solves and reports "
             "without moving. Needs operator arming."),
          "inputSchema": {"type": "object", "required": ["arm", "position"], "additionalProperties": False, "properties": {
              "arm": {"type": "string", "enum": list(ARMS)},
@@ -83,8 +82,7 @@ def tool_definitions(geometry=True):
         {"name": MOVE_JOINTS, "description": (
             "Move arm and waist joints to absolute angles (rad) over `secs`: {joint name: angle} for any of "
             + ", ".join(UPPER) + ". Joints not named keep their commanded angle. The controller is given the resulting "
-            "wrist and torso poses (it tracks them, not the joints themselves, to a few degrees). Use it for tucked or "
-            "home poses, wrist roll, and waist turns. Needs operator arming."),
+            "wrist and torso poses (it tracks them, not the joints themselves). Needs operator arming."),
          "inputSchema": {"type": "object", "required": ["joints"], "additionalProperties": False, "properties": {
              "joints": {"type": "object", "minProperties": 1, "additionalProperties": _number,
                         "propertyNames": {"enum": list(UPPER)}},
@@ -113,9 +111,8 @@ def tool_definitions(geometry=True):
         {"name": GAIT, "description": (
             "The walking gait, raw, by velocity: the same built-in gait as r1_walk, stepping forward or backward along "
             "your heading at about speed_mps and turning at turn_deg_s (left positive), for `seconds` (0.2-5), with "
-            "nothing added: no distance, no correction pass. The stride length sets the pace; below about 0.22 m/s the "
-            "gait steps without advancing, so speed_mps is 0.22-0.45; how far it really goes at a speed is yours to "
-            "measure. The arms and grippers keep their last command. The call returns after `seconds` with samples taken about "
+            "nothing added: no distance, no correction pass. speed_mps is 0.22-0.45; how far it really goes at a speed "
+            "is yours to measure. The arms and grippers keep their last command. The call returns after `seconds` with samples taken about "
             "10 times a second during it: tilt, gripper widths, and for each hand the commanded and the measured hand "
             "point in your root frame and their difference (hand_error_m: what an object or another robot holding "
             "the same object does to your hand shows there). settle=true (default) then ends the gait, waits until "
@@ -134,15 +131,10 @@ def tool_definitions(geometry=True):
             "backward), with an optional turn_deg (left positive, right negative). Your legs step with a built-in gait "
             "while your arms hold their last commanded pose; you translate only by stepping. Blocks until you finish "
             "and are standing again, then reports the actual distance walked (walked_m), the new pelvis position and "
-            "tilt. The commanded distance is approximate (0.2-0.5 m per call works best; larger overshoots), so "
-            "re-observe and walk again to fine-tune. left_m (alone, without forward_m or turn_deg) steps sideways with the "
+            "tilt. The commanded distance is approximate. left_m (alone, without forward_m or turn_deg) steps sideways with the "
             "facing kept: positive to your left, at most 0.3 m per call; the reply's lateral_m is the measured side "
-            "travel (positive left), walked_m the forward drift, turned_deg the turn. It undershoots and varies: measured "
-            "in simulation, arms free, 26 calls: 0.05 m commanded gave 0.04-0.05 m; 0.10 m gave 0.03-0.09 m (most "
-            "0.07-0.09); 0.20 m gave 0.06-0.21 m; steps to the left often turn the robot 4-8 deg to its right; "
-            "forward/back drift up to 0.1 m; tilt under 2 deg, no fall. Use the reply, not the command, and "
-            "repeat. Never tested with something held, and not available "
-            "on the real robot yet (refused there). You move, so measure the scene again afterwards. Needs operator arming."),
+            "travel (positive left), walked_m the forward drift, turned_deg the turn. Not available "
+            "on the real robot yet (refused there). Needs operator arming."),
          "inputSchema": {"type": "object", "additionalProperties": False, "properties": {
              "forward_m": {"type": "number", "minimum": -1.0, "maximum": 1.0, "default": 0.0},
              "turn_deg": {"type": "number", "minimum": -180.0, "maximum": 180.0, "default": 0.0},

@@ -67,10 +67,7 @@ and the order and duration of the phases. Then:
    after each phase (is it still held at both ends, how far has it tilted or slipped) before the next.
 
 The team tools start a group's calls together but do not keep the robots in step during a motion, and neither robot
-follows the force on the object. So keep coupled phases short, slow and of equal duration, and expect the limit to
-be motions where both must move continuously in step, above all walking with a shared load. If a coupled subtask
-does not become reliable in quasi-static phases, say so in `memory/PROGRESS.md` and to the operator instead of
-pushing attempts: it needs a controller the tools do not have.
+follows the force on the object. So give coupled phases that must stay in step the same duration, and check the object after each.
 
 ## 4. Chain the subtasks into the whole task
 

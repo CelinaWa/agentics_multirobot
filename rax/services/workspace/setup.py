@@ -1,16 +1,17 @@
 """The facts a workspace is generated from; roles live in recipes, not here."""
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 # Words shared sources use for the robot instead of branching on it. Tool names are the
 # backend's MCP tools (services/backends.py); keep them in sync with the backend.
+from services.g1sonic.tools import HANDS_WALK as _G1_HANDS_WALK, PLANNER as _G1_PLANNER, ROBOT_TOOLS as _G1_TOOLS
 from services.r1sonic.tools import ROBOT_TOOLS as _R1_TOOLS   # the backend's own list, so the two cannot drift
 
 ROBOT_FACTS = {
     'g1sonic': {
         'name': 'Unitree G1 under SONIC', 'status': 'g1_status', 'observe': 'g1_observe',
         'move': 'g1_free_space_move', 'gripper': 'g1_step', 'pixel': 'g1_pixel_to_position',
-        'tools': ('g1_status', 'g1_observe', 'g1_pixel_to_position', 'g1_step', 'g1_free_space_move',
-                  'g1_execute_motion_plan', 'g1_hold', 'g1_walk', 'g1_hand_shape', 'g1_crouch'),
+        # the backend's own list, less the two a backend option switches on (contract_files.offered_tools adds them)
+        'tools': tuple(tool for tool in _G1_TOOLS if tool not in (_G1_HANDS_WALK, _G1_PLANNER)),
         'overview_camera': 'cam_front', 'overview': 'front camera (the ZED on the head, looking forward and down)',
         'cameras': ('cam_front',),
         'body': 'humanoid** (Unitree G1: 29 body joints and two three-finger Dex3 hands) balanced by the frozen '
@@ -24,7 +25,7 @@ ROBOT_FACTS = {
         'motion_example': 'ctx.value("g1_step", actions=rows)  # rows: 1..100 semantic40 frames, one per 50 Hz tick',
         'grasp_example': 'ctx.value("g1_step", actions=rows)  # the same rows with [38] (left) or [39] (right) set to 1',
         'stream': None,
-        'look_around': 'turn the waist (`waist_yaw_joint` in the frames, within about 0.6 rad; the camera turns '
+        'look_around': 'turn the waist (`waist_yaw_joint` in the frames, within its limits in `g1_status`; the camera turns '
                        'with the waist, so re-observe after the turn) or turn the whole body with a stepping turn '
                        '([controller-field-guide](../controller-field-guide/SKILL.md))',
         'read_tools': ('g1_status', 'g1_observe', 'g1_pixel_to_position'),
@@ -46,13 +47,10 @@ ROBOT_FACTS = {
             '**Every call ends in a pose to hold.** The robot keeps tracking the last row until the next call, so '
             'never leave it mid-step, and start every call from the measured joints (`g1_status` -> `proprio`), '
             'never from zeros: a row of zeros drives every joint to zero.',
-            '**Small references, measured results.** The controller tracks only approximately and drifts tens of '
-            'centimetres over a walk. Keep calls short enough to observe between them, measure every motion\'s '
-            'effect against the scene, and treat a rising tracking error or tilt in `transition.feedback` as '
-            'contact or a coming fall: hold, back off, re-perceive.',
-            '**Hands close by a fraction and are strong.** `0` open, `1` fist, values between close every finger that '
-            'far. Close only on something that lies between the thumb and the fingers; fingers that stop short of the '
-            'commanded pose are touching something.',
+            '**References, measured results.** The controller tracks references approximately; every motion reply\'s '
+            '`transition.feedback` reports the measured tracking error and tilt.',
+            '**Hands close by a fraction.** `0` open, `1` fist, values between close every finger that far; '
+            '`proprio.hand_state` gives the measured finger joints.',
         )},
     'r1sonic': {
         'name': 'Unitree R1 under SONIC_R1', 'status': 'r1_status', 'observe': 'r1_observe',
@@ -62,7 +60,7 @@ ROBOT_FACTS = {
         'cameras': ('cam_head',),
         'body': 'humanoid** (Unitree R1: 26 body joints, 5-joint arms without wrist pitch, two PiPER parallel '
                 'grippers) balanced by the frozen SONIC_R1 whole-body controller in teleop mode, which tracks hand '
-                'and torso targets; it does not walk on command',
+                'and torso targets',
         'move_joints': 'r1_move_joints',
         'tracking_skill': 'robot-interface',
         'neutral': 'both arms at the default standing pose (`r1_move_joints` with the defaults in `r1_status` -> '
@@ -83,13 +81,9 @@ ROBOT_FACTS = {
             'a disarm for a fault (a fall, or the robot stepping by itself) make no motion and plan no recovery of your '
             'own: call `request_operator` (kind `help`) with what you saw, and wait. After the operator arms again, '
             'call `r1_status` and `r1_observe` first.',
-            '**Reach first, then ask.** `r1_move_hand` refuses goals the arm cannot reach and previews any goal '
-            '(`preview_only`). A reach that makes the robot step, lean or press on something moves its pelvis: '
-            're-observe before trusting earlier positions.',
-            '**No pushing on the table.** Pressing a gripper or the arm on the table or the objects makes the controller '
-            'lean and step back (the hand then misses by the step). Come from above with clearance and descend.',
-            '**The gripper is strong.** Close only on what lies between the fingers; a measured width wider than '
-            'commanded means something is held.',
+            '**Reach.** `r1_move_hand` refuses goals the arm cannot reach and previews any goal (`preview_only`). '
+            'Positions are in the pelvis frame, which moves with the pelvis.',
+            '**The gripper.** A measured width wider than commanded means something is between the fingers.',
         )},
     'rby1': {'name': 'Rainbow RB-Y1', 'status': 'rby1_status', 'observe': 'rby1_observe',
              'move': 'rby1_move_eef', 'gripper': 'rby1_gripper',
@@ -262,6 +256,7 @@ class Setup:
     demonstrations: int = 0         # operator-supplied images under runtime/demonstrations/
     demonstration_kind: str = 'terminal_state'
     environment: str = 'real'       # real robot or simulation, see Configuration.environment
+    offered: tuple | None = None    # the tools this session really offers (contract_files.offered_tools); None: all
 
     def __post_init__(self):
         if self.robot not in ROBOT_FACTS:
@@ -279,8 +274,10 @@ class Setup:
 
     @classmethod
     def from_config(cls, config, *, gemini=True):
-        return cls(config.robot, config.task, 'claude', config.observation_profile, config.subagents, gemini,
-                   len(config.demonstration_images), config.demonstration_kind, config.environment)
+        setup = cls(config.robot, config.task, 'claude', config.observation_profile, config.subagents, gemini,
+                    len(config.demonstration_images), config.demonstration_kind, config.environment)
+        from .contract_files import offered_tools
+        return replace(setup, offered=offered_tools(setup, config.backend_options))
 
     @property
     def camera_geometry(self):
@@ -311,4 +308,6 @@ class Setup:
             'robot': ROBOT_FACTS[self.robot],
             'environment': self.environment,
             'simulated': self.environment == 'sim',
+            # sources name a tool only when the session offers it: {% if 'g1_walk' in offered %}
+            'offered': frozenset(self.tools if self.offered is None else self.offered),
         }

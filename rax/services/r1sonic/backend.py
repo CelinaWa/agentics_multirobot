@@ -61,6 +61,7 @@ DEFAULTS = {
     'gait_stream': False,             # offer r1_gait (the gait by velocity, non-blocking in the stack): needs a stack
                                       # with the gait / gait_settle ops (the sim server has them)
     'no_walk': False,                 # the robot is placed at the table: r1_walk and r1_carry_release are refused
+    'hidden_tools': (),               # tool names not offered to the agent in this session
 }
 
 
@@ -117,9 +118,12 @@ class R1SonicBackend:
         tools = T.tool_definitions(geometry=self.depth)
         if not self.options['gait_stream']:
             tools = [t for t in tools if t['name'] != T.GAIT]
-        return [t for t in tools if t['name'] not in T.WALKING_TOOLS] if self.options['no_walk'] else tools
+        hidden = set(self.options['hidden_tools']) | (T.WALKING_TOOLS if self.options['no_walk'] else set())
+        return [t for t in tools if t['name'] not in hidden]
 
     def validate(self, name, arguments):
+        if name in self.options['hidden_tools']:
+            raise RejectedBeforeAction(f'{name} is not offered in this session (the operator hid it)')
         T.validate_request(name, arguments)
         if self.options['no_walk'] and name in T.WALKING_TOOLS:
             raise RejectedBeforeAction(f'{name} is off in this task: the robot does not walk (r1_carry_hand carries by moving the hand)')

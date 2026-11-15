@@ -62,6 +62,14 @@ def test_the_tool_is_listed_and_other_tools_send_plain_rows(backend):
     assert backend.status()['command']['legs_reference'] == 'the default stance'
 
 
+def test_hidden_tools_are_neither_listed_nor_callable(backend):
+    backend.options['hidden_tools'] = (T.GRASP_PAW,)
+    names = [t['name'] for t in backend.tools()]
+    assert T.GRASP_PAW not in names and T.MOVE_HAND in names
+    with pytest.raises(Exception, match='not offered'):
+        backend.validate(T.GRASP_PAW, {})
+
+
 def test_leg_rows_ride_behind_the_points_and_stay_for_later_motions(backend):
     names, rows = crouch(0.6)
     arguments = {'joints': names, 'rows': rows}

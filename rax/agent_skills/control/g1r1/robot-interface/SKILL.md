@@ -74,9 +74,8 @@ result with `stopped`, or a fall), the other calls stop where they are and their
 - `team_stop` and a failed `stop_all_on_failure` group stop running motions within one control tick, the way an
   operator disarm does, and each robot holds its last command. The session stays armed; the stopped calls report
   that they were stopped.
-- Calls that run inside a robot's own stack do not stop midway: `r1_walk`, `r1_grasp_paw`, `r1_place_in_box` and the
-  walking steps of `r1_carry_release`. `team_stop` reports them as `still_running`; no robot starts a motion until
-  they have ended.
+- Calls that run inside a robot's own stack (a built-in gait such as `r1_walk`) do not stop midway. `team_stop`
+  reports them as `still_running`; no robot starts a motion until they have ended.
 - The operator arms and disarms both robots together. A fault that disarms one robot (a fall, a robot stepping by
   itself) stops the other. After such a disarm make no motion with either robot: `request_operator` (kind `help`).
 - Each robot's own hold (`g1_hold`, `r1_hold`) works when that robot is idle.

@@ -88,8 +88,7 @@ under `runtime/demonstrations/`; read them as
 {% endif %}
 {% if robot.first_reads %}
 
-Before the first motion, read these; they hold this robot's measured limits and tested
-motions:
+Before the first motion, read these; they describe this robot's interface:
 {% for name, why in robot.first_reads %}- [{{ name }}](.agents/skills/{{ name }}/SKILL.md): {{ why }}
 {% endfor %}
 {% endif %}

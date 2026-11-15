@@ -4,13 +4,11 @@ Use [the field guide](../SKILL.md) with current observations to characterize eac
 
 ## Walking
 
-- **Use `g1_walk` to travel.** It runs SONIC's own locomotion planner (the gait a teleoperator's joystick
-  drives): give a forward distance, a turn (at most 45 deg per call; a 60 deg turn overshot to 72 and ended mid-step) and a slow-walk speed, and the robot
-  steps there and stands. It walks forward only: turn first to go elsewhere. Measured in sim (2026-10-20, after the turn
-  fix): 45 deg commands turned 38-41 deg; forward 0.4 m at 0.2 m/s covered about 0.2 m, 0.3 m at 0.3 m/s
-  covered 0.37 m: prefer 0.3 m/s and re-localize. Eight walks in a row with tilt under 6.2 deg. Distances are commanded, not measured: re-localize against the scene after every walk. Measured
-  in sim (2026-10-20): 0.6 m forward and a 45 deg turn executed with tilt under 5 deg; a 45 deg command
-  turned about 33 deg.
+{% if 'g1_walk' in offered %}
+- **`g1_walk` travels with SONIC's own locomotion planner** (the gait a teleoperator's joystick drives): a
+  distance, a turn and a slow-walk speed within the tool's ranges; the robot steps there and stands. Distances are
+  commanded unless the reply says the walk stopped on its odometry.
+{% endif %}
 - **Joint-reference gaits are for fine positioning.** Through `g1_step` you can also step by streaming
   leg joint references (see your skill library); use that for short corrections near furniture.
 - **Walking needs dynamic stepping leg references.**
