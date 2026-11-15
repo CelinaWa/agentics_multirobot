@@ -195,6 +195,8 @@ class Brain(S.Sim):
         self.row[21:23], self.row[23] = grip, head
         self.walking = 0
         self.resets += 1
+        if d.qpos[self.root_q + 2] > 0.5 and self.tilt_deg() < 20:
+            self.fallen = False       # a person stood it up again (S40: the flag stayed set and the session stayed down)
 
     def save_gt(self):
         pass

@@ -270,6 +270,41 @@ def tripped_since(session, since):
     return None
 
 
+def stand_r1_up(ctx, keys, layout):
+    """What a person does when the R1 lies on the floor: lift it, stand it at its start, let its controller start again
+    from there. Returns True if it stands afterwards (S40: the R1 fell during a reset and nobody stood it up; the
+    session sat disarmed for 36 min with 80 min of robot time left)."""
+    import math
+    r1 = layout['robots']['r1']
+    h = math.radians(r1['yaw_deg']) / 2
+    for _ in range(2):
+        keys.send_string(f"place=r1_pelvis,{r1['pos'][0]},{r1['pos'][1]},0.80,{math.cos(h)},0,0,{math.sin(h)}"); time.sleep(0.4)
+        try:
+            for _ in range(2):
+                sock = ctx.socket(zmq.REQ); sock.setsockopt(zmq.LINGER, 0); sock.setsockopt(zmq.RCVTIMEO, 3000)
+                sock.connect('tcp://127.0.0.1:5791')
+                sock.send(json.dumps({'op': 'reset'}).encode()); sock.recv(); sock.close()
+                time.sleep(1.5)
+            sock = ctx.socket(zmq.REQ); sock.setsockopt(zmq.LINGER, 0); sock.setsockopt(zmq.RCVTIMEO, 3000)
+            sock.connect('tcp://127.0.0.1:5791')
+            sock.send(json.dumps({'op': 'state'}).encode()); state = json.loads(sock.recv_multipart()[0]); sock.close()
+        except zmq.ZMQError:
+            return False
+        if not state.get('fallen') and state.get('tilt_deg', 90) < 20:
+            return True
+    return False
+
+
+def r1_is_down(ctx):
+    try:
+        sock = ctx.socket(zmq.REQ); sock.setsockopt(zmq.LINGER, 0); sock.setsockopt(zmq.RCVTIMEO, 3000)
+        sock.connect('tcp://127.0.0.1:5791')
+        sock.send(json.dumps({'op': 'state'}).encode()); state = json.loads(sock.recv_multipart()[0]); sock.close()
+        return bool(state.get('fallen')) or state.get('tilt_deg', 0) > 25
+    except zmq.ZMQError:
+        return False
+
+
 def replace_robots(ctx, keys, layout, r1_pose=None, g1_pose=None):
     """Carry both standing robots back to where they started (a person would walk them there), each turned to its
     start heading (S29: the G1 kept its heading, which drifted ~2-3 deg over attempts, so it saw the box 2.5 cm off its
@@ -368,6 +403,17 @@ def main():
                 review = write_attempt_review(a.session, resets, attempt_since, reset_started, samples, layout,
                                               row.get('third_person'))
                 moved = ''
+                r1_stood = ''
+                if r1_is_down(ctx):
+                    keys.send_string('place=box,-1.6,-3.2,0.15,1,0,0,0'); time.sleep(0.5)     # out of the way first
+                    if stand_r1_up(ctx, keys, layout):
+                        arming.write(a.session, True, minutes=max(1.0, (deadline - time.time()) / 60), by='sim operator')
+                        r1_stood = (' The R1 was lying on the floor: I stood it up at its start (its arms as they were, '
+                                    'its controller started again from there) and armed the session again.')
+                        log('the R1 was down: stood up at its start, armed again')
+                    else:
+                        r1_stood = ' The R1 is lying on the floor and I could not stand it up.'
+                        log('the R1 is down and did not stand up')
                 r1_pose, refused = r1_pose_asked(request['message'], layout)
                 g1_pose, g1_refused = g1_pose_asked(request['message'], layout)
                 refused += g1_refused
@@ -416,7 +462,7 @@ def main():
                                + attempt_review.summary_words(summary) + '.')
                 text = (f'Reset {resets}/{a.max_resets}:' + before + ' Now the box is back at its starting place, upright.'
                         + (moved or ' The robots were not moved (ask for the robots too if you want them put back).')
-                        + refused + (misplaced or '') + caused + ' Observe before acting.')
+                        + refused + (misplaced or '') + caused + r1_stood + ' Observe before acting.')
                 log('after the reset: ' + end_state(ctx, layout))
                 record(a.session, ctx, layout, 'after_reset', reset=resets, r1_at=list(r1_pose) if r1_pose else None,
                        guard_tripped_by_reset=tripped)
@@ -443,6 +489,16 @@ def main():
                 arming.write(a.session, True, minutes=max(1.0, (deadline - time.time()) / 60), by='sim operator')
                 text = ('I looked: both robots are on their feet. The session is armed again. Check each robot\'s status '
                         'and observe before the next motion; say in your notes what set the fault off.')
+            elif r1_is_down(ctx):
+                # a person beside the robots stands a fallen R1 up again (S40: a help request about it got 'no help')
+                if stand_r1_up(ctx, keys, layout):
+                    arming.write(a.session, True, minutes=max(1.0, (deadline - time.time()) / 60), by='sim operator')
+                    text = ('The R1 was lying on the floor: I stood it up at its start (its arms as they were, its controller '
+                            'started again from there). The session is armed again. Observe before the next motion; the box '
+                            'is where it was (ask for a reset if you want it back).')
+                else:
+                    text = 'The R1 is lying on the floor and I could not stand it up: go on with what the G1 can do.'
+                log('help: the R1 was down; ' + text[:60])
             else:
                 text = ('No operator help is available in this simulation beyond putting the box back at its start '
                         '(request kind reset). Nobody can move a robot, hold the box, or move the furniture: getting round it is part of the task. Continue with '
