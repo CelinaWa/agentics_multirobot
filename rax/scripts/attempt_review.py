@@ -184,7 +184,7 @@ def attempt_summary(samples, layout, mcp_path=None):
                             and (abs(b['box'][2] - table) < 0.006 or b['box'][2] < 0.02))
     air, air_max, left_air, rest, disturbed, downs, turned, yaw0 = 0.0, 0.0, None, None, None, 0, 0.0, None
     floor_fall = None
-    # who held it, where the simulation reports hand contacts: carried counts only with a hand of each robot on it
+    # who held it, where the simulation reports hand contacts: carried counts only with both hands of each robot on it
     known = [x for x, held in zip(samples, up) if held and 'both_robots_on_box' in x]
     both = [x for x in known if x['both_robots_on_box']]
     step = (samples[-1]['t'] - samples[0]['t']) / max(1, len(samples) - 1)
@@ -263,7 +263,7 @@ def summary_words(summary):
     text = (f"in the air {summary['in_air_s']:g} s, furthest {summary['in_air_max_from_start_m']:.2f} m from its start "
             f"while in the air")
     if summary.get('in_air_without_both_robots_s') is not None:
-        text += (f"; of its time in the air a hand of EACH robot was on it for {summary['in_air_with_both_robots_s']:g} s and "
+        text += (f"; of its time in the air BOTH hands of EACH robot were on it for {summary['in_air_with_both_robots_s']:g} s and "
                  f"not for {summary['in_air_without_both_robots_s']:g} s")
     left = summary.get('left_the_air')
     if left:

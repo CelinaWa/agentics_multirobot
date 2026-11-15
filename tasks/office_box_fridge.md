@@ -5,8 +5,8 @@ Two robots, a Unitree G1 and a Unitree R1, are in a room with a box. The box is 
 The two robots lift the box and carry it together to the floor in front of the mini fridge, and put it down there. A
 green patch on the floor marks the spot.
 
-The box must be carried by both robots: whenever it is off the table and off the floor, at least one hand of each
-robot is touching it. How the hands touch it is yours to decide. Pushing or sliding the box along the floor, or
+The box must be carried by both robots: whenever it is off the table and off the floor, both hands of each robot are
+touching it (four hands in all). How the hands touch it is yours to decide. Pushing or sliding the box along the floor, or
 dragging it, does not count.
 
 Success: the box stands upright on the floor on the green patch (its centre within 0.35 m of the patch's centre,

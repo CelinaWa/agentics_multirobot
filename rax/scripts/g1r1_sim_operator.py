@@ -83,7 +83,7 @@ def truth(ctx, layout):
     on_start = layout['box_start'].get('z', 0.0)
     w, x, y, z = q[53:57]
     hands = hands_on_box(ctx)
-    return {**({'hands_on_box': hands, 'both_robots_on_box': bool(any(hands['g1'].values()) and any(hands['r1'].values()))}
+    return {**({'hands_on_box': hands, 'both_robots_on_box': bool(all(hands['g1'].values()) and all(hands['r1'].values()))}
                if hands else {}),
             'box': [round(float(v), 3) for v in q[50:53]], 'box_tilt_deg': round(box_tilt, 1),
             'box_yaw_deg': round(math.degrees(math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))), 1),
@@ -460,15 +460,15 @@ def main():
                     summary = attempt_review.attempt_summary(samples, layout, a.session / 'mcp.jsonl')
                 except Exception as error:
                     log(f'attempt summary failed: {error}')
-                # the task's rule, where the simulation reports hand contacts: off its support, the box has a hand of each
-                # robot on it (2 s of slack for the sampling); an end state at the goal reached otherwise is not a success
+                # the task's rule, where the simulation reports hand contacts: off its support, the box has both hands of
+                # each robot on it (2 s of slack for the sampling); an end state at the goal reached otherwise is not a success
                 carried_by_both = (summary is None or summary.get('in_air_without_both_robots_s') is None
                                    or summary['in_air_without_both_robots_s'] <= 2.0)
                 row = record(a.session, ctx, layout, 'before_reset', reset=resets, request=request['message'][:600],
                              attempt=summary, carried_by_both=carried_by_both)
                 if row.get('success') and not carried_by_both:
                     before += (' The box is at the goal, but it was in the air for '
-                               f"{summary['in_air_without_both_robots_s']:g} s without a hand of each robot on it: not a success.")
+                               f"{summary['in_air_without_both_robots_s']:g} s without both hands of each robot on it: not a success.")
                 elif row.get('success'):
                     before += ' SUCCESS: the box stands at the goal and was carried by both robots.'
                 review = write_attempt_review(a.session, resets, attempt_since, reset_started, samples, layout,
