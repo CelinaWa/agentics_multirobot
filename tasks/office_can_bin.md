@@ -3,11 +3,15 @@ trash bin stands on the floor elsewhere in the room.
 
 ## The task
 
-One robot takes the trash bin and brings it to the other robot. The other robot takes the can from the desk and puts
-or throws it into the bin. Which robot does which, and how, is yours to decide.
+One robot takes the trash bin and carries it to the side of the other robot. The other robot takes the can from the
+desk and puts or throws it into the bin. Which robot does which, and how each holds its object, is yours to decide.
 
-Success: the can is inside the bin, the bin stands upright, both robots are standing, nothing else in the room was
-knocked over, and one robot handled the bin while the other handled the can.
+The bin must be carried: lifted off the floor while it is moved. Pushing or dragging it along the floor does not
+count. And the bin comes to the robot with the can: that robot does not go to where the bin stands.
+
+Success: the can is inside the bin, the bin stands upright beside the robot that handled the can, both robots are
+standing, nothing else in the room was knocked over, one robot handled the bin while the other handled the can, and
+the bin was carried there as the rule above says.
 
 Nobody has done this before, and you start with no earlier experience of it: the room, the can, the bin and what each
 robot can do are yours to find out.

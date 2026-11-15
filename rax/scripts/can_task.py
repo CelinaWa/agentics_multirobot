@@ -78,8 +78,11 @@ def words(t):
 
 
 def roles(samples):
-    """Which robot's hands were on the bin while it moved and on the can while it moved, from the sampled contacts."""
+    """Who handled what, and how the bin travelled, from the sampled ground truth: which robot's hands were on the bin and
+    on the can while each moved; how far the bin moved lifted off the floor and how far while standing on it (pushed or
+    dragged); and, at the end, how far the bin stands from the robot that handled the can."""
     movers = {'bin': set(), 'can': set()}
+    carried = dragged = 0.0
     for before, now in zip(samples, samples[1:]):
         hands = now.get('hands_on') or {}
         moved = {'bin': math.dist(now['bin'][:3], before['bin'][:3]) > 0.01, 'can': math.dist(now['box'][:3], before['box'][:3]) > 0.01}
@@ -87,14 +90,40 @@ def roles(samples):
             for robot, sides in (hands.get(thing) or {}).items():
                 if moved[thing] and any(sides.values()):
                     movers[thing].add(robot)
-    ok = len(movers['bin']) == 1 and len(movers['can']) == 1 and movers['bin'] != movers['can']
-    return {'moved_the_bin': sorted(movers['bin']), 'moved_the_can': sorted(movers['can']), 'one_robot_each': ok}
+        step = math.dist(now['bin'][:2], before['bin'][:2])
+        if step > 0.01:
+            if min(now['bin'][2], before['bin'][2]) > 0.02:
+                carried += step
+            else:
+                dragged += step
+    one_each = len(movers['bin']) == 1 and len(movers['can']) == 1 and movers['bin'] != movers['can']
+    beside = None
+    if samples and len(movers['can']) == 1:
+        last, robot = samples[-1], next(iter(movers['can']))
+        beside = round(math.dist(last['bin'][:2], last[robot][:2]), 2)
+    out = {'moved_the_bin': sorted(movers['bin']), 'moved_the_can': sorted(movers['can']), 'one_robot_each': one_each,
+           'bin_carried_m': round(carried, 2), 'bin_moved_on_the_floor_m': round(dragged, 2),
+           'bin_from_start_m': samples[-1].get('bin_from_start_m') if samples else None, 'bin_to_can_robot_m': beside}
+    # the task: the bin is carried (not pushed or dragged) to the robot that handles the can
+    out['bin_was_carried'] = bool(carried >= 0.5 and dragged <= 0.15)
+    out['bin_brought_to_the_can_robot'] = bool(out['bin_was_carried'] and (out['bin_from_start_m'] or 0) >= 1.0
+                                               and beside is not None and beside <= 0.9)
+    out['as_the_task_asks'] = bool(one_each and out['bin_brought_to_the_can_robot'])
+    return out
 
 
 def role_words(r):
     name = lambda robots: ' and '.join(x.upper() for x in robots) if robots else 'no robot'
-    return (f" Hands on the bin while it moved: {name(r['moved_the_bin'])}; hands on the can while it moved: {name(r['moved_the_can'])}"
-            + ('.' if r['one_robot_each'] else ' (the task asks for one robot on the bin and the other on the can).'))
+    text = (f" Hands on the bin while it moved: {name(r['moved_the_bin'])}; hands on the can while it moved: {name(r['moved_the_can'])}."
+            f" The bin moved {r['bin_carried_m']:.2f} m lifted off the floor and {r['bin_moved_on_the_floor_m']:.2f} m standing on it"
+            f" (pushed or dragged); it ended {r['bin_from_start_m']} m from its start"
+            + (f" and {r['bin_to_can_robot_m']:.2f} m from the robot that handled the can." if r['bin_to_can_robot_m'] is not None else '.'))
+    if not r['as_the_task_asks']:
+        missing = [what for ok, what in ((r['one_robot_each'], 'one robot on the bin and the other on the can'),
+                                         (r['bin_was_carried'], 'the bin carried, not pushed or dragged'),
+                                         (r['bin_brought_to_the_can_robot'], 'the bin brought to the side of the robot with the can')) if not ok]
+        text += ' Not as the task asks: ' + '; '.join(missing) + '.'
+    return text
 
 
 def reword(text):

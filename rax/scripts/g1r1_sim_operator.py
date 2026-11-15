@@ -498,13 +498,13 @@ def main():
                 task_roles = None
                 if layout.get('task') == 'can_bin':     # this task's rule: one robot on the bin, the other on the can
                     task_roles = can_task.roles(samples)
-                    carried_by_both = task_roles['one_robot_each']
+                    carried_by_both = task_roles['as_the_task_asks']
                     before += can_task.role_words(task_roles)
                 row = record(a.session, ctx, layout, 'before_reset', reset=resets, request=request['message'][:600],
                              attempt=summary, carried_by_both=carried_by_both, roles=task_roles)
                 if row.get('success') and task_roles is not None:
-                    before += (' SUCCESS: the can is in the bin, the bin stands, and one robot handled each.' if carried_by_both else
-                               ' The can is in the bin, but not with one robot on the bin and the other on the can: not a success.')
+                    before += (' SUCCESS: the can is in the bin, the bin stands, and it was done as the task asks.' if carried_by_both else
+                               ' The can is in the bin, but not as the task asks (see above): not a success.')
                 elif row.get('success') and not carried_by_both:
                     before += (' The box is at the goal, but it was in the air for '
                                f"{summary['in_air_without_both_robots_s']:g} s without both hands of each robot on it: not a success.")
