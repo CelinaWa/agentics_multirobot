@@ -20,25 +20,25 @@ export PYTHONUNBUFFERED=1
 unset PYTHONPATH
 case "${1:-}" in
   start)
-    tmux kill-session -t $SES 2>/dev/null; rm -f $LOGS/*.log; mkdir -p $LOGS
+    tmux kill-session -t "=$SES" 2>/dev/null; rm -f $LOGS/*.log; mkdir -p $LOGS
     SPAWN=$(/opt/r1venv/bin/python -c "import json; r=json.load(open('$SCENE_DIR/layout.json'))['robots']['g1']; print(f\"{r['pos'][0]},{r['pos'][1]},{r['yaw_deg']}\")")
     tmux new-session -d -s $SES -n brain "cd $T && MUJOCO_GL=osmesa CUDA_VISIBLE_DEVICES= exec /opt/r1venv/bin/python r1_brain.py --scene $SCENE --tick-port $P_TICK --port $P_R1 2>&1 | tee $LOGS/brain.log"
     sleep 4
-    tmux new-window -t $SES -n sim "cd /opt/sonic && SIM_DDS_DOMAIN=$DOMAIN CUDA_VISIBLE_DEVICES= exec /opt/sonic/.venv_sim/bin/python $T/office_sim.py --env-name default --scene $SCENE --spawn=$SPAWN --key-port $P_KEYS --qpos-port $P_QPOS --state-port $P_STATE --r1-tick-port $P_TICK --lockstep 2>&1 | tee $LOGS/sim.log"
+    tmux new-window -t "=$SES" -n sim "cd /opt/sonic && SIM_DDS_DOMAIN=$DOMAIN CUDA_VISIBLE_DEVICES= exec /opt/sonic/.venv_sim/bin/python $T/office_sim.py --env-name default --scene $SCENE --spawn=$SPAWN --key-port $P_KEYS --qpos-port $P_QPOS --state-port $P_STATE --r1-tick-port $P_TICK --lockstep 2>&1 | tee $LOGS/sim.log"
     sleep 3   # the G1's head camera and the third-person recording: mirrors the world's qpos, renders on the CPU
-    tmux new-window -t $SES -n camera "cd /opt/sonic && MUJOCO_GL=osmesa PYOPENGL_PLATFORM=osmesa CUDA_VISIBLE_DEVICES= exec /opt/sonic/.venv_sim/bin/python $T/../rax/scripts/g1sonic_sim2sim/sim_camera_server.py --scene $SCENE --port $P_CAM --qpos-port $P_QPOS --snapshot-dir $LOGS/snap --record $LOGS/overview.mp4 2>&1 | tee $LOGS/camera.log"
+    tmux new-window -t "=$SES" -n camera "cd /opt/sonic && MUJOCO_GL=osmesa PYOPENGL_PLATFORM=osmesa CUDA_VISIBLE_DEVICES= exec /opt/sonic/.venv_sim/bin/python $T/../rax/scripts/g1sonic_sim2sim/sim_camera_server.py --scene $SCENE --port $P_CAM --qpos-port $P_QPOS --snapshot-dir $LOGS/snap --record $LOGS/overview.mp4 2>&1 | tee $LOGS/camera.log"
     if [ "${2:-}" != "--no-g1-deploy" ]; then
       sleep 6
-      tmux new-window -t $SES -n deploy "$DEPLOY"
+      tmux new-window -t "=$SES" -n deploy "$DEPLOY"
     fi
     echo started ;;
   restart-deploy)
-    tmux send-keys -t $SES:deploy O 2>/dev/null; sleep 1; tmux kill-window -t $SES:deploy 2>/dev/null
+    tmux send-keys -t "=$SES":deploy O 2>/dev/null; sleep 1; tmux kill-window -t "=$SES":deploy 2>/dev/null
     pkill -f "^$BIN .*--zmq-port $P_POSE " 2>/dev/null; sleep 1
     mv -f $LOGS/deploy.log $LOGS/deploy.prev.log 2>/dev/null   # the new stack's log starts empty
-    tmux new-window -t $SES -n deploy "$DEPLOY"
+    tmux new-window -t "=$SES" -n deploy "$DEPLOY"
     echo restarted ;;
   stop)
-    tmux send-keys -t $SES:deploy O 2>/dev/null; tmux send-keys -t $SES:camera C-c 2>/dev/null; sleep 2; tmux kill-session -t $SES 2>/dev/null; echo stopped ;;
+    tmux send-keys -t "=$SES":deploy O 2>/dev/null; tmux send-keys -t "=$SES":camera C-c 2>/dev/null; sleep 2; tmux kill-session -t "=$SES" 2>/dev/null; echo stopped ;;
   *) echo "usage: $0 start [--no-g1-deploy] | restart-deploy | stop"; exit 1 ;;
 esac
