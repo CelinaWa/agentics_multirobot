@@ -21,10 +21,11 @@ successes, and how each robot held the box.
 
 ## The operator
 
-The operator can put the box back at its starting place on the low table (`request_operator` kind `reset`), and, when
-you ask for the robots too, carry both standing robots back to their starting places and headings. For practice, a
-reset can put a robot somewhere else instead: write `r1_at=x,y,yaw_deg` or `g1_at=x,y,yaw_deg` (team frame) in the
-reset message; the reply says if a place is refused. Resets are cheap here (up to 200 a session). Each reset reply
+A reset (`request_operator` kind `reset`) puts the box back at its starting place on the low table and carries both standing robots
+back to their starting places and headings. Write `robots=stay` in the reset message to leave the robots where they
+are. For practice, a reset can put a robot somewhere else: write `r1_at=x,y,yaw_deg` or `g1_at=x,y,yaw_deg` (team
+frame); any place on the open floor is allowed, and the reply says if a place is refused (then nothing is moved).
+Resets are cheap here (up to 200 a session). Each reset reply
 begins with the measured state of the scene and carries the ground truth of the attempt before it. Nobody holds the
 box or moves the furniture for you. If a robot falls, the operator stands it up again at its start; protect the
 robots anyway, a fall in a real lab costs far more.

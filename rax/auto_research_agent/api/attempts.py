@@ -158,14 +158,16 @@ def truth_rows():
 def truth_summary():
     out = []
     for session, events in truth_rows().items():
-        before = [e for e in events if e.get('event') in ('before_reset', 'operator_end') and 'box' in e]
+        before = [e for e in events if e.get('event') in ('before_reset', 'operator_end') and ('box' in e or 'seen' in e)]
         out.append({
             'session': session,
             'resets': sum(1 for e in events if e.get('event') == 'before_reset'),
             'g1_restarts': sum(1 for e in events if e.get('event') == 'g1_stack_stopped'),
-            'box_left_start_m_max': max((e['box_from_start_m'] for e in before), default=None),
-            'box_to_goal_m_min': min((e['box_to_goal_m'] for e in before), default=None),
-            'successes': sum(1 for e in before if e.get('success')),
+            'box_left_start_m_max': max((e['box_from_start_m'] for e in before if 'box_from_start_m' in e), default=None),
+            'box_to_goal_m_min': min((e['box_to_goal_m'] for e in before if 'box_to_goal_m' in e), default=None),
+            # (a record of what the operator saw has no distances: `seen` carries the judgements)
+            'left_its_support': sum(1 for e in before if (e.get('seen') or {}).get('left_its_support')),
+            'successes': sum(1 for e in before if e.get('success') or (e.get('seen') or {}).get('success')),
         })
     return out
 

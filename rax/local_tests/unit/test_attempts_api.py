@@ -42,7 +42,7 @@ def test_ground_truth_is_summarised_per_session(tmp_path):
     (root/'agent-workspace'/'memory'/'ground_truth'/'older.jsonl').write_text(''.join(json.dumps(r) + '\n' for r in rows))
     (summary,) = attempts.truth_summary()
     assert summary == {'session': 'older', 'resets': 1, 'g1_restarts': 1, 'box_left_start_m_max': 0.5,
-                       'box_to_goal_m_min': 2.9, 'successes': 0}
+                       'box_to_goal_m_min': 2.9, 'left_its_support': 0, 'successes': 0}
 
 
 def test_a_stage_outside_the_graph_is_refused_and_a_row_carries_its_check(tmp_path):

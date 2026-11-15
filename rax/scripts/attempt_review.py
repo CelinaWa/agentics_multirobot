@@ -104,7 +104,9 @@ def truth_events(samples, layout):
     for s in samples:
         z, tilt = s['box'][2], s['box_tilt_deg']
         travel = math.hypot(s['box'][0] - sx, s['box'][1] - sy)
-        lifted = tilt < 20 and (z > table + 0.015 or 0.02 < z < table - 0.01)   # past the edge, lowered: still held
+        # past the edge, lowered: still held. Well above its support it is in the air whatever its tilt (a can held
+        # lying in a hand for 6.5 min was reported 'never lifted')
+        lifted = (tilt < 20 and (z > table + 0.015 or 0.02 < z < table - 0.01)) or z > table + 0.10
         if lifted and not state.get('lifted'):
             note(s['t'], f'box lifted off its support (base z {z:.2f}, tilt {tilt:.0f})')
         if not lifted and state.get('lifted'):

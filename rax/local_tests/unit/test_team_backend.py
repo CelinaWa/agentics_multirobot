@@ -339,7 +339,9 @@ def test_the_real_g1_and_r1_backends_run_as_a_team_and_stop_together(tmp_path):
         g1 = backend.robots['g1'].backend
         stack.connect_pose('127.0.0.1', g1.publisher.port)
         names = [tool['name'] for tool in backend.tools()]
-        assert len(names) == len(set(names)) == len(T.TEAM_TOOLS) + len(G1.ROBOT_TOOLS) + len(R1.ROBOT_TOOLS)
+        import importlib.util      # the G1's arm planner is offered only where torch is installed
+        assert len(names) == len(set(names)) == (len(T.TEAM_TOOLS) + len(G1.ROBOT_TOOLS) + len(R1.ROBOT_TOOLS)
+                                                 - (0 if importlib.util.find_spec('torch') else 1))
         arming.write(config.root, True)
         value, _ = run(backend, 'g1_hold')
         assert 'start_error' not in value and g1.control_mode == 'streamed'

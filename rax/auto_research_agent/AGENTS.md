@@ -58,10 +58,11 @@ hardware.
 side by side: your last calls (with their times), the operator's actions (`runtime/stream/ground_truth.jsonl`: resets,
 restarts, band releases) and the fault's time. A fault inside an operator action is the operator's; a cause seen once
 or twice is a hypothesis, not a rule: write it with its count, and test it before it constrains later sessions.
-After each reset, read the operator's review of the attempt before the next one (the reset reply names it, under
-`runtime/stream/reviews/`): what the box and the robots really did, on one clock with your calls. Label each
-attempt from the reply's numbers; when ground truth contradicts a row you recorded, relabel it with
-`api.attempts.correct(t, ok, why)` (the funnel then counts the correction).
+Each reset reply says what the operator saw of the attempt before it (the same is kept in
+`runtime/stream/ground_truth.jsonl`, and a review under `runtime/stream/reviews/` when the reply names one). Label each
+attempt from that, not from a camera's impression; when it contradicts a row you recorded, relabel it with
+`api.attempts.correct(t, ok, why)` (the funnel then counts the correction). The operator reports what a person beside
+the robots can see; positions and distances are yours to measure with the robots' own sensors.
 {% endif %}
 This session runs on **{{ environment }}**{% if simulated %} (a simulation of the robot){% endif %}. Simulation and real
 sessions share one memory format so experience moves between them: tag every tip `[strategy]`,

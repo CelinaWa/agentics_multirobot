@@ -13,6 +13,7 @@ from services.controller import operator
 from services.controller.frontend import robot_clock
 import attempt_review    # (this script's own folder is on the path)
 import can_task
+import human_view
 
 SIM = Path(__file__).resolve().parents[2] / 'sim_team'      # the office simulation (sim_team/team_sim.sh)
 # several simulations side by side (sim_team/team_sim.sh): TEAM_INSTANCE=n shifts every port by 100 n and uses logs<n>/
@@ -159,28 +160,40 @@ def record(session, ctx, layout, event, **fields):
             row['third_person'] = f'runtime/stream/replay/{name}'
         except OSError:
             pass
-    path = session / 'stream' / 'ground_truth.jsonl'
-    try:
-        path.parent.mkdir(exist_ok=True)
-        with path.open('a') as out:
-            out.write(json.dumps(row) + '\n')
-    except OSError as error:
-        log(f'ground truth not written: {error}')
+    # --reply human: the agent's record (stream/) carries what a person beside the robots could report; the full row
+    # goes to operator/, which the agent cannot read
+    writes = [(truth_path(session), row)]
+    if REPLY == 'human':
+        writes.append((session / 'stream' / 'ground_truth.jsonl', human_view.observed(row, fields.get('closer_than_before'))))
+    for path, content in writes:
+        try:
+            path.parent.mkdir(exist_ok=True)
+            with path.open('a') as out:
+                out.write(json.dumps(content) + '\n')
+        except OSError as error:
+            log(f'ground truth not written: {error}')
     return row
+
+
+REPLY = 'human'
+
+
+def truth_path(session):
+    return session / ('operator' if REPLY == 'human' else 'stream') / 'ground_truth.jsonl'
 
 
 def write_attempt_review(session, number, since, until, samples, layout, frame):
     """stream/reviews/attempt_<n>.md for the agent (runtime/stream/reviews/ in its workspace); its path, or None."""
     try:
-        rows = [json.loads(line) for line in (session / 'stream' / 'ground_truth.jsonl').read_text().splitlines() if line]
+        rows = [json.loads(line) for line in truth_path(session).read_text().splitlines() if line]
     except (OSError, ValueError):
         rows = []
     actions = [f"{r['time']} {r['event'].replace('_', ' ')}" + (f" ({r['restart']})" if r.get('restart') else '')
                for r in rows if since <= r.get('t', 0) < until and r.get('event') not in ('before_reset', 'after_reset')]
     try:
-        attempt_review.write_review(session / 'stream' / 'reviews' / f'attempt_{number}.md', number, since, until,
-                                    samples, layout, session / 'mcp.jsonl', actions, frame)
-        return f'runtime/stream/reviews/attempt_{number}.md'
+        attempt_review.write_review(session / ('operator' if REPLY == 'human' else 'stream') / 'reviews' / f'attempt_{number}.md',
+                                    number, since, until, samples, layout, session / 'mcp.jsonl', actions, frame)
+        return None if REPLY == 'human' else f'runtime/stream/reviews/attempt_{number}.md'
     except Exception as error:
         log(f'attempt review not written: {error}')
         return None
@@ -266,35 +279,59 @@ R1_AT = re.compile(r'r1_at\s*=\s*\(?\s*(-?\d*\.?\d+)\s*,\s*(-?\d*\.?\d+)\s*,\s*(
 G1_AT = re.compile(r'g1_at\s*=\s*\(?\s*(-?\d*\.?\d+)\s*,\s*(-?\d*\.?\d+)\s*,\s*(-?\d*\.?\d+)')
 
 
-def g1_pose_asked(message, layout):
-    """`g1_at=x,y,yaw_deg` in a reset request: a person sets the G1 there. Refused (None, reason) unless within
-    0.2 m and 20 deg of the G1's start and at least 0.33 m from the box centre."""
+ROBOTS_STAY = re.compile(r'robots?\s*=\s*stay|(leave|keep)\b.{0,40}\brobots?\b.{0,40}(where|in place|as they are|there)', re.I | re.S)
+
+
+def place_refusal(x, y, layout, other=None):
+    """Why a person could not stand a robot at (x, y), or '': the place must be on the open floor (0.25 m clear of every
+    piece of furniture and wall in the layout), 0.33 m from where the task's object starts, and 0.6 m from the other
+    robot's place. Anywhere else in the room is allowed (two sessions had every 'at the object' practice stance refused
+    by a rule tying stances to the start places, and walked across the room for each try)."""
     import math
-    m = G1_AT.search(message)
+    clear = 0.25
+    if not (-1.5 <= x <= layout.get('back_wall_x', 1e9) - clear and layout.get('curtain_y', -1e9) + clear <= y <= layout.get('left_wall_y', 1e9) - clear):
+        return 'it is outside the room or against a wall'
+    things = {k: v for k, v in layout.items() if isinstance(v, dict) and 'pos' in v and k not in ('box_start', 'can_start', 'bin_start', 'tv', 'goal')}
+    for name, thing in things.items():
+        px, py = thing['pos'][:2]
+        if 'size' in thing:
+            hx, hy = thing['size'][0] / 2, thing['size'][1] / 2
+            if thing.get('yaw_deg'):
+                hx = hy = math.hypot(hx, hy)
+        else:
+            hx = hy = float(thing.get('base_r', 0.3))
+        if abs(x - px) < hx + clear and abs(y - py) < hy + clear:
+            return f'it is in or within {clear:g} m of the {name.replace("_", " ")}'
+    bx, by = layout['box_start']['pos'][:2]
+    if math.hypot(x - bx, y - by) < 0.33:
+        return 'it is within 0.33 m of where the object starts'
+    if other is not None and math.hypot(x - other[0], y - other[1]) < 0.6:
+        return 'it is within 0.6 m of the other robot\'s place'
+    return ''
+
+
+def _pose_asked(pattern, name, other_name, message, layout):
+    m = pattern.search(message)
     if not m:
         return None, ''
     x, y, yaw = (float(v) for v in m.groups())
-    (bx, by), (sx, sy) = layout['box_start']['pos'][:2], layout['robots']['g1']['pos'][:2]
-    if (math.hypot(x - bx, y - by) < 0.33 or math.hypot(x - sx, y - sy) > 0.2
-            or abs(yaw - layout['robots']['g1'].get('yaw_deg', 0.0)) > 20):
-        return None, (f' I did not set the G1 at g1_at={x:g},{y:g},{yaw:g}: it must be within 0.2 m and 20 deg of its '
-                      'start and at least 0.33 m from the box centre.')
+    om = (R1_AT if pattern is G1_AT else G1_AT).search(message)
+    other = [float(v) for v in om.groups()][:2] if om else layout['robots'][other_name]['pos'][:2]
+    why = place_refusal(x, y, layout, other)
+    if why:
+        return None, (f' I did not put the {name.upper()} at {name}_at={x:g},{y:g},{yaw:g}: {why}. This reset moved NO robot: both are '
+                      'where they were.')
     return (x, y, yaw), ''
+
+
+def g1_pose_asked(message, layout):
+    """`g1_at=x,y,yaw_deg` in a reset request: a person sets the G1 there, or (None, reason) if nobody could."""
+    return _pose_asked(G1_AT, 'g1', 'r1', message, layout)
 
 
 def r1_pose_asked(message, layout):
-    """`r1_at=x,y,yaw_deg` in a reset request (the team frame, which is the room's here): a person carries the R1 to that
-    stance for practice. Refused (None, reason) unless it is clear of the box and the low table and near the start."""
-    import math
-    m = R1_AT.search(message)
-    if not m:
-        return None, ''
-    x, y, yaw = (float(v) for v in m.groups())
-    (bx, by), (sx, sy) = layout['box_start']['pos'][:2], layout['robots']['r1']['pos'][:2]
-    if math.hypot(x - bx, y - by) < 0.33 or math.hypot(x - sx, y - sy) > 1.0:
-        return None, (f' I did not carry the R1 to r1_at={x:g},{y:g},{yaw:g}: a stance must be at least 0.33 m from the '
-                      'box centre and within 1.0 m of the R1\'s start.')
-    return (x, y, yaw), ''
+    """`r1_at=x,y,yaw_deg` in a reset request (the team frame, which is the room's here), likewise."""
+    return _pose_asked(R1_AT, 'r1', 'g1', message, layout)
 
 
 def tripped_since(session, since):
@@ -430,7 +467,13 @@ def main():
                     help='say so in the reset reply each time this many attempts in a row brought no task progress')
     ap.add_argument('--max-g1-restarts', type=int, default=6,
                     help='how often the operator starts the G1 stack again after it stopped (a fall)')
+    ap.add_argument('--reply', choices=('human', 'full'), default='human',
+                    help='human: replies and the record the agent reads carry only what a person beside the robots '
+                         'could report (no measured coordinates, distances or contact flags); full: the simulation\'s '
+                         'ground truth, as before')
     a = ap.parse_args()
+    global REPLY
+    REPLY = a.reply
     layout = json.loads((Path(os.environ.get('TEAM_SCENE_DIR') or SIM / 'scene') / 'layout.json').read_text())
     replace_robots.session = a.session
     ctx = zmq.Context.instance()
@@ -486,7 +529,7 @@ def main():
             log(f"request [{request['kind']}]: {request['message'][:300]}")
             if request['kind'] == 'reset' and resets < a.max_resets:
                 log('before the reset: ' + end_state(ctx, layout))
-                reset_started, before = time.time(), truth_words(ctx, layout)
+                reset_started, before = time.time(), ('' if REPLY == 'human' else truth_words(ctx, layout))
                 reset_times.append(reset_started)
                 resets += 1
                 summary = None
@@ -502,15 +545,23 @@ def main():
                 if layout.get('task') == 'can_bin':     # this task's rule: one robot on the bin, the other on the can
                     task_roles = can_task.roles(samples)
                     carried_by_both = task_roles['as_the_task_asks']
-                    before += can_task.role_words(task_roles)
+                    if REPLY != 'human':
+                        before += can_task.role_words(task_roles)
+                # (whether this attempt carried the object closer than any before: the same test the progress count uses)
+                reached_now = (summary or {}).get('closest_to_goal_in_air_m')
+                best_before = progress['best_m'] if progress['best_m'] is not None else (summary or {}).get('start_to_goal_m')
+                closer = bool(reached_now is not None and best_before is not None and reached_now < best_before - 0.02)
                 row = record(a.session, ctx, layout, 'before_reset', reset=resets, request=request['message'][:600],
-                             attempt=summary, carried_by_both=carried_by_both, roles=task_roles)
+                             attempt=summary, carried_by_both=carried_by_both, roles=task_roles,
+                             closer_than_before=closer if summary else None)
+                if REPLY == 'human':
+                    before += human_view.words(human_view.observed(row, closer if summary else None))
                 if row.get('success') and task_roles is not None:
                     before += (' SUCCESS: the can is in the bin, the bin stands, and it was done as the task asks.' if carried_by_both else
                                ' The can is in the bin, but not as the task asks (see above): not a success.')
                 elif row.get('success') and not carried_by_both:
-                    before += (' The box is at the goal, but it was in the air for '
-                               f"{summary['in_air_without_both_robots_s']:g} s without both hands of each robot on it: not a success.")
+                    before += (' The box is at the goal, but it was off its support without both hands of each robot on it'
+                               + ('' if REPLY == 'human' else f" for {summary['in_air_without_both_robots_s']:g} s") + ': not a success.')
                 elif row.get('success'):
                     before += ' SUCCESS: the box stands at the goal and was carried by both robots.'
                 review = write_attempt_review(a.session, resets, attempt_since, reset_started, samples, layout,
@@ -530,7 +581,11 @@ def main():
                 r1_pose, refused = r1_pose_asked(request['message'], layout)
                 g1_pose, g1_refused = g1_pose_asked(request['message'], layout)
                 refused += g1_refused
-                if ('robot' in request['message'].lower() or r1_pose or g1_pose) and standing(ctx):
+                # the robots go back to their starts on every reset unless the request says to leave them (the word
+                # 'robot' anywhere used to decide it: 'leave the robots where they are' carried both to the start, and
+                # a request naming only 'the R1' moved nothing); a refused place moves nothing
+                stay = bool(ROBOTS_STAY.search(request['message'])) and not (r1_pose or g1_pose)
+                if not stay and not refused and standing(ctx):
                     # as a person would: pick the box up and set it aside, carry the robots, then put the box back.
                     # Robots carried while the box stays put land in it (S28: the G1 set down on the box at its feet,
                     # or with its arms out around it, stepped 0.43 m away, disarmed and fell); a box put back before
@@ -565,8 +620,8 @@ def main():
                         t = truth(ctx, layout)
                         aims = {'G1': ((g1_pose[:2] if g1_pose else layout['robots']['g1']['pos'][:2]), t['g1'], t['g1_tilt_deg']),
                                 'R1': ((r1_pose[:2] if r1_pose else layout['robots']['r1']['pos'][:2]), t['r1'], t['r1_tilt_deg'])}
-                        off = [f"the {name} is NOT where I put it: it is at ({at[0]:.2f}, {at[1]:.2f}), "
-                               f"{((at[0] - aim[0]) ** 2 + (at[1] - aim[1]) ** 2) ** 0.5:.2f} m away, tilt {tl:.0f} deg"
+                        off = [f"the {name} is NOT where I put it" + ('' if REPLY == 'human' else f": it is at ({at[0]:.2f}, {at[1]:.2f}), "
+                               f"{((at[0] - aim[0]) ** 2 + (at[1] - aim[1]) ** 2) ** 0.5:.2f} m away, tilt {tl:.0f} deg")
                                for name, (aim, at, tl) in aims.items()
                                if ((at[0] - aim[0]) ** 2 + (at[1] - aim[1]) ** 2) ** 0.5 > 0.05 or tl > 15]
                         if off:
@@ -578,7 +633,7 @@ def main():
                 if tripped is not None:
                     # the agent must not take the operator's doing for a result of its own commands (S28: three G1
                     # runaways during resets were blamed on the agent's last motion and became rules in its notes)
-                    caused = (f' While I carried the robots, the G1\'s guard tripped ("{tripped[:160]}"): MY PLACEMENT '
+                    caused = (f' While I carried the robots, a robot\'s guard tripped ("{tripped[:160]}"): MY PLACEMENT '
                               'caused that, not your commands; do not draw conclusions about your motions from it.')
                     if standing(ctx) and deploy_alive():
                         arming.write(a.session, True, minutes=max(1.0, (deadline - time.time()) / 60), by='sim operator')
@@ -596,7 +651,7 @@ def main():
                         # (attempts before the object was ever carried do not count toward a stall: the measure has
                         # nothing to say yet; a from-scratch session was told 'stalled' at its 8th reset, before any lift)
                         progress['since_best'] += 1
-                if summary:   # S30 read 6 of 37 reviews and labelled runs from the end position alone
+                if summary and REPLY != 'human':   # S30 read 6 of 37 reviews and labelled runs from the end position alone
                     before += (' The attempt in numbers (label it with these): '
                                + attempt_review.summary_words(summary) + '.')
                 text = (f'Reset {resets}/{a.max_resets}:' + before + ' Now the box is back at its starting place, upright.'
@@ -624,7 +679,8 @@ def main():
                     placement = placement_errors(poses, targets)
                     report['robots_asked'] = {k: {'x': v[0], 'y': v[1], 'yaw_deg': v[2]} for k, v in targets.items()}
                     for robot, off_m, off_deg in placement:
-                        report['warnings'].append(f'{robot} is {off_m} m and {off_deg} deg from where it was to be put, after 3 tries')
+                        report['warnings'].append(f'{robot} is not standing where it was to be put, after 3 tries' if REPLY == 'human' else
+                                                  f'{robot} is {off_m} m and {off_deg} deg from where it was to be put, after 3 tries')
                 if misplaced:
                     report['warnings'].append('the box did not come to rest at its start')
                 if tripped is not None:
@@ -632,14 +688,21 @@ def main():
                 if 'could not stand it up' in r1_stood:
                     report['warnings'].append('the R1 is down')
                 report['state_ok'] = bool(not report['warnings'] and report.get('robots_standing', True))
-                state_first = 'STATE ' + json.dumps(report, separators=(',', ':')) + ' '
+                said = report
+                if REPLY == 'human':     # the places the robots were put (as on floor marks), not measured poses
+                    said = {'reset': resets, 'state_ok': report['state_ok'], 'robots_standing': report.get('robots_standing'),
+                            'warnings': report['warnings'], 'robots_put_at': report.get('robots_asked'),
+                            'task_progress': {'attempts': progress['attempts'], 'attempts_since_it_improved': progress['since_best']}}
+                    report = {**report, 'robots_put_at': report.get('robots_asked')}
+                state_first = 'STATE ' + json.dumps(said, separators=(',', ':')) + ' '
                 if progress['since_best'] and progress['since_best'] % a.stall_attempts == 0:
                     # a stall is a fact the harness can see; what to do about it is the agent's (strategy-review skill).
                     # First in the reply: mid-text in a 4 kB reply it was acted on once in four
                     state_first = (f"TASK PROGRESS STALLED: {progress['since_best']} attempts in a row have not brought the task "
-                                    f"closer to its goal than the best so far ({progress['best_m']} m from it"
-                                    + (f", attempt {progress['best_attempt']}" if progress['best_attempt'] else ', the start') + '). '
-                                    'The strategy-review skill asks for a fresh review now, from the ground truth, before more of the same. '
+                                    'closer to its goal than the best so far ('
+                                    + ('' if REPLY == 'human' else f"{progress['best_m']} m from it, ")
+                                    + (f"attempt {progress['best_attempt']}" if progress['best_attempt'] else 'the start') + '). '
+                                    'The strategy-review skill asks for a fresh review now, from what was observed, before more of the same. '
                                    + state_first)
                 log('after the reset: ' + end_state(ctx, layout))
                 record(a.session, ctx, layout, 'after_reset', reset=resets, r1_at=list(r1_pose) if r1_pose else None,
