@@ -1114,7 +1114,7 @@ class G1SonicBackend:
                 'vr_orientation': np.concatenate([points[k][1] for k in order])}
 
     def _hands_walk(self, forward_m=0.0, left_m=0.0, turn_deg=0.0, speed_mps=0.3, left_hand=None, right_hand=None,
-                    press_m=None):
+                    press_m=None, hands_stay=False):
         """Walk under SONIC's planner with its teleop encoder: the planner moves the legs and the policy keeps the two
         hand points at their targets in the pelvis frame (sim: a 1.2 kg box squeezed between the palms stayed held
         over 0.8 m back, 1.2 m left, 1.4 m right, 1.2 m forward and a 20 deg turn; under g1_walk(carry), which holds
@@ -1164,6 +1164,7 @@ class G1SonicBackend:
             started, start_yaw = self.clock(), snap.yaw_rad()
             extend, covered_all, turned_now = max(o['walk_odometry_extend_s'], distance / speed_mps), False, 0.0
             stalled, entry_sep = False, float(np.linalg.norm(measured['left'][0] - measured['right'][0]))
+            stayed = None
             if entering:
                 self._planner_keepalive = None
                 self.streamer.keepalive = None
@@ -1224,6 +1225,23 @@ class G1SonicBackend:
                             points = {k: (old[k][0] * (1 - a) + new[k][0] * a, new[k][1]) for k in new}
                         else:
                             points = new
+                        if hands_stay and phase != 'blend' and latest is not None:
+                            # the hands stay where they are in the world while the body steps under them: each target
+                            # moves in the pelvis frame against the leg odometry (a box held with another robot is
+                            # not dragged by this robot's uneven strides)
+                            dyaw = latest.yaw_rad() - start_yaw
+                            cy, sy_ = math.cos(start_yaw), math.sin(start_yaw)
+                            cn, sn_ = math.cos(-latest.yaw_rad()), math.sin(-latest.yaw_rad())
+                            moved = {}
+                            for k in ('left', 'right'):
+                                px, py, pz = new[k][0]
+                                wx, wy = cy * px - sy_ * py - odo['xy'][0], sy_ * px + cy * py - odo['xy'][1]
+                                moved[k] = (np.array([cn * wx - sn_ * wy, sn_ * wx + cn * wy, pz]), new[k][1])
+                            points = {**new, **moved}
+                            reach = [float(np.linalg.norm(points[k][0] - new[k][0])) for k in ('left', 'right')]
+                            if max(reach) > 0.22:
+                                covered_all = True      # the arms are at the end of what they can take up: stop stepping
+                            stayed = points
                         if phase == 'move':
                             psi = psi0 + (turn * min(1.0, t / turn_s) if turn_s > 0 else 0.0)
                             if turn_s > 0 and t >= turn_s:
@@ -1263,6 +1281,10 @@ class G1SonicBackend:
                     self.plans = {}
                     self.step_id += 1
                     final = new if not stop_reason else points
+                    if stayed is not None:
+                        # the hold goes on from where the hands now are in the pelvis frame (press already in them)
+                        final = stayed
+                        new_base, press = {**new_base, 'left': stayed['left'], 'right': stayed['right']}, 0.0
                     end_snap = self.state.latest()
                     if end_snap is not None and self._planner_frame_yaw is not None:
                         # hold the heading the robot has now: a facing it has not reached keeps it turning afterwards
@@ -1297,7 +1319,7 @@ class G1SonicBackend:
                         'hand_targets_pelvis': {k: np.round(new[k][0], 3).tolist() for k in ('left', 'right')},
                         'hand_target_error_m': {'left': round(float(tail[:, 0].mean()), 3), 'right': round(float(tail[:, 1].mean()), 3),
                                                 'note': 'measured minus target; against an object this is the press that holds it'},
-                        'stalled': stalled,
+                        'stalled': stalled, 'hands_stay': bool(hands_stay),
                         'hand_separation_m': {'at_call_start': round(entry_sep, 3),
                                               'now': round(float(np.linalg.norm(now['left'][0] - now['right'][0])), 3),
                                               'min': round(min(seps), 3) if seps else None,

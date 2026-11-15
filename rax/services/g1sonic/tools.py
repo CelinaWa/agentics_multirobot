@@ -166,7 +166,8 @@ def tool_definitions(geometry=True):
              "turn_deg": {"type": "number", "minimum": -60, "maximum": 60},
              "speed_mps": {"type": "number", "minimum": 0.25, "maximum": 0.6, "default": 0.3},
              "left_hand": _vector(3), "right_hand": _vector(3),
-             "press_m": {"type": "number", "minimum": 0.0, "maximum": 0.25}}}},
+             "press_m": {"type": "number", "minimum": 0.0, "maximum": 0.25},
+             "hands_stay": {"type": "boolean", "default": False}}}},
         {"name": PLANNER, "description": (
             "SONIC's locomotion planner, raw: this message is sent to the deploy stack 20 times a second for `seconds` "
             "(at most 10), with nothing added (no distance, no odometry stop, no ramp). Fields, as the stack defines "
@@ -357,7 +358,8 @@ def validate_request(name, arguments):
         if "upper_body" in arguments:
             _finite_vector(arguments["upper_body"], 17, "upper_body")
     elif name == HANDS_WALK:
-        _only(arguments, tuple(HANDS_WALK_LIMITS) + ("left_hand", "right_hand"))
+        _only(arguments, tuple(HANDS_WALK_LIMITS) + ("left_hand", "right_hand", "hands_stay"))
+        reject_unless(type(arguments.get("hands_stay", False)) is bool, "hands_stay must be a boolean")
         for key, (low, high) in HANDS_WALK_LIMITS.items():
             if key in arguments:
                 _finite(arguments[key], key)
