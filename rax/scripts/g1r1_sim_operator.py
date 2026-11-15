@@ -391,27 +391,41 @@ def replace_robots(ctx, keys, layout, r1_pose=None, g1_pose=None):
     qpos = np.frombuffer(sub.recv(), dtype=np.float64); sub.close()
     g1 = layout['robots']['g1'] if g1_pose is None else {'pos': g1_pose[:2], 'yaw_deg': g1_pose[2]}
     r1 = layout['robots']['r1'] if r1_pose is None else {'pos': r1_pose[:2], 'yaw_deg': r1_pose[2]}
-    w, x, y, z = qpos[3:7]                               # keep the G1's roll and pitch, set its yaw
-    turn = math.radians(g1.get('yaw_deg', 0.0)) - math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))
-    c, s = math.cos(turn / 2), math.sin(turn / 2)       # q_new = q_turn(z) * q
-    q = (c * w - s * z, c * x - s * y, c * y + s * x, c * z + s * w)
-    keys.send_string(f"place=pelvis,{g1['pos'][0]},{g1['pos'][1]},{qpos[2]},{q[0]},{q[1]},{q[2]},{q[3]}"); time.sleep(0.3)
-    # tell the G1's service that the robot was carried: it takes the pose it has now as its reference (under the planner's
-    # hold the robot otherwise walks back); the service removes the file when it has
+    # The G1 is set down ONCE and its service told at once (it then takes the pose it has as its reference), and then
+    # left alone until it stands quiet. Measured: one placement with the service told within 10 ms leaves it within
+    # 0.14 m and 27 deg after a 90 deg turn, standing; every way of placing it more than once in a few seconds (set
+    # down, tell 0.3 s later, set down again; held at the place for a second; turned in 3 deg steps) had it stepping
+    # under a pelvis that was being snapped back, and it stumbled 0.4-0.9 m off or fell (2 of 10). What is left over
+    # is corrected by the next single placement, which is small.
     session = getattr(replace_robots, 'session', None)
-    if session is not None:
-        flag = Path(session) / 'operator' / 'g1_moved'
+    flag = Path(session) / 'operator' / 'g1_moved' if session is not None else None
+
+    def told():
+        if flag is None:
+            time.sleep(0.1)
+            return False
         try:
             flag.write_text(str(time.time()))
-            for _ in range(80):
+            for _ in range(1000):                      # (the service stands the robot under the planner, then holds it afresh)
                 if not flag.exists():
-                    break
-                time.sleep(0.1)
-            else:
-                flag.unlink(missing_ok=True)
+                    return True
+                time.sleep(0.01)
+            flag.unlink(missing_ok=True)
         except OSError:
             pass
-        keys.send_string(f"place=pelvis,{g1['pos'][0]},{g1['pos'][1]},{qpos[2]},{q[0]},{q[1]},{q[2]},{q[3]}"); time.sleep(0.3)
+        return False
+
+    def quat_turned(q0, turn):                          # q_new = q_turn(z) * q: roll and pitch kept
+        w, x, y, z = q0
+        c, s = math.cos(turn / 2), math.sin(turn / 2)
+        return (c * w - s * z, c * x - s * y, c * y + s * x, c * z + s * w)
+
+    w, x, y, z = qpos[3:7]
+    turn = math.radians(g1.get('yaw_deg', 0.0)) - math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))
+    q = quat_turned(qpos[3:7], turn)
+    keys.send_string(f"place=pelvis,{g1['pos'][0]},{g1['pos'][1]},{qpos[2]},{q[0]},{q[1]},{q[2]},{q[3]}")
+    replace_robots.g1_took_the_pose = told()
+    time.sleep(0.5)
     h = math.radians(r1['yaw_deg']) / 2
     r1z = qpos[57 + 2]                                      # the R1's root follows the G1 (50) and the box (7) in qpos
     # the controller's reference goes to the asked pose first, then the robot: with the reference left at the old
@@ -604,7 +618,8 @@ def main():
                         placement = placement_errors(poses, targets) if poses else []
                         if not placement:
                             break
-                        log(f'after placing the robots, off: {placement}; placing them again ({again + 1})')
+                        log(f'after placing the robots, off: {placement}; the G1 service took the pose: '
+                            f"{getattr(replace_robots, 'g1_took_the_pose', None)}; placing them again ({again + 1})")
                         replace_robots(ctx, keys, layout, r1_pose, g1_pose)
                     where = lambda name, pose: (f'the {name} stands at ({pose[0]:g}, {pose[1]:g}), heading {pose[2]:g} deg, '
                                                 'as you asked' if pose else f'the {name} is back at its start, at its start heading')

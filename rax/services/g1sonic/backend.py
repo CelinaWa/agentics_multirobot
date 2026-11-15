@@ -1559,7 +1559,27 @@ class G1SonicBackend:
                     self._hand_over_to_hold(quiet or self.state.latest())
                     self._event('the operator moved the robot: the planner hold was handed to the streamed hold of the measured pose')
                 elif self.control_mode == 'streamed' and self.streamer.primed:
+                    # a streamed hold re-anchored in place keeps pulling toward the heading the stream began with (set
+                    # down turned 90 deg and re-anchored within 10 ms, the robot was back within 20-30 deg of its old
+                    # heading after three placements); a hold that BEGINS at the new pose does not. So: through the
+                    # planner's idle stand at the heading it now has, and back to a fresh streamed hold
                     self._reanchor('the operator moved the robot')
+                    held = self.converter.last
+                    extra = {} if held is None else {'left_hand': held.left_hand.copy(), 'right_hand': held.right_hand.copy()}
+                    self.streamer.mirror_upper = False
+                    self.streamer.hold()
+                    self.streamer.command(start=True, planner=True)
+                    self.control_mode = 'planner'
+                    self._planner_frame_yaw, self._stepping_since, self._teleop = snap.yaw_rad(), None, None
+                    self._planner_keepalive = lambda: self.streamer.planner(IDLE, [0.0, 0.0, 0.0], [1.0, 0.0, 0.0], -1.0, **extra)
+                    self.streamer.keepalive = self._planner_keepalive
+                    for _ in range(20):
+                        self._planner_keepalive()
+                        time.sleep(0.05)
+                    quiet = self._wait_until_quiet(timeout=4.0, raise_on_timeout=False, strict=False)
+                    self._hand_over_to_hold(quiet or self.state.latest())
+                    self._runaway_restart = True
+                    self._event('the operator moved the robot: a fresh streamed hold begins at the measured pose')
         except Exception as exc:
             self._event('taking the new pose after the operator moved the robot failed', error=str(exc)[:200])
         finally:
@@ -1575,6 +1595,11 @@ class G1SonicBackend:
         if o['runaway_m'] <= 0 or self.control_mode != 'streamed':
             self._runaway_odo = None
             return []
+        if getattr(self, '_runaway_restart', False):
+            # someone else just moved or turned the robot (a re-anchor): what the legs did meanwhile is not the robot
+            # walking off by itself (a robot turned 90 deg by the operator was disarmed for 'stepping 0.40 m by
+            # itself', stumbled 0.9 m and fell)
+            self._runaway_restart, self._runaway_odo, history = False, None, []
         try:
             if self._runaway_odo is None:
                 self._runaway_odo = {'xy': np.zeros(2), 'feet': None, 'stance': None}
@@ -1753,6 +1778,7 @@ class G1SonicBackend:
             self.converter.clear()
         self.streamer.prime(self._within_limits(snap.q), snap.base_quat, hands=hands)
         self.last_row, self.plans = None, {}
+        self._runaway_restart = True
         heading = round(math.degrees(snap.yaw_rad()), 2)
         self._event(f'heading re-anchored to the measured pose ({why}): {heading} deg')
         return heading
