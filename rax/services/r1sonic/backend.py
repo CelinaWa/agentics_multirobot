@@ -192,7 +192,7 @@ class R1SonicBackend:
     def _gait(self, seconds, speed_mps=0.3, backward=False, turn_deg_s=0.0, settle=True):
         """The stack's gait by velocity for `seconds`, sampling the state about 10 times a second meanwhile."""
         started = self.stack.gait(forward=not backward, speed_mps=speed_mps, turn_deg_s=turn_deg_s,
-                                  seconds=float(seconds) + (1.0 if not settle else 0.3))
+                                  seconds=float(seconds) + 0.3)   # (0.3 s past the call: the next call takes over without a stop)
         samples, t0 = [], time.monotonic()
         while time.monotonic() - t0 < float(seconds):
             s = self._state()

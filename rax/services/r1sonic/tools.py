@@ -120,7 +120,7 @@ def tool_definitions(geometry=True):
             "point in your root frame and their difference (hand_error_m: what an object or another robot holding "
             "the same object does to your hand shows there). settle=true (default) then ends the gait, waits until "
             "you stand still and reports walked_m, lateral_m and turned_deg over the whole gait since it began; "
-            "settle=false leaves the gait running for about `seconds` more ticks so the next r1_gait call can change "
+            "settle=false leaves the gait running 0.3 s past the call so the next r1_gait call can change "
             "speed or turn without a stop (the gait cycle goes on; if no call follows, it ramps out by itself: then "
             "call r1_gait with seconds 0.2 and settle=true before measuring). Not "
             "measured yet with something held. Needs operator arming; not available on the real robot yet."),
