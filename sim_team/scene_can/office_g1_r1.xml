@@ -475,7 +475,7 @@
       <geom name="chair_arm_1" size="0.17 0.02 0.015" pos="0 -0.26 0.66" type="box" rgba="0.12 0.12 0.13 1"/>
       <geom name="chair_arm_post_1" size="0.0125 0.0125 0.1" pos="0.14 -0.26 0.55" type="box" rgba="0.6 0.6 0.62 1"/>
     </body>
-    <body name="box" pos="-1.6 -3.2 0.01">
+    <body name="box" pos="-40 -40 0.01">
       <joint name="box_free" type="free"/>
       <geom name="box_bottom" size="0.205 0.155 0.003" pos="0 0 0.003" type="box" condim="4" friction="0.9 0.01 0.001" solref="0.01" rgba="0.78 0.62 0.42 1" mass="0.54"/>
       <geom name="box_end_a" size="0.003 0.155 0.13" pos="-0.202 0 0.13" type="box" condim="4" friction="0.9 0.01 0.001" solref="0.01" rgba="0.78 0.62 0.42 1" mass="0.165"/>
@@ -722,7 +722,7 @@
         </body>
       </body>
     </frame>
-    <body name="low_table" pos="-1.6 -2.6 0">
+    <body name="low_table" pos="-40 -38 0">
       <joint name="low_table_free" type="free"/>
       <geom name="low_table_top" size="0.235 0.2 0.015" pos="0 0 0.435" type="box" friction="0.9 0.01 0.001" rgba="0.8 0.62 0.38 1" mass="3"/>
       <geom name="low_table_column" size="0.05 0.05 0.21" pos="0 0 0.21" type="box" rgba="0.62 0.64 0.66 1" mass="4"/>

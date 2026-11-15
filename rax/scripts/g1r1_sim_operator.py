@@ -334,6 +334,13 @@ def r1_pose_asked(message, layout):
     return _pose_asked(R1_AT, 'r1', 'g1', message, layout)
 
 
+def box_aside(layout):
+    """The place key that sets the box out of the robots' way: where the scene parks it if it has no part in the task
+    (out of sight: a can-task session took the box parked behind the curtain for the bin), else beside the room."""
+    x, y, z = (layout.get('parked') or {}).get('box') or (-1.6, -3.2, 0.15)
+    return f'place=box,{x},{y},{max(z, 0.15) if "parked" not in layout else z},1,0,0,0'
+
+
 def tripped_since(session, since):
     """The reason of a disarm by the robot service (a runaway or fall guard) written at or after `since`, else None."""
     try:
@@ -583,7 +590,7 @@ def main():
                 moved = ''
                 r1_stood, targets, placement = '', None, []
                 if r1_is_down(ctx):
-                    keys.send_string('place=box,-1.6,-3.2,0.15,1,0,0,0'); time.sleep(0.5)     # out of the way first
+                    keys.send_string(box_aside(layout)); time.sleep(0.5)     # out of the way first
                     if stand_r1_up(ctx, keys, layout):
                         arming.write(a.session, True, minutes=max(1.0, (deadline - time.time()) / 60), by='sim operator')
                         r1_stood = (' The R1 was lying on the floor: I stood it up at its start (its arms as they were, '
@@ -604,7 +611,7 @@ def main():
                     # Robots carried while the box stays put land in it (S28: the G1 set down on the box at its feet,
                     # or with its arms out around it, stepped 0.43 m away, disarmed and fell); a box put back before
                     # the robots is knocked by their arms as they arrive
-                    keys.send_string('place=box,-1.6,-3.2,0.15,1,0,0,0'); time.sleep(0.5)
+                    keys.send_string(box_aside(layout)); time.sleep(0.5)
                     replace_robots(ctx, keys, layout, r1_pose, g1_pose)
                     # a reset is done when the robots ARE where they were put, heading included: measure, and put them
                     # there again if not (S41: all 49 replies said 'at its start heading' while the R1 was 6-27 deg and
