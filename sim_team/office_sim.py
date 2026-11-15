@@ -203,9 +203,13 @@ def main():
 
     def touches():
         model = env.mj_model
-        try:
-            box = model.body('box').id
-        except Exception:
+        targets = {}
+        for name in ('box', 'can', 'bin'):          # the objects a task may ask about, where the scene has them
+            try:
+                targets[model.body(name).id] = name
+            except Exception:
+                pass
+        if not targets:
             return
         owner = {}
         for b in range(model.nbody):
@@ -215,17 +219,20 @@ def main():
                     if any(name.startswith(prefix) for prefix in prefixes):
                         owner[b] = (robot, side)
         while True:
-            out = {robot: {'left': False, 'right': False} for robot in HANDS}
+            out = {name: {robot: {'left': False, 'right': False} for robot in HANDS} for name in targets.values()}
             try:
                 data = env.mj_data
                 for i in range(int(data.ncon)):
                     c = data.contact[i]
                     b1, b2 = int(model.geom_bodyid[c.geom1]), int(model.geom_bodyid[c.geom2])
-                    other = b2 if b1 == box else b1 if b2 == box else None
-                    if other in owner:
-                        robot, side = owner[other]
-                        out[robot][side] = True
-                touch_pub.send_string(_json.dumps({'t': time.time(), 'hands_on_box': out}))
+                    for obj, other in ((b1, b2), (b2, b1)):
+                        if obj in targets and other in owner:
+                            robot, side = owner[other]
+                            out[targets[obj]][robot][side] = True
+                message = {'t': time.time(), 'hands_on': out}
+                if 'box' in out:
+                    message['hands_on_box'] = out['box']
+                touch_pub.send_string(_json.dumps(message))
             except Exception:
                 pass
             time.sleep(0.05)

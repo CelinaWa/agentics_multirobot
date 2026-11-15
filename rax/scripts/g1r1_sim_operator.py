@@ -12,6 +12,7 @@ from services import arming
 from services.controller import operator
 from services.controller.frontend import robot_clock
 import attempt_review    # (this script's own folder is on the path)
+import can_task
 
 SIM = Path(__file__).resolve().parents[2] / 'sim_team'      # the office simulation (sim_team/team_sim.sh)
 # several simulations side by side (sim_team/team_sim.sh): TEAM_INSTANCE=n shifts every port by 100 n and uses logs<n>/
@@ -80,6 +81,9 @@ def truth(ctx, layout):
         q = np.frombuffer(sub.recv(), dtype=np.float64)
     finally:
         sub.close()
+    if layout.get('task') == 'can_bin':
+        hands_on_box(ctx)
+        return can_task.truth(q, layout, (_TOUCH.get('last') or {}).get('hands_on'))
     tilt = lambda w, x, y, z: math.degrees(math.acos(max(-1.0, min(1.0, 1 - 2 * (x * x + y * y)))))
     gx, gy = layout['goal']['pos'][:2]
     (bx, by) = layout['box_start']['pos'][:2]
@@ -118,6 +122,8 @@ def truth_words(ctx, layout):
         t = truth(ctx, layout)
     except Exception:
         return ''
+    if layout.get('task') == 'can_bin':
+        return can_task.words(t)
     z, tilt, table = t['box'][2], t['box_tilt_deg'], layout['box_start'].get('z', 0.0)
     if tilt >= 60:
         where = f'on its side or upside down (tilt {tilt:.0f} deg)'
@@ -230,6 +236,8 @@ def restart_g1(keys, layout):
 def place_box(ctx, keys, layout, attempts=2):
     """Put the low table and the box back at their start and check where the box came to rest (ground truth)."""
     import math
+    if layout.get('task') == 'can_bin':
+        return can_task.place(keys, layout, qpos_now, ctx, attempts)
     (bx, by), yaw = layout['box_start']['pos'], layout['box_start']['yaw_deg']
     bz = layout['box_start'].get('z', 0.0) + 0.01      # on the floor, or on the low table it starts on
     h = math.radians(yaw) / 2
@@ -470,9 +478,17 @@ def main():
                 # each robot on it (2 s of slack for the sampling); an end state at the goal reached otherwise is not a success
                 carried_by_both = (summary is None or summary.get('in_air_without_both_robots_s') is None
                                    or summary['in_air_without_both_robots_s'] <= 2.0)
+                task_roles = None
+                if layout.get('task') == 'can_bin':     # this task's rule: one robot on the bin, the other on the can
+                    task_roles = can_task.roles(samples)
+                    carried_by_both = task_roles['one_robot_each']
+                    before += can_task.role_words(task_roles)
                 row = record(a.session, ctx, layout, 'before_reset', reset=resets, request=request['message'][:600],
-                             attempt=summary, carried_by_both=carried_by_both)
-                if row.get('success') and not carried_by_both:
+                             attempt=summary, carried_by_both=carried_by_both, roles=task_roles)
+                if row.get('success') and task_roles is not None:
+                    before += (' SUCCESS: the can is in the bin, the bin stands, and one robot handled each.' if carried_by_both else
+                               ' The can is in the bin, but not with one robot on the bin and the other on the can: not a success.')
+                elif row.get('success') and not carried_by_both:
                     before += (' The box is at the goal, but it was in the air for '
                                f"{summary['in_air_without_both_robots_s']:g} s without both hands of each robot on it: not a success.")
                 elif row.get('success'):
@@ -576,6 +592,10 @@ def main():
                     report['box'] = {'x': t_now['box'][0], 'y': t_now['box'][1], 'base_z': t_now['box'][2], 'tilt_deg': t_now['box_tilt_deg'],
                                     'yaw_deg': t_now.get('box_yaw_deg')}
                     report['robots_standing'] = t_now['robots_standing']
+                    if layout.get('task') == 'can_bin':
+                        report['can'] = report.pop('box')
+                        report['can']['in_bin'] = t_now['can_in_bin']
+                        report['bin'] = {'x': t_now['bin'][0], 'y': t_now['bin'][1], 'tilt_deg': t_now['bin_tilt_deg']}
                 except Exception:
                     pass
                 if targets and poses:
@@ -654,6 +674,8 @@ def main():
                              f"reset: one started before {clock['last_attempt_start_that_fits']} still fits (status gives "
                              "last_attempt_start_that_fits).")
                 text = head + ' ' + text
+            if layout.get('task') == 'can_bin':
+                text = can_task.reword(text)
             text, state_first = state_first + text, ''
             operator.reply(a.session, request['id'], text, done=True, by='sim operator')
             log('replied:', text[:120])
