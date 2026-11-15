@@ -377,9 +377,12 @@ def replace_robots(ctx, keys, layout, r1_pose=None, g1_pose=None):
         keys.send_string(f"place=pelvis,{g1['pos'][0]},{g1['pos'][1]},{qpos[2]},{q[0]},{q[1]},{q[2]},{q[3]}"); time.sleep(0.3)
     h = math.radians(r1['yaw_deg']) / 2
     r1z = qpos[57 + 2]                                      # the R1's root follows the G1 (50) and the box (7) in qpos
+    # the controller's reference goes to the asked pose first, then the robot: with the reference left at the old
+    # heading the policy turned the robot back before the reset (turns of 60 deg or more ended 40-90 deg off)
+    sock = ctx.socket(zmq.REQ); sock.setsockopt(zmq.LINGER, 0); sock.setsockopt(zmq.RCVTIMEO, 3000); sock.connect(f'tcp://127.0.0.1:{P_R1}')
+    sock.send(json.dumps({'op': 'reset', 'pose': [r1['pos'][0], r1['pos'][1], r1['yaw_deg']]}).encode()); sock.recv()
     keys.send_string(f"place=r1_pelvis,{r1['pos'][0]},{r1['pos'][1]},{r1z},{math.cos(h)},0,0,{math.sin(h)}")
     time.sleep(0.5)     # the R1's controller mirrors the world once a tick: its frame restarts from the pose it has seen
-    sock = ctx.socket(zmq.REQ); sock.setsockopt(zmq.LINGER, 0); sock.setsockopt(zmq.RCVTIMEO, 3000); sock.connect(f'tcp://127.0.0.1:{P_R1}')
     sock.send(json.dumps({'op': 'reset'}).encode()); sock.recv(); sock.close()
     time.sleep(3.0)
 

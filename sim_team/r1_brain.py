@@ -184,9 +184,12 @@ class Brain(S.Sim):
                 'q': q}
         return meta, rgb, depth
 
-    def _reset_robot(self):
+    def _reset_robot(self, pose=None):
         """The stack protocol's `reset`, here: the operator moved the standing R1 by hand (office_sim's place key). Its
-        reference frame starts again from where it now stands, on the default stance, arms where they are."""
+        reference frame starts again from where it now stands, on the default stance, arms where they are. With POSE
+        (x, y, yaw_deg) the reference goes there at once, BEFORE the robot is placed: left at the old heading while
+        the pelvis was turned, the policy turned the robot back within 0.5 s (a 120 deg placement ended 25 deg from
+        the old heading)."""
         d = self.real
         self.root_pos = d.qpos[self.root_q:self.root_q + 3].copy()
         self.root_quat = wxyz(Rotation.from_euler('z', rot(d.qpos[self.root_q + 3:self.root_q + 7]).as_euler('ZYX')[0]))
@@ -194,6 +197,9 @@ class Brain(S.Sim):
         self.queue = []
         self.row = self.measured_row()[:S.ROW]
         self.row[21:23], self.row[23] = grip, head
+        if pose is not None:     # after the row: its points are relative to the robot, and stay so at the new pose
+            self.root_pos[:2] = [float(pose[0]), float(pose[1])]
+            self.root_quat = wxyz(Rotation.from_euler('z', np.radians(float(pose[2]))))
         self.walking = 0
         self.resets += 1
         if d.qpos[self.root_q + 2] > 0.5 and self.tilt_deg() < 20:

@@ -132,7 +132,7 @@ class Sim:
         return q
 
     # ----- robot --------------------------------------------------------------------------------------------------
-    def _reset_robot(self):
+    def _reset_robot(self, pose=None):
         m, d = self.m, self.d
         mujoco.mj_resetData(m, d)
         self._reset_dog_joints()
@@ -914,7 +914,7 @@ def serve(sim, port, stop):
                 elif op == "place":
                     sim.place(req["body"], req["pos"], req.get("quat", (1, 0, 0, 0))); out = {}
                 elif op == "reset":
-                    sim._reset_robot(); out = {}
+                    sim._reset_robot(**({"pose": req["pose"]} if "pose" in req else {})); out = {}
                 elif op == "reset_scene":
                     sim.reset_scene(); out = {}
                 elif op == "slide_table":
