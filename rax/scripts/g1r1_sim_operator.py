@@ -589,7 +589,9 @@ def main():
                         progress['best_m'] = round(float(start_goal), 2)      # the start: no progress yet
                     if reached is not None and progress['best_m'] is not None and reached < progress['best_m'] - 0.02:
                         progress.update(best_m=reached, best_attempt=resets, since_best=0)
-                    else:
+                    elif reached is not None or progress['best_attempt'] is not None:
+                        # (attempts before the object was ever carried do not count toward a stall: the measure has
+                        # nothing to say yet; a from-scratch session was told 'stalled' at its 8th reset, before any lift)
                         progress['since_best'] += 1
                 if summary:   # S30 read 6 of 37 reviews and labelled runs from the end position alone
                     before += (' The attempt in numbers (label it with these): '
@@ -629,11 +631,13 @@ def main():
                 report['state_ok'] = bool(not report['warnings'] and report.get('robots_standing', True))
                 state_first = 'STATE ' + json.dumps(report, separators=(',', ':')) + ' '
                 if progress['since_best'] and progress['since_best'] % a.stall_attempts == 0:
-                    # a stall is a fact the harness can see; what to do about it is the agent's (strategy-review skill)
-                    state_first += (f"TASK PROGRESS STALLED: {progress['since_best']} attempts in a row have not brought the task "
+                    # a stall is a fact the harness can see; what to do about it is the agent's (strategy-review skill).
+                    # First in the reply: mid-text in a 4 kB reply it was acted on once in four
+                    state_first = (f"TASK PROGRESS STALLED: {progress['since_best']} attempts in a row have not brought the task "
                                     f"closer to its goal than the best so far ({progress['best_m']} m from it"
                                     + (f", attempt {progress['best_attempt']}" if progress['best_attempt'] else ', the start') + '). '
-                                    'The strategy-review skill asks for a fresh review now, from the ground truth, before more of the same. ')
+                                    'The strategy-review skill asks for a fresh review now, from the ground truth, before more of the same. '
+                                   + state_first)
                 log('after the reset: ' + end_state(ctx, layout))
                 record(a.session, ctx, layout, 'after_reset', reset=resets, r1_at=list(r1_pose) if r1_pose else None,
                        guard_tripped_by_reset=tripped, state=report)
