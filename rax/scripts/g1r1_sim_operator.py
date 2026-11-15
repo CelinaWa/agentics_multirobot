@@ -14,7 +14,12 @@ from services.controller.frontend import robot_clock
 import attempt_review    # (this script's own folder is on the path)
 
 SIM = Path(__file__).resolve().parents[2] / 'sim_team'      # the office simulation (sim_team/team_sim.sh)
-KEYS, STATE = 5790, 5797
+# several simulations side by side (sim_team/team_sim.sh): TEAM_INSTANCE=n shifts every port by 100 n and uses logs<n>/
+INSTANCE = int(os.environ.get('TEAM_INSTANCE', '0') or 0)
+OFF = 100 * INSTANCE
+KEYS, STATE = 5790 + OFF, 5797 + OFF
+P_R1, P_QPOS, P_TOUCH, P_POSE = 5791 + OFF, 5792 + OFF, 5793 + OFF, 5796 + OFF
+LOGS = 'logs' + (str(INSTANCE) if INSTANCE else '')
 CONTAINER = 'sonic-sim2sim'
 
 
@@ -26,9 +31,9 @@ def standing(ctx):
     """Both robots on their feet, from the simulation itself: the R1's own stack says so, the G1's pelvis is up."""
     import numpy as np
     try:
-        r1 = ctx.socket(zmq.REQ); r1.setsockopt(zmq.LINGER, 0); r1.setsockopt(zmq.RCVTIMEO, 3000); r1.connect('tcp://127.0.0.1:5791')
+        r1 = ctx.socket(zmq.REQ); r1.setsockopt(zmq.LINGER, 0); r1.setsockopt(zmq.RCVTIMEO, 3000); r1.connect(f'tcp://127.0.0.1:{P_R1}')
         r1.send(json.dumps({'op': 'state'}).encode()); state = json.loads(r1.recv_multipart()[0]); r1.close()
-        sub = ctx.socket(zmq.SUB); sub.setsockopt(zmq.SUBSCRIBE, b''); sub.setsockopt(zmq.RCVTIMEO, 3000); sub.connect('tcp://127.0.0.1:5792')
+        sub = ctx.socket(zmq.SUB); sub.setsockopt(zmq.SUBSCRIBE, b''); sub.setsockopt(zmq.RCVTIMEO, 3000); sub.connect(f'tcp://127.0.0.1:{P_QPOS}')
         qpos = np.frombuffer(sub.recv(), dtype=np.float64); sub.close()
         return (not state.get('fallen')) and state.get('tilt_deg', 90) < 25 and qpos[2] > 0.35
     except Exception:
@@ -38,7 +43,7 @@ def standing(ctx):
 def box_height(ctx):
     import numpy as np
     try:
-        sub = ctx.socket(zmq.SUB); sub.setsockopt(zmq.SUBSCRIBE, b''); sub.setsockopt(zmq.RCVTIMEO, 3000); sub.connect('tcp://127.0.0.1:5792')
+        sub = ctx.socket(zmq.SUB); sub.setsockopt(zmq.SUBSCRIBE, b''); sub.setsockopt(zmq.RCVTIMEO, 3000); sub.connect(f'tcp://127.0.0.1:{P_QPOS}')
         q = np.frombuffer(sub.recv(), dtype=np.float64); sub.close()
         return float(q[52])
     except Exception:
@@ -53,7 +58,7 @@ def hands_on_box(ctx):
     try:
         if 'sock' not in _TOUCH:
             sock = ctx.socket(zmq.SUB); sock.setsockopt(zmq.SUBSCRIBE, b''); sock.setsockopt(zmq.CONFLATE, 1)
-            sock.connect('tcp://127.0.0.1:5793'); _TOUCH['sock'] = sock
+            sock.connect(f'tcp://127.0.0.1:{P_TOUCH}'); _TOUCH['sock'] = sock
             time.sleep(0.2)
         message = json.loads(_TOUCH['sock'].recv_string(zmq.NOBLOCK))
         _TOUCH['last'] = message
@@ -70,7 +75,7 @@ def truth(ctx, layout):
     """Where the box and the robots are in the simulation itself, against the task's success condition."""
     import math
     import numpy as np
-    sub = ctx.socket(zmq.SUB); sub.setsockopt(zmq.SUBSCRIBE, b''); sub.setsockopt(zmq.RCVTIMEO, 3000); sub.connect('tcp://127.0.0.1:5792')
+    sub = ctx.socket(zmq.SUB); sub.setsockopt(zmq.SUBSCRIBE, b''); sub.setsockopt(zmq.RCVTIMEO, 3000); sub.connect(f'tcp://127.0.0.1:{P_QPOS}')
     try:
         q = np.frombuffer(sub.recv(), dtype=np.float64)
     finally:
@@ -138,7 +143,7 @@ def record(session, ctx, layout, event, **fields):
         row.update(truth(ctx, layout))
     except Exception as error:
         row['error'] = str(error)
-    snap = SIM / 'logs' / 'snap' / 'overview.png'      # the room's third-person camera, newest frame (sim_camera_server)
+    snap = SIM / LOGS / 'snap' / 'overview.png'      # the room's third-person camera, newest frame (sim_camera_server)
     if event in ('before_reset', 'g1_stack_stopped', 'operator_end') and snap.exists():
         replay = session / 'stream' / 'replay'
         try:
@@ -177,7 +182,7 @@ def write_attempt_review(session, number, since, until, samples, layout, frame):
 
 def qpos_now(ctx):
     import numpy as np
-    sub = ctx.socket(zmq.SUB); sub.setsockopt(zmq.SUBSCRIBE, b''); sub.setsockopt(zmq.RCVTIMEO, 3000); sub.connect('tcp://127.0.0.1:5792')
+    sub = ctx.socket(zmq.SUB); sub.setsockopt(zmq.SUBSCRIBE, b''); sub.setsockopt(zmq.RCVTIMEO, 3000); sub.connect(f'tcp://127.0.0.1:{P_QPOS}')
     try:
         return np.frombuffer(sub.recv(), dtype=np.float64)
     finally:
@@ -187,7 +192,7 @@ def qpos_now(ctx):
 def deploy_alive():
     """The G1 deploy stack runs in the container (team_sim.sh): after a fall the backend tells it to stop and it exits."""
     try:
-        return subprocess.run(['docker', 'exec', CONTAINER, 'pgrep', '-f', '^/.*/g1_deploy_onnx_ref '],
+        return subprocess.run(['docker', 'exec', CONTAINER, 'pgrep', '-f', f'^/.*/g1_deploy_onnx_ref .*--zmq-port {P_POSE} '],
                               capture_output=True, timeout=20).returncode == 0
     except (OSError, subprocess.TimeoutExpired):
         return True     # cannot tell: do nothing
@@ -197,9 +202,10 @@ def restart_g1(keys, layout):
     """What a person does after a G1 fall: start its stack again and hang the robot back on its gantry at its start.
     The lockstep simulation is paused while no stack runs, so without this a fall ends the session. Returns whether
     the new stack came up."""
-    log = SIM / 'logs' / 'deploy.log'
+    log = SIM / LOGS / 'deploy.log'
     began = time.time()
-    subprocess.run(['docker', 'exec', CONTAINER, 'bash', str(SIM / 'team_sim.sh'), 'restart-deploy'],
+    subprocess.run(['docker', 'exec', '-e', f'TEAM_INSTANCE={INSTANCE}', '-e', f"TEAM_SCENE_DIR={os.environ.get('TEAM_SCENE_DIR', '')}",
+                    '-e', f"TEAM_GPU={os.environ.get('TEAM_GPU', '')}", CONTAINER, 'bash', str(SIM / 'team_sim.sh'), 'restart-deploy'],
                    capture_output=True, timeout=60)
     # the G1 on its gantry first: that also lets the paused lockstep physics run again, and the new stack waits for
     # the robot state the running physics publishes before it can come up
@@ -306,11 +312,11 @@ def stand_r1_up(ctx, keys, layout):
         try:
             for _ in range(2):
                 sock = ctx.socket(zmq.REQ); sock.setsockopt(zmq.LINGER, 0); sock.setsockopt(zmq.RCVTIMEO, 3000)
-                sock.connect('tcp://127.0.0.1:5791')
+                sock.connect(f'tcp://127.0.0.1:{P_R1}')
                 sock.send(json.dumps({'op': 'reset'}).encode()); sock.recv(); sock.close()
                 time.sleep(1.5)
             sock = ctx.socket(zmq.REQ); sock.setsockopt(zmq.LINGER, 0); sock.setsockopt(zmq.RCVTIMEO, 3000)
-            sock.connect('tcp://127.0.0.1:5791')
+            sock.connect(f'tcp://127.0.0.1:{P_R1}')
             sock.send(json.dumps({'op': 'state'}).encode()); state = json.loads(sock.recv_multipart()[0]); sock.close()
         except zmq.ZMQError:
             return False
@@ -322,7 +328,7 @@ def stand_r1_up(ctx, keys, layout):
 def r1_is_down(ctx):
     try:
         sock = ctx.socket(zmq.REQ); sock.setsockopt(zmq.LINGER, 0); sock.setsockopt(zmq.RCVTIMEO, 3000)
-        sock.connect('tcp://127.0.0.1:5791')
+        sock.connect(f'tcp://127.0.0.1:{P_R1}')
         sock.send(json.dumps({'op': 'state'}).encode()); state = json.loads(sock.recv_multipart()[0]); sock.close()
         return bool(state.get('fallen')) or state.get('tilt_deg', 0) > 25
     except zmq.ZMQError:
@@ -336,7 +342,7 @@ def replace_robots(ctx, keys, layout, r1_pose=None, g1_pose=None):
     (x, y, yaw_deg) a robot goes there instead (practice from a chosen stance)."""
     import math
     import numpy as np
-    sub = ctx.socket(zmq.SUB); sub.setsockopt(zmq.SUBSCRIBE, b''); sub.setsockopt(zmq.RCVTIMEO, 3000); sub.connect('tcp://127.0.0.1:5792')
+    sub = ctx.socket(zmq.SUB); sub.setsockopt(zmq.SUBSCRIBE, b''); sub.setsockopt(zmq.RCVTIMEO, 3000); sub.connect(f'tcp://127.0.0.1:{P_QPOS}')
     qpos = np.frombuffer(sub.recv(), dtype=np.float64); sub.close()
     g1 = layout['robots']['g1'] if g1_pose is None else {'pos': g1_pose[:2], 'yaw_deg': g1_pose[2]}
     r1 = layout['robots']['r1'] if r1_pose is None else {'pos': r1_pose[:2], 'yaw_deg': r1_pose[2]}
@@ -349,7 +355,7 @@ def replace_robots(ctx, keys, layout, r1_pose=None, g1_pose=None):
     r1z = qpos[57 + 2]                                      # the R1's root follows the G1 (50) and the box (7) in qpos
     keys.send_string(f"place=r1_pelvis,{r1['pos'][0]},{r1['pos'][1]},{r1z},{math.cos(h)},0,0,{math.sin(h)}")
     time.sleep(0.5)     # the R1's controller mirrors the world once a tick: its frame restarts from the pose it has seen
-    sock = ctx.socket(zmq.REQ); sock.setsockopt(zmq.LINGER, 0); sock.setsockopt(zmq.RCVTIMEO, 3000); sock.connect('tcp://127.0.0.1:5791')
+    sock = ctx.socket(zmq.REQ); sock.setsockopt(zmq.LINGER, 0); sock.setsockopt(zmq.RCVTIMEO, 3000); sock.connect(f'tcp://127.0.0.1:{P_R1}')
     sock.send(json.dumps({'op': 'reset'}).encode()); sock.recv(); sock.close()
     time.sleep(3.0)
 
@@ -359,7 +365,7 @@ def robot_poses(ctx):
     import math
     import numpy as np
     try:
-        sub = ctx.socket(zmq.SUB); sub.setsockopt(zmq.SUBSCRIBE, b''); sub.setsockopt(zmq.RCVTIMEO, 3000); sub.connect('tcp://127.0.0.1:5792')
+        sub = ctx.socket(zmq.SUB); sub.setsockopt(zmq.SUBSCRIBE, b''); sub.setsockopt(zmq.RCVTIMEO, 3000); sub.connect(f'tcp://127.0.0.1:{P_QPOS}')
         q = np.frombuffer(sub.recv(), dtype=np.float64); sub.close()
     except zmq.ZMQError:
         return None
@@ -561,30 +567,30 @@ def main():
                 # the state after the reset, measured, first in the reply and machine-readable (a wrapper that keeps only
                 # part of a reply still gets it; S41: 5 'not where I put it' warnings, 1 reached the agent)
                 poses = robot_poses(ctx)
-                state = {'reset': resets, 'state_ok': None, 'robots': poses, 'warnings': [],
+                report = {'reset': resets, 'state_ok': None, 'robots': poses, 'warnings': [],
                          'task_progress': {'closest_to_goal_while_carried_m': progress['best_m'], 'in_attempt': progress['best_attempt'],
                                            'this_attempt_m': (summary or {}).get('closest_to_goal_in_air_m'),
                                            'attempts_since_it_improved': progress['since_best'], 'attempts': progress['attempts']}}
                 try:
                     t_now = truth(ctx, layout)
-                    state['box'] = {'x': t_now['box'][0], 'y': t_now['box'][1], 'base_z': t_now['box'][2], 'tilt_deg': t_now['box_tilt_deg'],
+                    report['box'] = {'x': t_now['box'][0], 'y': t_now['box'][1], 'base_z': t_now['box'][2], 'tilt_deg': t_now['box_tilt_deg'],
                                     'yaw_deg': t_now.get('box_yaw_deg')}
-                    state['robots_standing'] = t_now['robots_standing']
+                    report['robots_standing'] = t_now['robots_standing']
                 except Exception:
                     pass
                 if targets and poses:
                     placement = placement_errors(poses, targets)
-                    state['robots_asked'] = {k: {'x': v[0], 'y': v[1], 'yaw_deg': v[2]} for k, v in targets.items()}
+                    report['robots_asked'] = {k: {'x': v[0], 'y': v[1], 'yaw_deg': v[2]} for k, v in targets.items()}
                     for robot, off_m, off_deg in placement:
-                        state['warnings'].append(f'{robot} is {off_m} m and {off_deg} deg from where it was to be put, after 3 tries')
+                        report['warnings'].append(f'{robot} is {off_m} m and {off_deg} deg from where it was to be put, after 3 tries')
                 if misplaced:
-                    state['warnings'].append('the box did not come to rest at its start')
+                    report['warnings'].append('the box did not come to rest at its start')
                 if tripped is not None:
-                    state['warnings'].append('a guard tripped during the reset (the operator caused it)')
+                    report['warnings'].append('a guard tripped during the reset (the operator caused it)')
                 if 'could not stand it up' in r1_stood:
-                    state['warnings'].append('the R1 is down')
-                state['state_ok'] = bool(not state['warnings'] and state.get('robots_standing', True))
-                state_first = 'STATE ' + json.dumps(state, separators=(',', ':')) + ' '
+                    report['warnings'].append('the R1 is down')
+                report['state_ok'] = bool(not report['warnings'] and report.get('robots_standing', True))
+                state_first = 'STATE ' + json.dumps(report, separators=(',', ':')) + ' '
                 if progress['since_best'] and progress['since_best'] % a.stall_attempts == 0:
                     # a stall is a fact the harness can see; what to do about it is the agent's (strategy-review skill)
                     state_first += (f"TASK PROGRESS STALLED: {progress['since_best']} attempts in a row have not brought the task "
@@ -593,7 +599,7 @@ def main():
                                     'The strategy-review skill asks for a fresh review now, from the ground truth, before more of the same. ')
                 log('after the reset: ' + end_state(ctx, layout))
                 record(a.session, ctx, layout, 'after_reset', reset=resets, r1_at=list(r1_pose) if r1_pose else None,
-                       guard_tripped_by_reset=tripped, state=state)
+                       guard_tripped_by_reset=tripped, state=report)
                 if review:
                     text += f' The review of the attempt before this reset: `{review}`.'
                 attempt_since, samples = time.time(), []
