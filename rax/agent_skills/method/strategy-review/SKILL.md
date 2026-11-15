@@ -13,7 +13,7 @@ idea is the bottleneck. A short review with fresh eyes, from data, before acting
 
 At the start, start a subagent (the Agent tool, a strong model, in the background) that has not seen your plans, with this
 job (while it works, run what every plan begins with - bring-up checks, the stages all strategies share - rather than
-leave the robots idle; S30 waited 8 of its first 14 minutes): read `TASK.md`, `memory/CURRENT.md` (or, if it does not exist yet, `handoff/README.md` and `memory/`), the funnel
+leave the robots idle): read `TASK.md`, `memory/CURRENT.md` (or, if it does not exist yet, `handoff/README.md` and `memory/`), the funnel
 `python -m api.attempts`, the ground truth under `memory/ground_truth/`, and `memory/TOOL_REQUESTS.md`; then write
 `memory/STRATEGY.md`, one page:
 
@@ -73,4 +73,4 @@ you stop robot work early:
   rate stayed low as such rather than leaving it to be reused blindly. Merge.
 - **Look from outside**: where the simulation's operator saved third-person frames (`runtime/stream/replay/`, one at
   each reset and fall, named in `runtime/stream/ground_truth.jsonl`) [sim-only], look at the failures' frames: a
-  knee against the box or an arm sweeping it shows there and not in the robots' own cameras.
+  body part against the object or an arm sweeping it shows there and not in the robots' own cameras.

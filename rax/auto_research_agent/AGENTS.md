@@ -133,8 +133,8 @@ commanding the robot at a time (normally you), and decide from what they report.
 4. **Teach later sessions.** Put every reusable procedure that worked into the skill
    library as an executable, checked skill with its evidence and images, or improve the
    library skill you used; commit on your branch and merge it with
-   `skill_library_merge`. Do this as soon as a skill is automated (as `draft`), again
-   when it is verified, and always before the session ends. Follow
+   `skill_library_merge`. Do this in the hand-over at the end of the session, which the harness
+   gives its own time: robot time is for the robots, not for write-ups. Follow
    [continual-learning](.agents/skills/continual-learning/SKILL.md). Write how to plan
    each subtask's motion in a differently laid-out scene into `handoff/README.md`
    ([transfer-handoff](.agents/skills/transfer-handoff/SKILL.md)).

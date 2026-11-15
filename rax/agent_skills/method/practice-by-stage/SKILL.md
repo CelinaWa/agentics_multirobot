@@ -18,7 +18,7 @@ Write the task as stages, each with the robots it needs, its start state, its su
 - **One robot, independent**: one robot's own piece that does not touch the other's (an approach, a grip on its end).
 - **One robot, after the other**: it needs the other's result but runs alone (a hand-over, placing after the other
   holds).
-- **Joint**: both act at once on a shared object or each other (a lift of a box both hold, carrying it in step).
+- **Joint**: both act at once on a shared object or each other (two robots moving one object between them).
   It cannot be practised by one robot; it can be practised from its own start state.
 
 Revise the graph when a stage turns out to hide two failure modes; split it.
@@ -56,8 +56,7 @@ Ways to practise each kind of stage:
 
 - **One-robot stage**: that robot alone, the other parked clear. Vary the start state on purpose (object offset,
   stance error of the size your approach really produces) so the practised skill covers what the chain will hand it.
-- **Proxy for a joint stage**: one robot does its share against a fixed stand-in for the other (for a two-robot box
-  lift: the R1 lifts its end a few centimetres while the far end stays on the table, and must keep its grip). A proxy
+- **Proxy for a joint stage**: one robot does its share against a fixed stand-in for the other. A proxy
   that passes is necessary, not sufficient: confirm in the joint stage.
 - **Joint stage**: both robots, from the joint stage's start state (both already holding, if that is how it starts).
   This is the only way to learn coordination (timing, who leads, how the load shifts); do not replace it with

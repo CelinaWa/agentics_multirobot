@@ -1078,6 +1078,20 @@ class G1SonicBackend:
                         'wall_seconds': round(self.clock() - started, 2),
                         'planned_advance_m': None if advanced is None else round(advanced, 3),
                         'note': 'distance is commanded, not measured: re-localize against the scene'}
+            # what was asked against what the leg odometry and the heading say happened: a walk that did far less is not
+            # reported as if it had (a from-scratch session asked for 0.3 m sideways, got 0.006 m and a plain 'done',
+            # and concluded the direction was switched off)
+            went = float(odo_fwd * math.cos(direction) + odo_left * math.sin(direction)) if distance > 0 else 0.0
+            short = []
+            if distance >= 0.05 and went < 0.5 * distance:
+                short.append(f'asked to move {distance:.2f} m, the leg odometry says {went:.2f} m')
+            if abs(turn_deg) >= 5 and abs(turned) < 0.5 * abs(turn_deg):
+                short.append(f'asked to turn {turn_deg:g} deg, turned {turned:.1f} deg')
+            feedback['achieved'] = {'along_the_commanded_direction_m': round(went, 3), 'turn_deg': round(turned, 1)}
+            feedback['shortfall'] = bool(short)
+            if short:
+                feedback['shortfall_note'] = ('NOT done as asked: ' + '; '.join(short)
+                                              + '. The motion ran its time; find out why before relying on this call.')
             self.last_feedback = feedback
             return self._observation_packet(transition={'kind': 'walk', 'feedback': feedback})
 

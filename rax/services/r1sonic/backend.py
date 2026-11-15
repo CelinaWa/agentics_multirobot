@@ -187,6 +187,16 @@ class R1SonicBackend:
         reply = self.stack.walk(float(forward_m), float(turn_deg), float(left_m))
         out = {k: reply.get(k) for k in ('walked_m', 'turn_deg', 'turned_deg', 'lateral_m', 'pelvis', 'tilt_deg', 'fallen', 'note')
                if k in reply}   # turned_deg / lateral_m / note: the real bridge's measured turn, side drift, stride note
+        asked, got = (float(left_m), out.get('lateral_m')) if abs(float(left_m)) > 1e-9 else (float(forward_m), out.get('walked_m'))
+        short = []
+        if abs(asked) >= 0.05 and got is not None and (got / asked) < 0.5:
+            short.append(f'asked to move {asked:g} m, measured {got:g} m')
+        turned = out.get('turned_deg')
+        if abs(float(turn_deg)) >= 5 and turned is not None and (turned / float(turn_deg)) < 0.5:
+            short.append(f'asked to turn {float(turn_deg):g} deg, turned {turned:g} deg')
+        out['shortfall'] = bool(short)
+        if short:
+            out['shortfall_note'] = 'NOT done as asked: ' + '; '.join(short) + '. Find out why before relying on this call.'
         return out
 
     def _gait(self, seconds, speed_mps=0.3, backward=False, turn_deg_s=0.0, settle=True):

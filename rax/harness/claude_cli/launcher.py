@@ -311,6 +311,8 @@ def populate_workspace(config, workspace, *, gemini=True):
     (config.root/'stream').mkdir(mode=0o755, exist_ok=True)
     (workspace/'runtime'/'stream').symlink_to(config.root/'stream', target_is_directory=True)
     built = build(recipe_for(), Setup.from_config(config, gemini=gemini), workspace)
+    from services.workspace.contract_files import write_contract
+    write_contract(workspace, Setup.from_config(config, gemini=gemini), config.backend_options)   # the tools really offered
     if config.demonstration_images:  # the operator's images, numbered in the order given
         demonstrations = workspace/'runtime'/'demonstrations'
         demonstrations.mkdir()

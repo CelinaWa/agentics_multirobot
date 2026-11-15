@@ -114,9 +114,12 @@ class TeamFrame:
                 if not (motions.get(a) or motions.get(b)) or frozenset((a, b)) in allow_close:
                     continue
                 gap = self.gap(a, b, motions)
+                now = self.gap(a, b)
                 if gap is None:
                     unknown.append((a, b))
-                elif gap < self.min_gap_m:
+                elif gap < self.min_gap_m and (now is None or gap < now - 0.01):
+                    # only a motion that brings them CLOSER is refused: robots that start within the minimum (two
+                    # robots at one table) could not move at all, not even apart
                     found.append({'robots': [a, b], 'gap_m': round(gap, 3), 'min_gap_m': self.min_gap_m})
         return found, unknown
 
