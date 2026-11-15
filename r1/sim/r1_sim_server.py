@@ -72,6 +72,7 @@ class Sim:
         self.grip_act = {s: [m.actuator(f"{s}_gripper_f7").id, m.actuator(f"{s}_gripper_f8").id] for s in ("left", "right")}
         self.grip_q = {s: [m.jnt_qposadr[m.joint(f"{s}_gripper_slide{n}").id] for n in "78"] for s in ("left", "right")}
         self.head = [self.names.index("head_pitch_joint"), self.names.index("head_yaw_joint")]
+        self.head_yaw = self.head_yaw_goal = 0.0      # the head yaw command (op head): slewed toward its goal each tick
         self.session = ort.InferenceSession(str(bundle / "exports/100000/model/exported/model_step_100000_teleop.onnx"),
                                             providers=["CPUExecutionProvider"])
         self.d = mujoco.MjData(m)
@@ -232,7 +233,8 @@ class Sim:
         act = self.session.run(None, {"obs_dict": np.r_[feat, prop].astype(np.float32)[None]})[0].ravel()
         self.prev[:] = np.clip(act, -20, 20)
         self.prev[self.head[0]] = (row[23] - self.default[self.head[0]]) / self.scale[self.head[0]]
-        self.prev[self.head[1]] = 0.0
+        self.head_yaw += float(np.clip(self.head_yaw_goal - self.head_yaw, -0.03, 0.03))
+        self.prev[self.head[1]] = (self.head_yaw - self.default[self.head[1]]) / self.scale[self.head[1]]
         target = self.default + self.scale * self.prev
         self._set_gripper("left", row[21]); self._set_gripper("right", row[22])
         for _ in range(SUBSTEPS):
@@ -936,8 +938,12 @@ def serve(sim, port, stop):
                         out[f"{s_}_ctrl"] = [round(float(sim.d.ctrl[k]), 4) for k in sim.grip_act[s_]]
                         out[f"{s_}_act_force"] = [round(float(sim.d.actuator_force[k]), 3) for k in sim.grip_act[s_]]
                         out[f"{s_}_width"] = round(sim.gripper_width(s_), 4)
-                elif op == "head":          # command head pitch (rad, + = look down); held like the real r1_head
-                    sim.row[23] = float(np.clip(req["pitch"], -0.62, 0.62)); out = {"head_pitch": float(sim.row[23])}
+                elif op == "head":          # command head pitch (rad, + = look down) and/or yaw (rad, + = look left); held
+                    if "pitch" in req:
+                        sim.row[23] = float(np.clip(req["pitch"], -0.62, 0.62))
+                    if "yaw" in req:
+                        sim.head_yaw_goal = float(np.clip(req["yaw"], -2.0, 2.0))
+                    out = {"head_pitch": float(sim.row[23]), "head_yaw": sim.head_yaw_goal}
                 elif op == "shutdown":
                     stop.set(); out = {}
                 else:

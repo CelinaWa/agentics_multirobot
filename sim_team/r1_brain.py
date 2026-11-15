@@ -83,6 +83,7 @@ class Brain(S.Sim):
         self.grip_act = {s: [m.actuator(f'{PREFIX}{s}_gripper_f7').id, m.actuator(f'{PREFIX}{s}_gripper_f8').id] for s in ('left', 'right')}
         self.grip_q = {s: [m.jnt_qposadr[m.joint(f'{PREFIX}{s}_gripper_slide{n}').id] for n in '78'] for s in ('left', 'right')}
         self.head = [self.names.index('head_pitch_joint'), self.names.index('head_yaw_joint')]
+        self.head_yaw = self.head_yaw_goal = 0.0      # the head yaw command (op head), slewed in the tick
         self.session = ort.InferenceSession(str(bundle / 'exports/100000/model/exported/model_step_100000_teleop.onnx'),
                                             providers=['CPUExecutionProvider'])
         root = m.body(PREFIX + 'pelvis').jntadr[0]

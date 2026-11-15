@@ -58,7 +58,7 @@ ROBOT_FACTS = {
         'name': 'Unitree R1 under SONIC_R1', 'status': 'r1_status', 'observe': 'r1_observe',
         'move': 'r1_move_hand', 'gripper': 'r1_gripper', 'pixel': 'r1_pixel_to_position',
         'tools': _R1_TOOLS,
-        'overview_camera': 'cam_head', 'overview': 'head camera (RGB-D in the head, tilted by `r1_head`)',
+        'overview_camera': 'cam_head', 'overview': 'head camera (RGB-D in the head, tilted and turned by `r1_head`)',
         'cameras': ('cam_head',),
         'body': 'humanoid** (Unitree R1: 26 body joints, 5-joint arms without wrist pitch, two PiPER parallel '
                 'grippers) balanced by the frozen SONIC_R1 whole-body controller in teleop mode, which tracks hand '
@@ -70,7 +70,7 @@ ROBOT_FACTS = {
         'motion_example': 'ctx.value("r1_move_hand", arm="right", position=[x, y, z], approach=[1, 0, -0.3])',
         'grasp_example': 'ctx.value("r1_gripper", arm="right", width_m=0.0)',
         'stream': None,
-        'look_around': 'tilt the head (`r1_head`, positive looks down) or turn the waist (`r1_move_joints` '
+        'look_around': 'tilt or turn the head (`r1_head`: pitch, positive looks down; yaw, positive looks left) or turn the waist (`r1_move_joints` '
                        '`waist_yaw_joint`; the head and its camera turn with it, so re-observe after the turn)',
         'read_tools': ('r1_status', 'r1_observe', 'r1_pixel_to_position'),
         'model_dir': None, 'model_note': None,

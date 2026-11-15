@@ -225,7 +225,7 @@ class RealStack:
                   ('body_quat', 'f32', [n, 4], f32(bq)),
                   ('frame_index', 'i64', [n], np.arange(self.frame, self.frame + n, dtype='<i8').tobytes()),
                   # head pitch (row[23]); applied only by a deploy started with --r1-head-tracking (pitch range <= 0.5)
-                  ('r1_head', 'f64', [3], struct.pack('<3d', float(row[23]), 0.0, time.monotonic()))]
+                  ('r1_head', 'f64', [3], struct.pack('<3d', float(row[23]), float(getattr(self, 'head_yaw', 0.0)), time.monotonic()))]
         if self.send_vr_points:     # only for a deploy that uses them (planner build, or a patched mode-1 build)
             fields += [('vr_position', 'f32', [9], f32(pos)), ('vr_orientation', 'f32', [12], f32(quat))]
         self.pub.send(packed_message(b'pose', fields))
@@ -596,8 +596,11 @@ def serve(stack: RealStack, port: int, bind: str = '127.0.0.1') -> None:
                 out = stack.walk(float(req.get('forward_m', 0.0)), float(req.get('turn_deg', 0.0)))
             elif op == 'head':
                 with stack.lock:
-                    stack.row[23] = float(req['pitch'])
-                out = {'head_pitch': float(req['pitch'])}
+                    if 'pitch' in req:
+                        stack.row[23] = float(req['pitch'])
+                    if 'yaw' in req:
+                        stack.head_yaw = float(req['yaw'])
+                out = {'head_pitch': float(stack.row[23]), 'head_yaw': float(getattr(stack, 'head_yaw', 0.0))}
             elif op in ('grasp_paw', 'place_in_box'):
                 out = {'refused': 'not available on the real robot: use r1_leg_lift / r1_carry_release', 'held': False, 'in_box': False}
             elif op == 'shutdown':

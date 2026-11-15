@@ -12,7 +12,7 @@ balanced. You do not command motors or joints directly: every 50 Hz tick the con
 targets** (left wrist, right wrist, torso) and the default standing legs, and it moves the whole body to put the
 points there. The backend computes those targets from arm and waist joint angles (forward kinematics), so every target
 is a pose some arm configuration has. The grippers are position-commanded beside the controller. One RGB-D camera,
-`cam_head`, sits in the head; `r1_head` tilts it. **The robot does not walk on command**: it stands where it is, and
+`cam_head`, sits in the head; `r1_head` tilts and turns it. **The robot does not walk on command**: it stands where it is, and
 the operator moves the table or the robot when you ask (`request_operator`).
 
 ## Tools
@@ -25,7 +25,7 @@ the operator moves the table or the robot when you ask (`request_operator`).
 | `r1_move_hand` | one grasp point to a position (pelvis frame), with a preferred `approach` and `fingers` axis; IK, smooth move, servo |
 | `r1_move_joints` | arm/waist joints to angles (home and tucked poses, wrist roll, waist turns) |
 | `r1_gripper` | open/close one gripper to a width (0..0.07 m) |
-| `r1_head` | head pitch (-0.6..0.6 rad, positive looks down); yaw stays 0 |
+| `r1_head` | head pitch (-0.6..0.6 rad, positive looks down) and yaw (-1.9..1.9 rad, positive looks left) |
 | `r1_hold` | drop any streaming motion, keep the last command |
 | `r1_step` | the controller's own interface: reference rows of arm, waist and LEG joint angles, one per 50 Hz tick |
 

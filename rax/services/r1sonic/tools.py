@@ -30,6 +30,7 @@ DEFAULT_LEGS = {f"{s}_{j}_joint": v for s in ARMS for j, v in (("hip_pitch", -0.
 MAX_STEP_ROWS = 250
 GRIPPER_MAX_M = 0.07
 HEAD_PITCH = (-0.6, 0.6)
+HEAD_YAW = (-1.9, 1.9)
 SECS = (0.5, 8.0)
 
 
@@ -97,10 +98,13 @@ def tool_definitions(geometry=True):
              "width_m": {"type": "number", "minimum": 0.0, "maximum": GRIPPER_MAX_M},
              "secs": {"type": "number", "minimum": 0.3, "maximum": 3.0, "default": 1.0}}}},
         {"name": HEAD, "description": (
-            f"Tilt the head (and its camera): pitch {HEAD_PITCH[0]}..{HEAD_PITCH[1]} rad, positive looks down. The head "
-            "yaw stays 0 (turn the waist to look sideways). Needs operator arming."),
-         "inputSchema": {"type": "object", "required": ["pitch"], "additionalProperties": False, "properties": {
+            f"Move the head (and its camera): pitch {HEAD_PITCH[0]}..{HEAD_PITCH[1]} rad, positive looks down; yaw "
+            f"{HEAD_YAW[0]}..{HEAD_YAW[1]} rad, positive looks left. Give either or both; the one left out keeps its "
+            "value. The head moves independently of the waist and the arms; observations give the camera pose with "
+            "the head where it is. Needs operator arming."),
+         "inputSchema": {"type": "object", "additionalProperties": False, "properties": {
              "pitch": {"type": "number", "minimum": HEAD_PITCH[0], "maximum": HEAD_PITCH[1]},
+             "yaw": {"type": "number", "minimum": HEAD_YAW[0], "maximum": HEAD_YAW[1]},
              "secs": {"type": "number", "minimum": 0.3, "maximum": 3.0, "default": 1.0}}}},
         {"name": HOLD, "description": (
             "Drop any motion still streaming and keep the last command. Always allowed, armed or not. It is not an "
@@ -300,9 +304,10 @@ def validate_request(name, arguments):
         _range(arguments, "width_m", 0.0, GRIPPER_MAX_M)
         _range(arguments, "secs", 0.3, 3.0)
     elif name == HEAD:
-        _only(arguments, ("pitch", "secs"))
-        reject_unless("pitch" in arguments, "pitch is required")
+        _only(arguments, ("pitch", "yaw", "secs"))
+        reject_unless("pitch" in arguments or "yaw" in arguments, "give pitch, yaw or both")
         _range(arguments, "pitch", *HEAD_PITCH)
+        _range(arguments, "yaw", *HEAD_YAW)
         _range(arguments, "secs", 0.3, 3.0)
     elif name == LEG_LIFT:
         _only(arguments, ("paw_position", "leg_direction", "depth_m", "lift_z_m"))

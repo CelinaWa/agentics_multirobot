@@ -99,6 +99,7 @@ class R1SonicBackend:
         self._stack_resets = None             # the stack's reset count seen last (sim); see _resync_after_reset
         self._synced = False                  # the first motion of this process starts from the measured pose
         self.head_pitch = o['head_pitch']
+        self.head_yaw = 0.0
         self.step_id = 0
         self.last_feedback = None
         self._raw = None
@@ -156,7 +157,7 @@ class R1SonicBackend:
                 if name == T.GRIPPER:
                     return self._gripper(arguments['arm'], arguments['width_m'], arguments.get('secs', 1.0)), []
                 if name == T.HEAD:
-                    return self._head(arguments['pitch'], arguments.get('secs', 1.0)), []
+                    return self._head(arguments.get('pitch'), arguments.get('secs', 1.0), arguments.get('yaw')), []
                 if name == T.WALK:
                     return self._walk(arguments.get('forward_m', 0.0), arguments.get('turn_deg', 0.0), arguments.get('left_m', 0.0)), []
                 if name == T.GAIT:
@@ -723,10 +724,27 @@ class R1SonicBackend:
             'arm': arm, 'commanded_m': round(float(width), 4), 'measured_m': measured,
             'blocked_m': round(measured - float(width), 4) if measured - float(width) > 0.005 else 0.0})
 
-    def _head(self, pitch, secs):
+    def _head(self, pitch, secs, yaw=None):
         s0 = self._state()
-        trace = self._execute({}, secs, s0, head_to=float(pitch))
-        return self._report('head', trace)
+        if yaw is not None:      # the yaw is a command of its own in the stack (the stream row carries the pitch only)
+            try:
+                self.stack.request('head', yaw=float(yaw))
+            except StackError as exc:
+                raise RuntimeError(str(exc)) from None
+            self.head_yaw = float(yaw)
+        trace = self._execute({}, secs, s0, head_to=self.head_pitch if pitch is None else float(pitch))
+        if yaw is not None:      # the yaw slews at a fixed rate in the stack: wait until the joint stops
+            last = None
+            for _ in range(40):
+                now = self._state()['qd'].get('head_yaw_joint')
+                if now is None or (last is not None and abs(now - last) < 0.002):
+                    break
+                last = now; time.sleep(0.1)
+        fb = self._report('head', trace)
+        measured = self._state()['qd']
+        fb['head'] = {'commanded': {'pitch': round(self.head_pitch, 3), 'yaw': round(self.head_yaw, 3)},
+                      'measured': {k: round(float(measured[f'head_{k}_joint']), 3) for k in ('pitch', 'yaw') if f'head_{k}_joint' in measured}}
+        return fb
 
     def _report(self, kind, trace, goal=None, **extra):
         s = trace.pop('state')
@@ -846,7 +864,7 @@ class R1SonicBackend:
         return {'upper_joints': {k: round(v, 4) for k, v in self.cmd.items()}, 'gripper_width_m': dict(self.grip),
                 'legs': {k: round(v, 4) for k, v in (self.legs or T.DEFAULT_LEGS).items()},
                 'legs_reference': 'the default stance' if self.legs is None else 'streamed (r1_step)',
-                'head_pitch': round(self.head_pitch, 3),
+                'head_pitch': round(self.head_pitch, 3), 'head_yaw': round(self.head_yaw, 3),
                 'servo_correction_m': {a: np.round(self.correction[a], 4).tolist() for a in T.ARMS}}
 
     def status(self):
