@@ -542,8 +542,8 @@ def main():
                 if targets and poses:
                     placement = placement_errors(poses, targets)
                     state['robots_asked'] = {k: {'x': v[0], 'y': v[1], 'yaw_deg': v[2]} for k, v in targets.items()}
-                    for name, d, a in placement:
-                        state['warnings'].append(f'{name} is {d} m and {a} deg from where it was to be put, after 3 tries')
+                    for robot, off_m, off_deg in placement:
+                        state['warnings'].append(f'{robot} is {off_m} m and {off_deg} deg from where it was to be put, after 3 tries')
                 if misplaced:
                     state['warnings'].append('the box did not come to rest at its start')
                 if tripped is not None:
@@ -628,4 +628,15 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    # an operator that dies leaves every later request unanswered (S42: one exception in a reset, 40 min of robot time
+    # lost waiting): start again after an error, a few times; the request it died on is answered by the new run
+    import traceback
+    for attempt in range(6):
+        try:
+            main()
+            break
+        except (KeyboardInterrupt, SystemExit):
+            raise
+        except Exception:
+            log('operator error, starting again:\n' + traceback.format_exc()[-1500:])
+            time.sleep(2.0)
