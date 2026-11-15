@@ -494,7 +494,11 @@ class G1SonicBackend:
         self._carry_hands = None
         if hands is None or hands[0] is None:
             hands = (False, False)
-        self.streamer.prime(self._within_limits(snap.q), snap.base_quat, hands=hands)
+        pose = np.asarray(snap.q, dtype=float).copy()
+        hold_upper, self._hold_upper = getattr(self, '_hold_upper', None), None
+        if hold_upper is not None:
+            pose[list(UPPER_BODY_INDICES)] = hold_upper
+        self.streamer.prime(self._within_limits(pose), snap.base_quat, hands=hands)
         for _ in range(4):  # the measured pose is on the wire before the stack switches back to it
             if keepalive is not None:
                 keepalive()  # (a carrying walk: keep the arms held meanwhile)
@@ -806,11 +810,12 @@ class G1SonicBackend:
         return value, images
 
     def _walk(self, forward_m=0.0, turn_deg=0.0, speed_mps=0.3, carry=False, left_m=0.0, carry_press_rad=0.0,
-              carry_offsets_rad=None):
+              carry_offsets_rad=None, carry_commanded=False):
         """Long walks run as segments of at most `walk_segment_m`, each with its own planner start and stop: the
         planner's reference runs ahead of a lagging robot over a long walk, and the policy then lunges to catch up
         (sim: falls and runaways in 0.9 m walks, none in 99 walks of 0.5 m)."""
         warmed_up = False
+        self._carry_commanded = bool(carry and carry_commanded)
         if self.options['walk_warmup'] and not getattr(self, '_planner_warm', False):
             # the first planner use after a start lags its own reference by 0.2-0.7 m and then lunges to catch up
             # (sim: falls); two short turns first warm it up (first-walk lag 0.04-0.07 m afterwards)
@@ -919,6 +924,10 @@ class G1SonicBackend:
                     # posture), while the planner tracks these joints literally; holding the last reference made the
                     # carrying arm drop 10-25 cm as the walk began (a held paper ball fell)
                     upper = np.asarray(snap.q, dtype=float)[list(UPPER_BODY_INDICES)].copy()
+                    if getattr(self, '_carry_commanded', False):
+                        # the last COMMANDED g1_step row instead: a squeeze's press is in it (S37: held 21 of 21
+                        # switches to the planner this way; from the measured joints the box dropped as walks began)
+                        upper = np.asarray(held.joint_pos, dtype=float)[list(UPPER_BODY_INDICES)].copy()
                     # the waist from the reference: a partly tracked lean (measured) held by the planner left the robot
                     # tilted 12 deg and stepping, so the hold never took over
                     waist = [k for k, j in enumerate(UPPER_BODY_INDICES) if 'waist' in R.JOINT_NAMES[j]]
@@ -1384,6 +1393,12 @@ class G1SonicBackend:
                     self.step_id += 1
                     keep = fields(1.0)
                     self._planner_extra, self._stream_fingers = keep, fingers
+                    if upper_body is not None:
+                        # as after a carrying walk: the stack keeps taking the arms from planner messages in streamed
+                        # motion (S37-2: g1_step arm rows were ignored for 3 resets), so the hold mirrors them there,
+                        # and starts from the angles commanded here, not the measured ones (the press stays)
+                        self._upper_latched = facing
+                        self._hold_upper = np.asarray(upper_body, dtype=float).copy()
                     self._planner_keepalive = lambda: self.streamer.planner(IDLE, [0.0, 0.0, 0.0], facing, -1.0, height_m, **keep)
                     self.streamer.keepalive = self._planner_keepalive
                     self._carry_hands = (fingers.get('left_hand'), fingers.get('right_hand')) if fingers else None

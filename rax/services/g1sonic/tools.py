@@ -28,7 +28,7 @@ MUTATING = frozenset({STEP, FREE_SPACE_MOVE, EXECUTE_PLAN, WALK, CROUCH, HANDS_W
 # (backward and sideways only where the backend runs with walk_any_direction: the backend refuses them otherwise)
 WALK_LIMITS = {"forward_m": (-1.0, 3.0), "left_m": (-1.0, 1.0), "turn_deg": (-45.0, 45.0), "speed_mps": (0.1, 0.6),
                "carry_press_rad": (0.0, 0.4)}
-WALK_FLAGS = ("carry",)
+WALK_FLAGS = ("carry", "carry_commanded")
 HANDS_WALK_LIMITS = {"forward_m": (-1.5, 3.0), "left_m": (-1.5, 1.5), "turn_deg": (-60.0, 60.0), "speed_mps": (0.25, 0.6),
                      "press_m": (0.0, 0.25)}
 HAND_POINT_BOX = ((-0.1, 0.7), (-0.6, 0.6), (-0.5, 0.6))   # pelvis frame x, y, z a hand point target may lie in
@@ -115,7 +115,11 @@ def tool_definitions(geometry=True):
             "again afterwards from the measured pose (g1_step continues from there). The arms are held at their MEASURED "
             "joint angles: a press past contact (an object squeezed between the two hands) is not in them, and such an "
             "object drops as the walk begins. carry_press_rad adds that press back: both shoulder rolls are held this "
-            "much further inward than measured (start from the press your squeeze commanded past contact). carry_offsets_rad does the same for any arm joint, by name (e.g. {\"left_shoulder_pitch_joint\": -0.24, \"left_elbow_joint\": -0.2}): each is held that far from its measured angle, signed, on top of carry_press_rad. Under load the measured arm sits below its command; the difference commanded minus measured just before the walk is the effort that holds the load, and without it the load sinks as the walk begins. If the robot is still stepping "
+            "much further inward than measured (start from the press your squeeze commanded past contact). "
+            "carry_commanded=true (with carry) holds the waist and arms at the last COMMANDED g1_step row instead of "
+            "the measured angles: the press of a squeeze is in that row (sim S37: a shared box stayed squeezed through "
+            "21 of 21 switches to the planner held this way, standing; walking, G1 alone with a 1.2 kg box, n=1: the box sank 12 cm in the palms as the first walk began, then stayed through 6 more moves; g1_hands_walk sank 4-6 cm). "
+            " carry_offsets_rad does the same for any arm joint, by name (e.g. {\"left_shoulder_pitch_joint\": -0.24, \"left_elbow_joint\": -0.2}): each is held that far from its measured angle, signed, on top of carry_press_rad. Under load the measured arm sits below its command; the difference commanded minus measured just before the walk is the effort that holds the load, and without it the load sinks as the walk begins. If the robot is still stepping "
             "a few seconds after the walk, the planner keeps balancing it (safe) and the reply's feedback.control says so: "
             "call g1_hold, which tries for about 20 s to bring it to rest and take over (then re-observe: the robot "
             "moved); if it reports the robot still stepping, ask the operator instead of polling. Backward (forward_m < 0) and sideways (left_m) "
@@ -127,6 +131,7 @@ def tool_definitions(geometry=True):
              "turn_deg": {"type": "number", "minimum": -45, "maximum": 45},
              "speed_mps": {"type": "number", "minimum": 0.1, "maximum": 0.6},
              "carry": {"type": "boolean", "default": False},
+             "carry_commanded": {"type": "boolean", "default": False},
              "carry_press_rad": {"type": "number", "minimum": 0.0, "maximum": 0.4, "default": 0.0},
              "carry_offsets_rad": {"type": "object", "additionalProperties": {"type": "number", "minimum": -0.5, "maximum": 0.5}}}}},
         {"name": HANDS_WALK, "description": (
@@ -318,6 +323,7 @@ def validate_request(name, arguments):
             _finite(value, f"carry_offsets_rad.{joint}")
             reject_unless(abs(float(value)) <= 0.5, f"carry_offsets_rad.{joint} must be within 0.5 rad")
         reject_unless(type(arguments.get("carry", False)) is bool, "carry must be a boolean")
+        reject_unless(type(arguments.get("carry_commanded", False)) is bool, "carry_commanded must be a boolean")
         for key, (low, high) in WALK_LIMITS.items():
             if key in arguments:
                 _finite(arguments[key], key)
