@@ -14,6 +14,14 @@ from .robot import RejectedBeforeAction, reject_unless
 PREFIX = "g1_"
 STATUS, OBSERVE, STEP = "g1_status", "g1_observe", "g1_step"
 FREE_SPACE_MOVE, EXECUTE_PLAN = "g1_free_space_move", "g1_execute_motion_plan"
+
+
+def unavailable_here():
+    """Tools that cannot run in this Python environment, so are not offered or listed: the arm planner needs torch
+    (cuRobo), and a plan can only come from it (it was listed and failed 'No module named torch' on every call in
+    three sessions)."""
+    import importlib.util
+    return set() if importlib.util.find_spec('torch') else {FREE_SPACE_MOVE, EXECUTE_PLAN}
 PIXEL_TO_POSITION, HOLD = "g1_pixel_to_position", "g1_hold"
 WALK = "g1_walk"
 HANDS_WALK = "g1_hands_walk"

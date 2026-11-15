@@ -20,6 +20,9 @@ def offered_tools(setup, backend_options=None):
             tools.add(tool)
         else:
             tools.discard(tool)
+    if any(name.startswith('g1_') for name in tools):          # what cannot run on this host is not listed either
+        from services.g1sonic.tools import unavailable_here
+        tools -= unavailable_here()
     return tuple(sorted(tools))
 
 

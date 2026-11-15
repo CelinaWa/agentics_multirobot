@@ -273,9 +273,7 @@ def backend(session, stack):
 def test_the_tools_match_the_robot_facts_and_refuse_unknown_arguments(backend):
     from services.workspace.setup import ROBOT_FACTS
     names = {tool['name'] for tool in backend.tools()}
-    import importlib.util          # the arm planner is offered only where torch (cuRobo) is installed
-    planner = set() if importlib.util.find_spec('torch') else {T.FREE_SPACE_MOVE}
-    assert names == set(ROBOT_FACTS['g1sonic']['tools']) - planner
+    assert names == set(ROBOT_FACTS['g1sonic']['tools']) - T.unavailable_here()    # the arm planner needs torch
     assert all(tool['inputSchema'].get('additionalProperties') is False for tool in backend.tools())
     with pytest.raises(ValueError, match='Unknown arguments'):
         backend.validate(T.STEP, {'actions': [frame(STANDING).tolist()], 'speed': 2})

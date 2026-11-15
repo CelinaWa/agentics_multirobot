@@ -224,12 +224,8 @@ class G1SonicBackend:
 
     # ----- tools ----------------------------------------------------------------------------
     def tools(self):
-        import importlib.util
         hidden = (set(self.options['hidden_tools']) | (set() if self.options['hands_walk'] else {T.HANDS_WALK})
-                  | (set() if self.options['planner_stream'] else {T.PLANNER})
-                  # the arm planner needs torch (cuRobo): not offered where it cannot run (it was listed and failed
-                  # 'No module named torch' on every call in three sessions)
-                  | (set() if importlib.util.find_spec('torch') else {T.FREE_SPACE_MOVE}))
+                  | (set() if self.options['planner_stream'] else {T.PLANNER}) | T.unavailable_here())
         return [t for t in T.tool_definitions(geometry=self.depth) if t['name'] not in hidden]
 
     def validate(self, name, arguments):
