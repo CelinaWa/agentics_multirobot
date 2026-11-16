@@ -48,6 +48,7 @@ def truth(q, layout, hands):
     return row
 
 
+ASSIGNED = dict(pair.split('=') for pair in os.environ['RAX_CAN_TASK_ROLES'].split(',')) if os.environ.get('RAX_CAN_TASK_ROLES') else None
 SEED = int(os.environ.get('RAX_SCENE_SEED', time.time()))
 RNG = random.Random(SEED)
 
@@ -109,6 +110,8 @@ def roles(samples):
             else:
                 dragged += step
     one_each = len(movers['bin']) == 1 and len(movers['can']) == 1 and movers['bin'] != movers['can']
+    if ASSIGNED:        # the task names which robot handles which object
+        one_each = one_each and movers['bin'] == {ASSIGNED['bin']} and movers['can'] == {ASSIGNED['can']}
     beside = None
     if samples and len(movers['can']) == 1:
         last, robot = samples[-1], next(iter(movers['can']))
@@ -131,7 +134,8 @@ def role_words(r):
             f" (pushed or dragged); it ended {r['bin_from_start_m']} m from its start"
             + (f" and {r['bin_to_can_robot_m']:.2f} m from the robot that handled the can." if r['bin_to_can_robot_m'] is not None else '.'))
     if not r['as_the_task_asks']:
-        missing = [what for ok, what in ((r['one_robot_each'], 'one robot on the bin and the other on the can'),
+        missing = [what for ok, what in ((r['one_robot_each'], (f"the {ASSIGNED['bin'].upper()} on the bin and the {ASSIGNED['can'].upper()} on the can"
+                                                                if ASSIGNED else 'one robot on the bin and the other on the can')),
                                          (r['bin_was_carried'], 'the bin carried, not pushed or dragged'),
                                          (r['bin_brought_to_the_can_robot'], 'the bin brought to the side of the robot with the can')) if not ok]
         text += ' Not as the task asks: ' + '; '.join(missing) + '.'
