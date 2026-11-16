@@ -17,7 +17,7 @@
       "g1_free_space_move",
       "g1_execute_motion_plan"
     ],
-    "reanchor_jump_deg": 2.0,
+    "reanchor_jump_deg": 0.0,
     "planner_stream": true
   },
   "r1": {

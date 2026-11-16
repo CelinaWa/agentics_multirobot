@@ -13,7 +13,7 @@
     "hidden_tools": [
       "g1_crouch"
     ],
-    "reanchor_jump_deg": 2.0
+    "reanchor_jump_deg": 0.0
   },
   "r1": {
     "stack_host": "127.0.0.1",
