@@ -288,7 +288,7 @@ def place_refusal(x, y, layout, other=None):
     robot's place. Anywhere else in the room is allowed (two sessions had every 'at the object' practice stance refused
     by a rule tying stances to the start places, and walked across the room for each try)."""
     import math
-    clear = 0.25
+    clear = float(os.environ.get('RAX_PLACE_CLEAR_M', 0.25))
     if not (-1.5 <= x <= layout.get('back_wall_x', 1e9) - clear and layout.get('curtain_y', -1e9) + clear <= y <= layout.get('left_wall_y', 1e9) - clear):
         return 'it is outside the room or against a wall'
     things = {k: v for k, v in layout.items() if isinstance(v, dict) and 'pos' in v and k not in ('box_start', 'can_start', 'bin_start', 'tv', 'goal')}
