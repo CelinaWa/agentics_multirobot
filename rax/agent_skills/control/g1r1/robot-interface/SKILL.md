@@ -40,7 +40,7 @@ both, go into this session's own `skill-library/`
 | `team_stop` | stop every running call where it is; each robot holds; the session stays armed |
 | `team_set_pose` | correct one robot's pose in the team frame from a measurement |
 
-A robot runs one call at a time. While it runs a started call, every other call for that robot is refused (`... is
+A robot runs one call at a time; calls for different robots run at the same time. While it runs a started call, every other call for that robot is refused (`... is
 running ...`); the other robot stays free. So there are three ways to use two robots:
 
 1. **One after the other.** Call `g1_*` and `r1_*` tools directly, as with one robot.

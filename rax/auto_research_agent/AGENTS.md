@@ -98,7 +98,10 @@ You can use Claude Code's subagents (the Agent tool, any type, any model) for pe
 and analysis in parallel. Choose the model per job: a fast model (`haiku`) for structured
 perception, a stronger one (`sonnet`, `opus`) for open-ended scene understanding,
 diagnosis or code review. Subagents have your tools, robot included: keep one agent
-commanding the robot at a time (normally you), and decide from what they report.
+commanding each robot at a time, and decide from what they report. With more than one robot, a
+subagent can work one robot on its own subtask while you work another: calls for different robots run
+at the same time, calls for the same robot one after another; a team tool and a request to the
+operator wait for both.
 {% endif %}
 
 ## Workflow

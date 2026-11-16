@@ -35,7 +35,7 @@ first plan.
 
 | Kind | Meaning | How to run it |
 |---|---|---|
-| **independent** | the subtasks touch different objects and different space | at the same time: `team_parallel`, or `team_start` and work with the other robot |
+| **independent** | the subtasks touch different objects and different space | at the same time: a subagent explores one robot's subtask while you explore the other's (calls for different robots run at the same time); or `team_parallel` / `team_start` for prepared calls |
 | **sequential** | one subtask leaves the scene the way the next needs it | one after the other, with the handover check between them |
 | **shared space** | different objects, but the robots' bodies or arms pass through the same space | one robot in that space at a time; the other parked clear of it and still |
 | **coupled** | both robots hold or load the same object at the same time | `coupled` groups, in short phases that start together, with a check after each |
@@ -43,7 +43,9 @@ first plan.
 ## 3. Explore each kind in its own way
 
 **Independent.** Both robots work from the start: while you practise one subtask with one robot, the other robot
-practises its own (`team_start` and carry on, or `team_parallel`). A robot that stands still is robot time not used;
+practises its own, driven by a subagent you brief with that subtask, its robot and the space it may use (or by
+`team_start` / `team_parallel` when the calls are already known). Agree who asks the operator for resets: a reset
+waits for both robots and puts both back. A robot that stands still is robot time not used;
 the reset reply's `robot_motion_min` shows how the time has been shared. If the counts drop when both work at once,
 the subtasks were not independent (a shared table that shakes, a shadow in the other camera, a body in the way).
 

@@ -194,3 +194,59 @@ def test_skill_library_merge_is_listed_with_a_clone_and_merges_through_mcp(tmp_p
         subprocess.run(['git', *args], cwd=workspace/'skill-library', check=True)
     reply = json.loads(f.call('skill_library_merge', {'message': 'add wave'})['content'][0]['text'])
     assert reply['merged'] is True and reply['skills'] == ['wave']
+
+
+def test_calls_for_different_robots_run_at_the_same_time_and_one_robot_one_at_a_time(tmp_path):
+    import time
+    from services.controller.frontend import Frontend, tool
+    from services.controller.session import Session
+
+    class Two:
+        """Two robots; every call takes 0.4 s and records when it ran."""
+        def __init__(self):
+            self.spans = []
+        def tools(self):
+            return [tool('a_move', 'move a'), tool('b_move', 'move b'), tool('team_move', 'move both')]
+        def all_lanes(self):
+            return ('a', 'b')
+        def lanes(self, name):
+            return ('a', 'b') if name.startswith('team_') else (name[0],)
+        def status(self):
+            return {}
+        def call(self, name, arguments):
+            started = time.monotonic(); time.sleep(0.4)
+            self.spans.append((name, started, time.monotonic()))
+            return {'done': name}, []
+        def close(self):
+            pass
+
+    backend = Two()
+    f = Frontend(Session(configuration(tmp_path)), backend)
+    path, stop = tmp_path/'mcp.sock', threading.Event()
+    with socket.socket(socket.AF_UNIX) as listener:
+        listener.bind(str(path)); listener.listen(16)
+        server = threading.Thread(target=f.serve_socket, args=(listener,), kwargs={'stop': stop}, daemon=True)
+        server.start()
+        try:
+            with socket.socket(socket.AF_UNIX) as client:
+                client.connect(str(path)); client.settimeout(10)
+                names = ['a_move', 'b_move', 'a_move', 'team_move']
+                started = time.monotonic()
+                for ident, name in enumerate(names):          # all four on the wire at once, as parallel tool calls are
+                    client.sendall(json.dumps({'jsonrpc': '2.0', 'id': ident, 'method': 'tools/call',
+                                               'params': {'name': name, 'arguments': {}}}).encode() + b'\n')
+                data = b''
+                while data.count(b'\n') < len(names):
+                    data += client.recv(65536)
+                took = time.monotonic() - started
+            replies = {r['id']: text(r['result']) for r in map(json.loads, data.splitlines())}
+            assert replies == {0: {'done': 'a_move'}, 1: {'done': 'b_move'}, 2: {'done': 'a_move'}, 3: {'done': 'team_move'}}
+            overlap = lambda x, y: x[1] < y[2] and y[1] < x[2]
+            a = [s for s in backend.spans if s[0] == 'a_move']; b = [s for s in backend.spans if s[0] == 'b_move']
+            team = [s for s in backend.spans if s[0] == 'team_move']
+            assert any(overlap(b[0], x) for x in a)                      # the two robots at the same time
+            assert not overlap(a[0], a[1])                              # one robot: one call after the other
+            assert not any(overlap(team[0], x) for x in a + b)          # a team call: alone
+            assert took < 1.5                                           # (1.6 s if they ran one at a time)
+        finally:
+            stop.set(); server.join(timeout=5); f.close()

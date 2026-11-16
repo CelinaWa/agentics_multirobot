@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path
 import selectors
+from contextlib import contextmanager
 import signal
 import socket
 import sys
@@ -108,7 +109,12 @@ class Frontend:
         self.timings = Timings()
         # Interlocks (arming, workspace limits, holds) belong to the backend itself; errors reach
         # the agent whole (services.controller.errors), never as a label such as "control uncertain".
-        self._dispatch = threading.Lock()
+        # One call at a time per lane. A backend with several robots names a lane per robot (`lanes(tool)`), so a call
+        # for one robot does not wait for a call for another (one service thread kept one of two robots still for
+        # most of every session); a tool that concerns them all, and a request to the operator, holds every lane.
+        self._lane_names = tuple(getattr(backend, 'all_lanes', lambda: ('robot',))())
+        self._lane_locks = {lane: threading.Lock() for lane in (*self._lane_names, 'harness')}
+        self.concurrent = len(self._lane_names) > 1
         self._backend_tools = {t['name']: t for t in backend.tools()}
         reserved = {'status', 'gemini_generate', 'request_operator', 'skill_library_merge'} & set(self._backend_tools)
         # The persistent skill library clone, when the launcher created one for this workspace.
@@ -150,11 +156,30 @@ class Frontend:
         value['budget'] = self.s.budget()
         return value, []
 
+    def _lanes(self, name):
+        if name == 'request_operator':
+            return self._lane_names                      # nothing moves while the operator works on the scene
+        if isinstance(name, str) and name in self._backend_tools:
+            lanes = getattr(self.backend, 'lanes', None)
+            return tuple(lanes(name)) if lanes else self._lane_names
+        return ('harness',)
+
+    @contextmanager
+    def _held(self, name):
+        locks = [self._lane_locks[lane] for lane in sorted(set(self._lanes(name)))]
+        for lock in locks:
+            lock.acquire()
+        try:
+            yield
+        finally:
+            for lock in reversed(locks):
+                lock.release()
+
     def call(self, name, arguments):
         """One tools/call; returns an MCP CallToolResult."""
         call_id = uuid.uuid4().hex
         failure = {'stage': 'request'}
-        with self._dispatch, self.timings.measure(name if isinstance(name, str) else 'invalid'):
+        with self._held(name), self.timings.measure(name if isinstance(name, str) else 'invalid'):
             try:
                 if not isinstance(arguments, dict):
                     raise ValueError('Arguments must be an object')
@@ -248,9 +273,21 @@ class Frontend:
         return self.handle(request)
 
     def serve_socket(self, listener, stop=None):
-        """Multiplex up to 16 clients; requests run one at a time on this thread."""
+        """Multiplex up to 16 clients. Requests run one at a time on this thread, except tool calls of a backend with
+        several lanes: each of those runs on a thread of its own and answers when it is done (the lanes keep one
+        call per robot at a time)."""
         listener.setblocking(False)
-        buffers = {}
+        buffers, sending = {}, {}
+
+        def answer(connection, line):
+            response = self._respond(line)
+            if response is None:
+                return
+            try:
+                with sending[connection]:
+                    connection.sendall(json.dumps(response, allow_nan=False).encode() + b'\n')
+            except (KeyError, OSError):
+                pass                                     # the client has gone
         with selectors.DefaultSelector() as poll:
             poll.register(listener, selectors.EVENT_READ)
             try:
@@ -271,8 +308,9 @@ class Frontend:
                             if len(buffers) >= 16:
                                 client.close()
                                 continue
-                            client.setblocking(False)
+                            client.settimeout(30)        # (read only when readable; answers may come from call threads)
                             buffers[client] = bytearray()
+                            sending[client] = threading.Lock()
                             poll.register(client, selectors.EVENT_READ)
                             continue
                         try:
@@ -286,14 +324,14 @@ class Frontend:
                             while b'\n' in pending:
                                 line, _, tail = pending.partition(b'\n')
                                 pending[:] = tail
-                                response = self._respond(line)
-                                if response is not None:
-                                    connection.settimeout(30)
-                                    connection.sendall(json.dumps(response, allow_nan=False).encode() + b'\n')
-                                    connection.setblocking(False)
+                                if self.concurrent and b'"tools/call"' in line:
+                                    threading.Thread(target=answer, args=(connection, bytes(line)), daemon=True).start()
+                                else:
+                                    answer(connection, line)
                         except (ConnectionError, OSError):
                             poll.unregister(connection)
                             buffers.pop(connection, None)
+                            sending.pop(connection, None)
                             connection.close()
             finally:
                 for client in buffers:

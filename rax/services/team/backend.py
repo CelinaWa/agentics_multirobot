@@ -192,6 +192,15 @@ class TeamBackend:
         self._validate_member(robot, name, arguments)
         self._check_separation({robot.name: robot.kind.base_motion(name, arguments)}, ())
 
+    def all_lanes(self):
+        return tuple(self.robots)
+
+    def lanes(self, name):
+        """The robots a tool call occupies (the service runs one call per robot at a time): a member's tool its robot,
+        every team tool all of them."""
+        robot = self._owner.get(name)
+        return (robot.name,) if robot is not None else tuple(self.robots)
+
     def call(self, name, arguments):
         if name == T.STATUS:
             return self.status(), []
