@@ -1,5 +1,5 @@
-Two robots, a Unitree G1 and a Unitree R1, are in an office. A can of Celsius drink stands on the office desk, and a
-trash bin stands on the floor elsewhere in the room.
+Two robots, a Unitree G1 and a Unitree R1, are in an office. A can of Celsius drink stands on the office desk, near
+its edge; where along the edge changes from reset to reset. A trash bin stands on the floor elsewhere in the room.
 
 ## The task
 

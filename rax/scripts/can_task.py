@@ -6,6 +6,8 @@ module adds what is particular: where the bin is, whether the can is inside it, 
 """
 import json
 import math
+import os
+import random
 import time
 
 CAN_HALF_HEIGHT = 0.078
@@ -46,8 +48,18 @@ def truth(q, layout, hands):
     return row
 
 
+SEED = int(os.environ.get('RAX_SCENE_SEED', time.time()))
+RNG = random.Random(SEED)
+
+
 def place(keys, layout, qpos_now, ctx, attempts=2):
     """The bin back at its start and the can back on the desk, upright; a note if either did not come to rest there."""
+    edge = layout.get('can_edge')
+    if edge:        # the can stands near the desk's edge, somewhere along it: a new place at every reset
+        spot = [edge['x'], round(RNG.uniform(*edge['y']), 3)]
+        layout['can_start']['pos'] = spot
+        layout['box_start']['pos'] = list(spot)
+        print(f"{time.strftime('%H:%M:%S')} [operator] the can goes to ({spot[0]}, {spot[1]}) on the desk's edge (seed {SEED})", flush=True)
     (bx, by), (cx, cy), cz = layout['bin_start']['pos'], layout['can_start']['pos'], layout['can_start']['z']
     a, note = layout['qpos'], None
     for name, pos in layout.get('parked', {}).items():

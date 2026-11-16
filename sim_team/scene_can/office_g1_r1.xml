@@ -736,7 +736,7 @@
       <geom name="bin_near" size="0.004 0.17 0.16" pos="-0.13 0 0.16" type="box" rgba="0.08 0.08 0.09 1" friction="0.8 0.01 0.001" mass="0.15"/>
       <geom name="bin_far" size="0.004 0.17 0.16" pos="0.13 0 0.16" type="box" rgba="0.08 0.08 0.09 1" friction="0.8 0.01 0.001" mass="0.15"/>
     </body>
-    <body name="can" pos="0.95 -0.22 0.839">
+    <body name="can" pos="0.8 -0.05 0.839">
       <joint name="can_free" type="free"/>
       <geom name="can_body" size="0.0285 0.078" type="cylinder" condim="4" friction="0.9 0.01 0.001" solref="0.01" rgba="0.95 0.95 0.93 1" mass="0.015"/>
       <geom name="can_band" size="0.0288 0.02" pos="0 0 0.01" type="cylinder" contype="0" conaffinity="0" rgba="0.95 0.45 0.1 1" mass="0"/>
