@@ -42,9 +42,10 @@ first plan.
 
 ## 3. Explore each kind in its own way
 
-**Independent.** Practise each subtask with the other robot parked. Then run them at the same time and compare the
-counts: a drop means they were not independent (a shared table that shakes, a shadow in the other camera, a body in
-the way).
+**Independent.** Both robots work from the start: while you practise one subtask with one robot, the other robot
+practises its own (`team_start` and carry on, or `team_parallel`). A robot that stands still is robot time not used;
+the reset reply's `robot_motion_min` shows how the time has been shared. If the counts drop when both work at once,
+the subtasks were not independent (a shared table that shakes, a shadow in the other camera, a body in the way).
 
 **Sequential.** While practising the first subtask, record what it ends in. Practise the second from those states,
 not from a tidy state you set up by hand. Write the handover check (the second subtask's "starts from", measured

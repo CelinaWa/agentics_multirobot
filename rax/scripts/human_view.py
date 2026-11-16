@@ -23,6 +23,8 @@ def observed(row, closer_than_before=None):
         out['state'] = {k: state[k] for k in ('reset', 'state_ok', 'robots_standing', 'warnings', 'robots_put_at') if k in state}
         progress = state.get('task_progress') or {}
         out['state']['task_progress'] = {k: progress.get(k) for k in ('attempts', 'attempts_since_it_improved')}
+        if 'robot_motion_min' in state:
+            out['state']['robot_motion_min'] = state['robot_motion_min']
         return out
     if 'box' not in row:
         return out

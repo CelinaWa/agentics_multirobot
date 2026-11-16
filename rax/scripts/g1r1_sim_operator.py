@@ -334,6 +334,31 @@ def r1_pose_asked(message, layout):
     return _pose_asked(R1_AT, 'r1', 'g1', message, layout)
 
 
+def motion_minutes(mcp_log):
+    """Minutes each robot has spent executing motion calls this session, from the call log: what a person beside them sees
+    (one session kept one robot still for 98 of 105 minutes without noticing)."""
+    started, total = {}, {'g1': 0.0, 'r1': 0.0}
+    quiet = ('status', 'observe', 'pixel_to_position')
+    try:
+        for line in Path(mcp_log).read_text().splitlines():
+            try:
+                row = json.loads(line)
+            except ValueError:
+                continue
+            tool, call = str(row.get('tool', '')), row.get('call_id')
+            robot = tool.split('_')[0]
+            if robot not in total or any(tool.endswith(q) for q in quiet):
+                continue
+            if row.get('event') == 'mcp_result':
+                if call in started:
+                    total[robot] += max(0.0, row.get('time', 0) - started.pop(call))
+            elif call is not None and 'time' in row:
+                started[call] = row['time']
+    except OSError:
+        pass
+    return {k: round(v / 60.0, 1) for k, v in total.items()}
+
+
 def box_aside(layout):
     """The place key that sets the box out of the robots' way: where the scene parks it if it has no part in the task
     (out of sight: a can-task session took the box parked behind the curtain for the bin), else beside the room."""
@@ -669,9 +694,10 @@ def main():
                         progress['best_m'] = round(float(start_goal), 2)      # the start: no progress yet
                     if reached is not None and progress['best_m'] is not None and reached < progress['best_m'] - 0.02:
                         progress.update(best_m=reached, best_attempt=resets, since_best=0)
-                    elif reached is not None or progress['best_attempt'] is not None:
-                        # (attempts before the object was ever carried do not count toward a stall: the measure has
-                        # nothing to say yet; a from-scratch session was told 'stalled' at its 8th reset, before any lift)
+                    elif (summary.get('in_air_s') or 0) >= 0.5 and (reached is not None or progress['best_attempt'] is not None):
+                        # only attempts in which the object left its support count toward a stall: a reset asked for to
+                        # practise a grip or to look says nothing about progress to the goal (13 of 26 'attempts without
+                        # improvement' in one session had no lift), nor do attempts before the first carry
                         progress['since_best'] += 1
                 if summary and REPLY != 'human':   # S30 read 6 of 37 reviews and labelled runs from the end position alone
                     before += (' The attempt in numbers (label it with these): '
@@ -710,11 +736,13 @@ def main():
                 if 'could not stand it up' in r1_stood:
                     report['warnings'].append('the R1 is down')
                 report['state_ok'] = bool(not report['warnings'] and report.get('robots_standing', True))
+                report['robot_motion_min'] = motion_minutes(a.session / 'mcp.jsonl')
                 said = report
                 if REPLY == 'human':     # the places the robots were put (as on floor marks), not measured poses
                     said = {'reset': resets, 'state_ok': report['state_ok'], 'robots_standing': report.get('robots_standing'),
                             'warnings': report['warnings'], 'robots_put_at': report.get('robots_asked'),
-                            'task_progress': {'attempts': progress['attempts'], 'attempts_since_it_improved': progress['since_best']}}
+                            'task_progress': {'attempts': progress['attempts'], 'attempts_since_it_improved': progress['since_best']},
+                            'robot_motion_min': report['robot_motion_min']}
                     report = {**report, 'robots_put_at': report.get('robots_asked')}
                 state_first = 'STATE ' + json.dumps(said, separators=(',', ':')) + ' '
                 if progress['since_best'] and progress['since_best'] % a.stall_attempts == 0:
@@ -771,7 +799,9 @@ def main():
             if len(recent) >= 2:
                 try:
                     (a.session / 'operator' / 'pace.json').write_text(
-                        json.dumps({'attempt_seconds': sorted(recent)[len(recent) // 2]}))
+                        # the shorter of the recent attempts: by the median (12 min in one session) an agent judged 'nothing
+                        # fits any more' and stopped with 36 robot minutes left
+                        json.dumps({'attempt_seconds': sorted(recent)[len(recent) // 4]}))
                 except OSError:
                     pass
             clock = robot_clock(a.session)
